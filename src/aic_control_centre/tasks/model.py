@@ -8,6 +8,10 @@ from uuid import uuid4
 
 
 TASK_STATUS_PENDING = "pending"
+TASK_STATUS_READY = "ready"
+TASK_STATUS_RUNNING = "running"
+TASK_STATUS_COMPLETED = "completed"
+TASK_STATUS_FAILED = "failed"
 
 
 def utc_now() -> str:
