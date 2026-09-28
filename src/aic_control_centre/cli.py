@@ -11,6 +11,11 @@ from aic_control_centre.goals.commands import (
     show_goal_status,
 )
 from aic_control_centre.projects.commands import add_project, list_projects
+from aic_control_centre.tasks.commands import (
+    create_task,
+    list_tasks,
+    show_task_status,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,6 +98,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Goal ID.",
     )
 
+    task_parser = subparsers.add_parser(
+        "task",
+        help="Create and manage tasks.",
+    )
+
+    task_subparsers = task_parser.add_subparsers(
+        dest="task_command",
+    )
+
+    task_create_parser = task_subparsers.add_parser(
+        "create",
+        help="Create a new task for a goal.",
+    )
+    task_create_parser.add_argument(
+        "--goal",
+        required=True,
+        help="Goal ID.",
+    )
+    task_create_parser.add_argument(
+        "title",
+        help="Task title.",
+    )
+
+    task_subparsers.add_parser(
+        "list",
+        help="List registered tasks.",
+    )
+
+    task_status_parser = task_subparsers.add_parser(
+        "status",
+        help="Show a task and its current status.",
+    )
+    task_status_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
     return parser
 
 
@@ -128,6 +170,22 @@ def main() -> int:
             return show_goal_status(args.goal_id)
 
         parser.parse_args(["goal", "--help"])
+        return 0
+
+    if args.command == "task":
+        if args.task_command == "create":
+            return create_task(
+                goal_id=args.goal,
+                title=args.title,
+            )
+
+        if args.task_command == "list":
+            return list_tasks()
+
+        if args.task_command == "status":
+            return show_task_status(args.task_id)
+
+        parser.parse_args(["task", "--help"])
         return 0
 
     return 0
