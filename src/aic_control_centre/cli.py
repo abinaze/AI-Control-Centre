@@ -5,6 +5,11 @@ from __future__ import annotations
 import argparse
 
 from aic_control_centre.doctor import run_doctor
+from aic_control_centre.goals.commands import (
+    create_goal,
+    list_goals,
+    show_goal_status,
+)
 from aic_control_centre.projects.commands import add_project, list_projects
 
 
@@ -51,6 +56,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="List registered projects.",
     )
 
+    goal_parser = subparsers.add_parser(
+        "goal",
+        help="Create and manage high-level goals.",
+    )
+
+    goal_subparsers = goal_parser.add_subparsers(
+        dest="goal_command",
+    )
+
+    goal_create_parser = goal_subparsers.add_parser(
+        "create",
+        help="Create a new goal.",
+    )
+    goal_create_parser.add_argument(
+        "description",
+        help="Goal description.",
+    )
+    goal_create_parser.add_argument(
+        "--project",
+        required=True,
+        help="Registered project name.",
+    )
+
+    goal_subparsers.add_parser(
+        "list",
+        help="List registered goals.",
+    )
+
+    goal_status_parser = goal_subparsers.add_parser(
+        "status",
+        help="Show a goal and its current status.",
+    )
+    goal_status_parser.add_argument(
+        "goal_id",
+        help="Goal ID.",
+    )
+
     return parser
 
 
@@ -70,6 +112,22 @@ def main() -> int:
             return list_projects()
 
         parser.parse_args(["project", "--help"])
+        return 0
+
+    if args.command == "goal":
+        if args.goal_command == "create":
+            return create_goal(
+                description=args.description,
+                project=args.project,
+            )
+
+        if args.goal_command == "list":
+            return list_goals()
+
+        if args.goal_command == "status":
+            return show_goal_status(args.goal_id)
+
+        parser.parse_args(["goal", "--help"])
         return 0
 
     return 0
