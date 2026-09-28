@@ -33,6 +33,11 @@ classifiers = [
     "Topic :: Software Development :: Testing"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+]
+
 [project.urls]
 Homepage = "https://github.com/abinaze/AI-Control-Centre"
 Repository = "https://github.com/abinaze/AI-Control-Centre"
