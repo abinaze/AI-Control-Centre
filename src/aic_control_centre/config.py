@@ -14,6 +14,7 @@ class AppConfig:
     data_dir: Path
     projects_file: Path
     goals_file: Path
+    tasks_file: Path
     state_dir: Path
     default_model_provider: str
 
@@ -49,6 +50,7 @@ def load_config() -> AppConfig:
         data_dir=data_dir,
         projects_file=data_dir / "projects.json",
         goals_file=data_dir / "goals.json",
+        tasks_file=data_dir / "tasks.json",
         state_dir=data_dir / "state",
         default_model_provider=model_provider,
     )
