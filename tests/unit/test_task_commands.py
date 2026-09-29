@@ -1,6 +1,11 @@
 """Tests for task CLI commands."""
 
-from aic_control_centre.goals.model import Goal
+from aic_control_centre.goals.model import (
+    GOAL_STATUS_COMPLETED,
+    GOAL_STATUS_FAILED,
+    GOAL_STATUS_IN_PROGRESS,
+    Goal,
+)
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.tasks.commands import (
     complete_task,
@@ -11,6 +16,7 @@ from aic_control_centre.tasks.commands import (
     show_task_status,
     start_task,
 )
+from aic_control_centre.tasks.model import Task
 from aic_control_centre.tasks.registry import TaskRegistry
 
 
@@ -58,6 +64,39 @@ def test_create_task_persists_task(
     assert len(tasks) == 1
     assert tasks[0].goal_id == goal.id
     assert tasks[0].title == "Audit authentication"
+
+
+def test_create_task_reconciles_goal_status(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Creating a task moves its goal into progress."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+    goal = Goal.create(
+        description="Improve Aircursor security",
+        project="Aircursor",
+    )
+    goal_registry.add_goal(goal)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    assert create_task(goal.id, "Audit authentication") == 0
+    capsys.readouterr()
+
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_IN_PROGRESS
+    )
 
 
 def test_create_task_rejects_unknown_goal(
@@ -164,8 +203,6 @@ def test_show_task_status(
     task_path = tmp_path / "tasks.json"
     registry = TaskRegistry(task_path)
 
-    from aic_control_centre.tasks.model import Task
-
     task = Task.create(
         goal_id="goal-123",
         title="Check task status",
@@ -214,17 +251,27 @@ def test_task_lifecycle_commands(
     capsys,
 ) -> None:
     """Lifecycle commands move a task through the valid states."""
+    goal_path = tmp_path / "goals.json"
     task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+    goal = Goal.create(
+        description="Lifecycle goal",
+        project="TestProject",
+    )
+    goal_registry.add_goal(goal)
+
     registry = TaskRegistry(task_path)
-
-    from aic_control_centre.tasks.model import Task
-
     task = Task.create(
-        goal_id="goal-123",
+        goal_id=goal.id,
         title="Lifecycle task",
     )
     registry.add_task(task)
 
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
     monkeypatch.setattr(
         "aic_control_centre.tasks.commands.TaskRegistry",
         lambda: TaskRegistry(task_path),
@@ -243,6 +290,9 @@ def test_task_lifecycle_commands(
     assert "Task status updated." in output
     assert "Status: completed" in output
     assert TaskRegistry(task_path).get_task(task.id).status == "completed"
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_COMPLETED
+    )
 
 
 def test_task_fail_command(
@@ -251,17 +301,27 @@ def test_task_fail_command(
     capsys,
 ) -> None:
     """The fail command moves a running task to failed."""
+    goal_path = tmp_path / "goals.json"
     task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+    goal = Goal.create(
+        description="Failing goal",
+        project="TestProject",
+    )
+    goal_registry.add_goal(goal)
+
     registry = TaskRegistry(task_path)
-
-    from aic_control_centre.tasks.model import Task
-
     task = Task.create(
-        goal_id="goal-123",
+        goal_id=goal.id,
         title="Failing task",
     )
     registry.add_task(task)
 
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
     monkeypatch.setattr(
         "aic_control_centre.tasks.commands.TaskRegistry",
         lambda: TaskRegistry(task_path),
@@ -279,6 +339,72 @@ def test_task_fail_command(
 
     assert "Status: failed" in output
     assert TaskRegistry(task_path).get_task(task.id).status == "failed"
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == GOAL_STATUS_FAILED
+
+
+def test_multiple_tasks_keep_goal_in_progress_until_all_complete(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A goal remains in progress until every task is completed."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+    goal = Goal.create(
+        description="Multiple tasks",
+        project="TestProject",
+    )
+    goal_registry.add_goal(goal)
+
+    registry = TaskRegistry(task_path)
+
+    first = Task.create(
+        goal_id=goal.id,
+        title="First task",
+    )
+    second = Task.create(
+        goal_id=goal.id,
+        title="Second task",
+    )
+    registry.add_task(first)
+    registry.add_task(second)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    assert mark_task_ready(first.id) == 0
+    capsys.readouterr()
+
+    assert start_task(first.id) == 0
+    capsys.readouterr()
+
+    assert complete_task(first.id) == 0
+    capsys.readouterr()
+
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_IN_PROGRESS
+    )
+
+    assert mark_task_ready(second.id) == 0
+    capsys.readouterr()
+
+    assert start_task(second.id) == 0
+    capsys.readouterr()
+
+    assert complete_task(second.id) == 0
+    capsys.readouterr()
+
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_COMPLETED
+    )
 
 
 def test_task_lifecycle_command_rejects_invalid_transition(
@@ -289,8 +415,6 @@ def test_task_lifecycle_command_rejects_invalid_transition(
     """Lifecycle commands report invalid transitions."""
     task_path = tmp_path / "tasks.json"
     registry = TaskRegistry(task_path)
-
-    from aic_control_centre.tasks.model import Task
 
     task = Task.create(
         goal_id="goal-123",

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
+from aic_control_centre.tasks.registry import TaskRegistry
 
 
 def create_goal(description: str, project: str) -> int:
@@ -57,11 +59,15 @@ def list_goals() -> int:
 
 def show_goal_status(goal_id: str) -> int:
     """Show the status and details of a goal."""
-    registry = GoalRegistry()
-    goal = registry.get_goal(goal_id)
+    orchestrator = GoalTaskOrchestrator(
+        goal_registry=GoalRegistry(),
+        task_registry=TaskRegistry(),
+    )
 
-    if goal is None:
-        print(f"Error: goal not found: {goal_id}")
+    try:
+        goal = orchestrator.reconcile_goal(goal_id)
+    except ValueError as exc:
+        print(f"Error: {exc}")
         return 1
 
     print(f"Goal: {goal.id}")

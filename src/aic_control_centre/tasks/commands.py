@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -37,6 +38,11 @@ def create_task(goal_id: str, title: str) -> int:
     )
 
     registry.add_task(task)
+
+    GoalTaskOrchestrator(
+        goal_registry=GoalRegistry(),
+        task_registry=registry,
+    ).reconcile_goal(goal.id)
 
     print("Task created.")
     print(f"ID: {task.id}")
@@ -106,6 +112,11 @@ def transition_task_status(task_id: str, new_status: str) -> int:
     except ValueError as exc:
         print(f"Error: {exc}")
         return 1
+
+    GoalTaskOrchestrator(
+        goal_registry=GoalRegistry(),
+        task_registry=registry,
+    ).reconcile_goal(task.goal_id)
 
     print("Task status updated.")
     print(f"ID: {task.id}")

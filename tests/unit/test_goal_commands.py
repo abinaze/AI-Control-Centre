@@ -5,7 +5,14 @@ from aic_control_centre.goals.commands import (
     list_goals,
     show_goal_status,
 )
+from aic_control_centre.goals.model import (
+    GOAL_STATUS_COMPLETED,
+    GOAL_STATUS_IN_PROGRESS,
+    Goal,
+)
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.tasks.model import TASK_STATUS_COMPLETED, Task
+from aic_control_centre.tasks.registry import TaskRegistry
 
 
 def test_create_goal_persists_goal(tmp_path, monkeypatch, capsys) -> None:
@@ -111,22 +118,38 @@ def test_list_goals_when_empty(capsys, tmp_path, monkeypatch) -> None:
     assert "No goals registered." in capsys.readouterr().out
 
 
-def test_show_goal_status(tmp_path, monkeypatch, capsys) -> None:
-    """Showing a goal displays its status and details."""
-    registry_path = tmp_path / "goals.json"
-    registry = GoalRegistry(registry_path)
+def test_show_goal_status_reconciles_tasks(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Showing a goal reconciles its status from persisted tasks."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
 
-    from aic_control_centre.goals.model import Goal
+    goal_registry = GoalRegistry(goal_path)
+    task_registry = TaskRegistry(task_path)
 
     goal = Goal.create(
         description="Check goal status",
         project="TestProject",
     )
-    registry.add_goal(goal)
+    goal_registry.add_goal(goal)
+
+    task_registry.add_task(
+        Task.create(
+            goal_id=goal.id,
+            title="First task",
+        )
+    )
 
     monkeypatch.setattr(
         "aic_control_centre.goals.commands.GoalRegistry",
-        lambda: GoalRegistry(registry_path),
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
     )
 
     result = show_goal_status(goal.id)
@@ -137,8 +160,60 @@ def test_show_goal_status(tmp_path, monkeypatch, capsys) -> None:
 
     assert f"Goal: {goal.id}" in output
     assert "Project: TestProject" in output
-    assert "Status: pending" in output
+    assert f"Status: {GOAL_STATUS_IN_PROGRESS}" in output
     assert "Description: Check goal status" in output
+
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_IN_PROGRESS
+    )
+
+
+def test_show_goal_status_completed(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Showing a goal reports completed when all tasks are completed."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+    task_registry = TaskRegistry(task_path)
+
+    goal = Goal.create(
+        description="Completed goal",
+        project="TestProject",
+    )
+    goal_registry.add_goal(goal)
+
+    task = Task.create(
+        goal_id=goal.id,
+        title="Completed task",
+    )
+    completed = Task(
+        id=task.id,
+        goal_id=task.goal_id,
+        title=task.title,
+        description=task.description,
+        status=TASK_STATUS_COMPLETED,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
+    task_registry.add_task(completed)
+
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = show_goal_status(goal.id)
+
+    assert result == 0
+    assert f"Status: {GOAL_STATUS_COMPLETED}" in capsys.readouterr().out
 
 
 def test_show_goal_status_unknown_goal(tmp_path, monkeypatch, capsys) -> None:
@@ -153,4 +228,4 @@ def test_show_goal_status_unknown_goal(tmp_path, monkeypatch, capsys) -> None:
     result = show_goal_status("missing-goal")
 
     assert result == 1
-    assert "goal not found: missing-goal" in capsys.readouterr().out
+    assert "Goal not found: missing-goal" in capsys.readouterr().out
