@@ -2,7 +2,11 @@
 
 import json
 
-from aic_control_centre.tasks.model import Task
+from aic_control_centre.tasks.model import (
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_READY,
+    Task,
+)
 from aic_control_centre.tasks.registry import TaskRegistry
 
 
@@ -72,3 +76,70 @@ def test_registry_writes_json(tmp_path) -> None:
     assert data[0]["goal_id"] == task.goal_id
     assert data[0]["title"] == task.title
     assert data[0]["status"] == task.status
+
+
+def test_registry_updates_task_status(tmp_path) -> None:
+    """A valid task status transition is persisted."""
+    registry_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(registry_path)
+
+    task = Task.create(
+        goal_id="goal-123",
+        title="Run security audit",
+    )
+
+    registry.add_task(task)
+
+    updated = registry.update_task_status(
+        task.id,
+        TASK_STATUS_READY,
+    )
+
+    assert updated.id == task.id
+    assert updated.status == TASK_STATUS_READY
+    assert updated.goal_id == task.goal_id
+    assert updated.title == task.title
+    assert updated.description == task.description
+    assert updated.created_at == task.created_at
+    assert updated.updated_at != task.updated_at
+
+    new_registry = TaskRegistry(registry_path)
+
+    assert new_registry.get_task(task.id) == updated
+
+
+def test_registry_rejects_unknown_task_status_update(tmp_path) -> None:
+    """Updating an unknown task raises a clear error."""
+    registry = TaskRegistry(tmp_path / "tasks.json")
+
+    try:
+        registry.update_task_status("does-not-exist", TASK_STATUS_READY)
+    except ValueError as exc:
+        assert str(exc) == "Task not found: does-not-exist"
+    else:
+        raise AssertionError("Expected ValueError for unknown task")
+
+
+def test_registry_rejects_invalid_status_transition(tmp_path) -> None:
+    """Invalid task status transitions are rejected."""
+    registry = TaskRegistry(tmp_path / "tasks.json")
+
+    task = Task.create(
+        goal_id="goal-123",
+        title="Run security audit",
+    )
+
+    registry.add_task(task)
+
+    try:
+        registry.update_task_status(
+            task.id,
+            TASK_STATUS_COMPLETED,
+        )
+    except ValueError as exc:
+        assert (
+            str(exc)
+            == "Invalid task status transition: pending -> completed"
+        )
+    else:
+        raise AssertionError("Expected ValueError for invalid transition")

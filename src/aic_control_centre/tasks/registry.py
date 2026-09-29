@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 
 from aic_control_centre.config import load_config
-from aic_control_centre.tasks.model import Task
+from aic_control_centre.tasks.model import (
+    Task,
+    can_transition,
+    utc_now,
+)
 
 
 class TaskRegistry:
@@ -82,3 +86,34 @@ class TaskRegistry:
         self._save(tasks)
 
         return task
+
+    def update_task_status(self, task_id: str, new_status: str) -> Task:
+        """Update and persist a task status when the transition is valid."""
+        tasks = self._load()
+
+        for index, task in enumerate(tasks):
+            if task.id != task_id:
+                continue
+
+            if not can_transition(task.status, new_status):
+                raise ValueError(
+                    f"Invalid task status transition: "
+                    f"{task.status} -> {new_status}"
+                )
+
+            updated_task = Task(
+                id=task.id,
+                goal_id=task.goal_id,
+                title=task.title,
+                description=task.description,
+                status=new_status,
+                created_at=task.created_at,
+                updated_at=utc_now(),
+            )
+
+            tasks[index] = updated_task
+            self._save(tasks)
+
+            return updated_task
+
+        raise ValueError(f"Task not found: {task_id}")
