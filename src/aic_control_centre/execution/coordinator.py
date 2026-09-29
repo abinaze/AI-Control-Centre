@@ -30,12 +30,12 @@ class ExecutionCoordinator:
         request: ExecutionRequest,
     ) -> ExecutionOutcomeResult | ExecutionStartResult:
         """Coordinate one execution request through its lifecycle."""
+        adapter = self.adapter_registry.resolve(request.target)
+
         start_result = self.starter.start(request)
 
         if not start_result.started:
             return start_result
-
-        adapter = self.adapter_registry.resolve(request.target)
         outcome = adapter.execute(request)
 
         return self.outcome_recorder.record(

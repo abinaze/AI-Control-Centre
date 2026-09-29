@@ -284,16 +284,19 @@ def test_coordinator_does_not_directly_change_outcome(tmp_path) -> None:
     assert result.reason == "adapter declared completion"
 
 
-def test_coordinator_rejects_unknown_execution_target(tmp_path) -> None:
-    """An unknown execution target cannot reach an adapter."""
+def test_coordinator_rejects_unknown_execution_target_without_starting(
+    tmp_path,
+) -> None:
+    """An unknown target is rejected before the task enters running."""
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
-    class FailingAdapter:
-        def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
-            raise AssertionError("adapter must not execute unknown target")
-
     registry = ExecutionAdapterRegistry()
-    registry.register("test", FailingAdapter())
+    registry.register(
+        "test",
+        FakeExecutionAdapter(
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+        ),
+    )
 
     coordinator = ExecutionCoordinator(
         adapter_registry=registry,
@@ -317,9 +320,18 @@ def test_coordinator_rejects_unknown_execution_target(tmp_path) -> None:
         target="missing",
     )
 
+    before = task_registry.get_task(task.id)
+    assert before is not None
+    assert before.status == TASK_STATUS_READY
+
     try:
         coordinator.coordinate(request)
     except KeyError as exc:
         assert str(exc) == "'unknown execution target'"
     else:
         raise AssertionError("unknown execution target must be rejected")
+
+    after = task_registry.get_task(task.id)
+    assert after is not None
+    assert after.status == TASK_STATUS_READY
+    assert after.updated_at == before.updated_at
