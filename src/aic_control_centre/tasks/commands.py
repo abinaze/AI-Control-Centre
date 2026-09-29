@@ -12,6 +12,7 @@ from aic_control_centre.tasks.model import (
     Task,
 )
 from aic_control_centre.tasks.registry import TaskRegistry
+from aic_control_centre.validation.goal_tasks import validate_task_creation
 
 
 def create_task(goal_id: str, title: str) -> int:
@@ -28,6 +29,12 @@ def create_task(goal_id: str, title: str) -> int:
 
     if goal is None:
         print(f"Error: goal not found: {goal_id}")
+        return 1
+
+    creation_error = validate_task_creation(goal)
+
+    if creation_error is not None:
+        print(f"Error: {creation_error}")
         return 1
 
     registry = TaskRegistry()

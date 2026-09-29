@@ -35,3 +35,12 @@ def test_task_lifecycle_commands_are_registered():
         assert args.command == "task"
         assert args.task_command == command
         assert args.task_id == "task-123"
+
+
+def test_validate_command_is_registered():
+    """The validate command is available in the CLI parser."""
+    parser = build_parser()
+
+    args = parser.parse_args(["validate"])
+
+    assert args.command == "validate"

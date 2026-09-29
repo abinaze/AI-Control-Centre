@@ -473,3 +473,97 @@ def test_task_lifecycle_command_rejects_empty_task_id(
 
     assert result == 1
     assert "task ID cannot be empty" in capsys.readouterr().out
+
+
+def test_create_task_rejects_completed_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Creating a task for a completed goal is rejected."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+
+    goal = Goal.create(
+        description="Completed goal",
+        project="TestProject",
+    )
+    completed_goal = Goal(
+        id=goal.id,
+        description=goal.description,
+        project=goal.project,
+        status=GOAL_STATUS_COMPLETED,
+        created_at=goal.created_at,
+        updated_at=goal.updated_at,
+    )
+    goal_registry.add_goal(completed_goal)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = create_task(
+        goal_id=goal.id,
+        title="Should not be created",
+    )
+
+    assert result == 1
+    assert (
+        f"Cannot create task for completed goal: {goal.id}"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).list_tasks() == []
+
+
+def test_create_task_rejects_failed_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Creating a task for a failed goal is rejected."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+
+    goal_registry = GoalRegistry(goal_path)
+
+    goal = Goal.create(
+        description="Failed goal",
+        project="TestProject",
+    )
+    failed_goal = Goal(
+        id=goal.id,
+        description=goal.description,
+        project=goal.project,
+        status=GOAL_STATUS_FAILED,
+        created_at=goal.created_at,
+        updated_at=goal.updated_at,
+    )
+    goal_registry.add_goal(failed_goal)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = create_task(
+        goal_id=goal.id,
+        title="Should not be created",
+    )
+
+    assert result == 1
+    assert (
+        f"Cannot create task for failed goal: {goal.id}"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).list_tasks() == []

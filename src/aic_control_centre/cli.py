@@ -20,6 +20,7 @@ from aic_control_centre.tasks.commands import (
     show_task_status,
     start_task,
 )
+from aic_control_centre.validation.goal_tasks import GoalTaskValidator
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "doctor",
         help="Check the local AI-Control-Centre environment.",
+    )
+
+    subparsers.add_parser(
+        "validate",
+        help="Validate persisted goal and task state.",
     )
 
     project_parser = subparsers.add_parser(
@@ -185,6 +191,20 @@ def main() -> int:
 
     if args.command == "doctor":
         return run_doctor()
+
+    if args.command == "validate":
+        result = GoalTaskValidator().validate()
+
+        if result.valid:
+            print("Validation passed.")
+            return 0
+
+        print("Validation failed.")
+
+        for error in result.errors:
+            print(f"- {error}")
+
+        return 1
 
     if args.command == "project":
         if args.project_command == "add":
