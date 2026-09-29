@@ -3,9 +3,13 @@
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.tasks.commands import (
+    complete_task,
     create_task,
+    fail_task,
     list_tasks,
+    mark_task_ready,
     show_task_status,
+    start_task,
 )
 from aic_control_centre.tasks.registry import TaskRegistry
 
@@ -202,3 +206,146 @@ def test_show_task_status_unknown_task(
 
     assert result == 1
     assert "task not found: missing-task" in capsys.readouterr().out
+
+
+def test_task_lifecycle_commands(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Lifecycle commands move a task through the valid states."""
+    task_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(task_path)
+
+    from aic_control_centre.tasks.model import Task
+
+    task = Task.create(
+        goal_id="goal-123",
+        title="Lifecycle task",
+    )
+    registry.add_task(task)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    assert mark_task_ready(task.id) == 0
+    capsys.readouterr()
+
+    assert start_task(task.id) == 0
+    capsys.readouterr()
+
+    assert complete_task(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert "Task status updated." in output
+    assert "Status: completed" in output
+    assert TaskRegistry(task_path).get_task(task.id).status == "completed"
+
+
+def test_task_fail_command(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """The fail command moves a running task to failed."""
+    task_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(task_path)
+
+    from aic_control_centre.tasks.model import Task
+
+    task = Task.create(
+        goal_id="goal-123",
+        title="Failing task",
+    )
+    registry.add_task(task)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    assert mark_task_ready(task.id) == 0
+    capsys.readouterr()
+
+    assert start_task(task.id) == 0
+    capsys.readouterr()
+
+    assert fail_task(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert "Status: failed" in output
+    assert TaskRegistry(task_path).get_task(task.id).status == "failed"
+
+
+def test_task_lifecycle_command_rejects_invalid_transition(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Lifecycle commands report invalid transitions."""
+    task_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(task_path)
+
+    from aic_control_centre.tasks.model import Task
+
+    task = Task.create(
+        goal_id="goal-123",
+        title="Invalid transition task",
+    )
+    registry.add_task(task)
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = complete_task(task.id)
+
+    assert result == 1
+
+    output = capsys.readouterr().out
+
+    assert "Invalid task status transition: pending -> completed" in output
+    assert TaskRegistry(task_path).get_task(task.id).status == "pending"
+
+
+def test_task_lifecycle_command_rejects_unknown_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Lifecycle commands report unknown task IDs."""
+    task_path = tmp_path / "tasks.json"
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = mark_task_ready("missing-task")
+
+    assert result == 1
+    assert "Task not found: missing-task" in capsys.readouterr().out
+
+
+def test_task_lifecycle_command_rejects_empty_task_id(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Lifecycle commands reject empty task IDs."""
+    task_path = tmp_path / "tasks.json"
+
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+    result = start_task("   ")
+
+    assert result == 1
+    assert "task ID cannot be empty" in capsys.readouterr().out

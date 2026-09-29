@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from aic_control_centre.goals.registry import GoalRegistry
-from aic_control_centre.tasks.model import Task
+from aic_control_centre.tasks.model import (
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_READY,
+    TASK_STATUS_RUNNING,
+    Task,
+)
 from aic_control_centre.tasks.registry import TaskRegistry
 
 
@@ -82,3 +88,59 @@ def show_task_status(task_id: str) -> int:
     print(f"Updated: {task.updated_at}")
 
     return 0
+
+
+def transition_task_status(task_id: str, new_status: str) -> int:
+    """Transition a task to a requested lifecycle status."""
+    if not task_id.strip():
+        print("Error: task ID cannot be empty.")
+        return 1
+
+    registry = TaskRegistry()
+
+    try:
+        task = registry.update_task_status(
+            task_id=task_id.strip(),
+            new_status=new_status,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print("Task status updated.")
+    print(f"ID: {task.id}")
+    print(f"Status: {task.status}")
+
+    return 0
+
+
+def mark_task_ready(task_id: str) -> int:
+    """Move a pending task to the ready state."""
+    return transition_task_status(
+        task_id=task_id,
+        new_status=TASK_STATUS_READY,
+    )
+
+
+def start_task(task_id: str) -> int:
+    """Move a ready task to the running state."""
+    return transition_task_status(
+        task_id=task_id,
+        new_status=TASK_STATUS_RUNNING,
+    )
+
+
+def complete_task(task_id: str) -> int:
+    """Move a running task to the completed state."""
+    return transition_task_status(
+        task_id=task_id,
+        new_status=TASK_STATUS_COMPLETED,
+    )
+
+
+def fail_task(task_id: str) -> int:
+    """Move a running task to the failed state."""
+    return transition_task_status(
+        task_id=task_id,
+        new_status=TASK_STATUS_FAILED,
+    )

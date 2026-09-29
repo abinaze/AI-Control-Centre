@@ -12,9 +12,13 @@ from aic_control_centre.goals.commands import (
 )
 from aic_control_centre.projects.commands import add_project, list_projects
 from aic_control_centre.tasks.commands import (
+    complete_task,
     create_task,
+    fail_task,
     list_tasks,
+    mark_task_ready,
     show_task_status,
+    start_task,
 )
 
 
@@ -135,6 +139,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Task ID.",
     )
 
+    task_ready_parser = task_subparsers.add_parser(
+        "ready",
+        help="Move a pending task to ready.",
+    )
+    task_ready_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
+    task_start_parser = task_subparsers.add_parser(
+        "start",
+        help="Move a ready task to running.",
+    )
+    task_start_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
+    task_complete_parser = task_subparsers.add_parser(
+        "complete",
+        help="Mark a running task as completed.",
+    )
+    task_complete_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
+    task_fail_parser = task_subparsers.add_parser(
+        "fail",
+        help="Mark a running task as failed.",
+    )
+    task_fail_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
     return parser
 
 
@@ -184,6 +224,18 @@ def main() -> int:
 
         if args.task_command == "status":
             return show_task_status(args.task_id)
+
+        if args.task_command == "ready":
+            return mark_task_ready(args.task_id)
+
+        if args.task_command == "start":
+            return start_task(args.task_id)
+
+        if args.task_command == "complete":
+            return complete_task(args.task_id)
+
+        if args.task_command == "fail":
+            return fail_task(args.task_id)
 
         parser.parse_args(["task", "--help"])
         return 0
