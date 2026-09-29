@@ -80,3 +80,18 @@ class GoalRegistry:
         self._save(goals)
 
         return goal
+
+    def update_goal(self, goal: Goal) -> Goal:
+        """Replace and persist an existing goal."""
+        goals = self._load()
+
+        for index, existing in enumerate(goals):
+            if existing.id != goal.id:
+                continue
+
+            goals[index] = goal
+            self._save(goals)
+
+            return goal
+
+        raise ValueError(f"Goal not found: {goal.id}")

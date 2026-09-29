@@ -74,6 +74,14 @@ class TaskRegistry:
 
         return None
 
+    def list_tasks_for_goal(self, goal_id: str) -> list[Task]:
+        """Return all tasks belonging to a goal."""
+        return [
+            task
+            for task in self._load()
+            if task.goal_id == goal_id
+        ]
+
     def add_task(self, task: Task) -> Task:
         """Persist a task."""
         tasks = self._load()

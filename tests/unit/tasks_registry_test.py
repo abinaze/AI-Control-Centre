@@ -143,3 +143,29 @@ def test_registry_rejects_invalid_status_transition(tmp_path) -> None:
         )
     else:
         raise AssertionError("Expected ValueError for invalid transition")
+
+
+def test_registry_lists_tasks_for_goal(tmp_path) -> None:
+    """The registry returns only tasks belonging to the requested goal."""
+    registry = TaskRegistry(tmp_path / "tasks.json")
+
+    first = Task.create(
+        goal_id="goal-123",
+        title="First task",
+    )
+    second = Task.create(
+        goal_id="goal-456",
+        title="Second task",
+    )
+    third = Task.create(
+        goal_id="goal-123",
+        title="Third task",
+    )
+
+    registry.add_task(first)
+    registry.add_task(second)
+    registry.add_task(third)
+
+    assert registry.list_tasks_for_goal("goal-123") == [first, third]
+    assert registry.list_tasks_for_goal("goal-456") == [second]
+    assert registry.list_tasks_for_goal("missing-goal") == []

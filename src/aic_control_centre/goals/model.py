@@ -8,6 +8,9 @@ from uuid import uuid4
 
 
 GOAL_STATUS_PENDING = "pending"
+GOAL_STATUS_IN_PROGRESS = "in_progress"
+GOAL_STATUS_COMPLETED = "completed"
+GOAL_STATUS_FAILED = "failed"
 
 
 def utc_now() -> str:

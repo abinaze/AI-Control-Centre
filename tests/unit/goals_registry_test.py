@@ -72,3 +72,46 @@ def test_registry_writes_json(tmp_path) -> None:
     assert data[0]["description"] == goal.description
     assert data[0]["project"] == goal.project
     assert data[0]["status"] == goal.status
+
+
+def test_registry_updates_goal(tmp_path) -> None:
+    """A goal update is persisted by its ID."""
+    registry_path = tmp_path / "goals.json"
+    registry = GoalRegistry(registry_path)
+
+    goal = Goal.create(
+        description="Original goal",
+        project="TestProject",
+    )
+    registry.add_goal(goal)
+
+    updated = Goal(
+        id=goal.id,
+        description="Updated goal",
+        project=goal.project,
+        status="in_progress",
+        created_at=goal.created_at,
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = registry.update_goal(updated)
+
+    assert result == updated
+    assert GoalRegistry(registry_path).get_goal(goal.id) == updated
+
+
+def test_registry_rejects_unknown_goal_update(tmp_path) -> None:
+    """Updating an unknown goal raises a clear error."""
+    registry = GoalRegistry(tmp_path / "goals.json")
+
+    goal = Goal.create(
+        description="Unknown goal",
+        project="TestProject",
+    )
+
+    try:
+        registry.update_goal(goal)
+    except ValueError as exc:
+        assert str(exc) == f"Goal not found: {goal.id}"
+    else:
+        raise AssertionError("Expected ValueError for unknown goal")
