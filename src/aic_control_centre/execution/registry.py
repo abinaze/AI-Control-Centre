@@ -32,6 +32,10 @@ class ExecutionAdapterRegistry:
 
         self._adapters[target] = adapter
 
+    def list_targets(self) -> list[str]:
+        """Return registered execution targets in deterministic order."""
+        return sorted(self._adapters)
+
     def resolve(self, target: str) -> ExecutionAdapter:
         """Resolve the adapter registered for a target."""
         if not target.strip():

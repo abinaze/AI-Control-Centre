@@ -40,6 +40,17 @@ def test_registry_supports_multiple_targets():
     assert registry.resolve("second") is second
 
 
+def test_registry_lists_registered_targets_in_sorted_order():
+    """Registered execution targets are returned deterministically."""
+    registry = ExecutionAdapterRegistry()
+
+    registry.register("zeta", FakeExecutionAdapter())
+    registry.register("alpha", FakeExecutionAdapter())
+    registry.register("beta", FakeExecutionAdapter())
+
+    assert registry.list_targets() == ["alpha", "beta", "zeta"]
+
+
 @pytest.mark.parametrize("target", ["", "   ", "\t"])
 def test_registry_rejects_empty_target(target):
     """The registry requires a non-empty target."""
