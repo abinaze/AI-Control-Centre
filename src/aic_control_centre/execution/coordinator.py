@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aic_control_centre.execution.contract import ExecutionRequest
 from aic_control_centre.execution.outcome import (
+    EXECUTION_OUTCOME_FAILED,
     ExecutionOutcome,
     ExecutionOutcomeRecorder,
     ExecutionOutcomeResult,
@@ -36,7 +37,16 @@ class ExecutionCoordinator:
 
         if not start_result.started:
             return start_result
-        outcome = adapter.execute(request)
+        try:
+            outcome = adapter.execute(request)
+        except Exception as exc:
+            return self.outcome_recorder.record(
+                ExecutionOutcome(
+                    task_id=request.task_id,
+                    outcome=EXECUTION_OUTCOME_FAILED,
+                    reason=f"execution adapter failed: {exc}",
+                )
+            )
 
         return self.outcome_recorder.record(
             ExecutionOutcome(

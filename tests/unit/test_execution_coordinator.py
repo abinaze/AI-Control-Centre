@@ -335,3 +335,45 @@ def test_coordinator_rejects_unknown_execution_target_without_starting(
     assert after is not None
     assert after.status == TASK_STATUS_READY
     assert after.updated_at == before.updated_at
+
+
+def test_coordinator_records_adapter_exception_as_failed(tmp_path) -> None:
+    """An adapter exception fails the running task."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+
+    class FailingAdapter:
+        def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
+            raise RuntimeError("adapter crashed")
+
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", FailingAdapter())
+
+    coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(
+                readiness_evaluator=TaskReadinessEvaluator(
+                    goal_registry=goal_registry,
+                    task_registry=task_registry,
+                )
+            ),
+            task_registry=task_registry,
+        ),
+        outcome_recorder=ExecutionOutcomeRecorder(
+            task_registry=task_registry,
+            goal_registry=goal_registry,
+        ),
+    )
+
+    result = coordinator.coordinate(
+        ExecutionRequest(task_id=task.id, target="test"),
+    )
+
+    assert result.task_id == task.id
+    assert result.completed is True
+    assert result.outcome == EXECUTION_OUTCOME_FAILED
+    assert result.reason == "execution adapter failed: adapter crashed"
+
+    updated_task = task_registry.get_task(task.id)
+    assert updated_task is not None
+    assert updated_task.status == TASK_STATUS_FAILED
