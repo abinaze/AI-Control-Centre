@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
+from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -101,6 +102,21 @@ def show_task_status(task_id: str) -> int:
     print(f"Updated: {task.updated_at}")
 
     return 0
+
+
+def show_task_readiness(task_id: str) -> int:
+    """Show whether a task is ready for execution."""
+    if not task_id.strip():
+        print("Error: task ID cannot be empty.")
+        return 1
+
+    result = TaskReadinessEvaluator().evaluate(task_id.strip())
+
+    print(f"Task: {result.task_id}")
+    print(f"Ready: {'yes' if result.ready else 'no'}")
+    print(f"Reason: {result.reason}")
+
+    return 0 if result.ready else 1
 
 
 def transition_task_status(task_id: str, new_status: str) -> int:

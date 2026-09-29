@@ -44,3 +44,16 @@ def test_validate_command_is_registered():
     args = parser.parse_args(["validate"])
 
     assert args.command == "validate"
+
+
+def test_task_readiness_command_is_registered():
+    """The task readiness command is available in the CLI parser."""
+    parser = build_parser()
+
+    args = parser.parse_args(
+        ["task", "readiness", "task-123"],
+    )
+
+    assert args.command == "task"
+    assert args.task_command == "readiness"
+    assert args.task_id == "task-123"

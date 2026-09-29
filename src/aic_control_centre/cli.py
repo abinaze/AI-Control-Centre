@@ -17,6 +17,7 @@ from aic_control_centre.tasks.commands import (
     fail_task,
     list_tasks,
     mark_task_ready,
+    show_task_readiness,
     show_task_status,
     start_task,
 )
@@ -145,6 +146,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Task ID.",
     )
 
+    task_readiness_parser = task_subparsers.add_parser(
+        "readiness",
+        help="Check whether a task is ready for execution.",
+    )
+    task_readiness_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
     task_ready_parser = task_subparsers.add_parser(
         "ready",
         help="Move a pending task to ready.",
@@ -244,6 +254,9 @@ def main() -> int:
 
         if args.task_command == "status":
             return show_task_status(args.task_id)
+
+        if args.task_command == "readiness":
+            return show_task_readiness(args.task_id)
 
         if args.task_command == "ready":
             return mark_task_ready(args.task_id)
