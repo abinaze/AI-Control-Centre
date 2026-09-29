@@ -14,6 +14,23 @@ TASK_STATUS_COMPLETED = "completed"
 TASK_STATUS_FAILED = "failed"
 
 
+TASK_STATUS_TRANSITIONS = {
+    TASK_STATUS_PENDING: {TASK_STATUS_READY},
+    TASK_STATUS_READY: {TASK_STATUS_RUNNING},
+    TASK_STATUS_RUNNING: {
+        TASK_STATUS_COMPLETED,
+        TASK_STATUS_FAILED,
+    },
+    TASK_STATUS_COMPLETED: set(),
+    TASK_STATUS_FAILED: set(),
+}
+
+
+def can_transition(current_status: str, new_status: str) -> bool:
+    """Return whether a task can move to the requested status."""
+    return new_status in TASK_STATUS_TRANSITIONS.get(current_status, set())
+
+
 def utc_now() -> str:
     """Return the current UTC time as an ISO-8601 string."""
     return datetime.now(timezone.utc).isoformat()
