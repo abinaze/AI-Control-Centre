@@ -4,7 +4,13 @@ from dataclasses import dataclass
 
 from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
-from aic_control_centre.execution.coordinator import ExecutionCoordinator
+from aic_control_centre.execution.coordinator import (
+    EXECUTION_COORDINATION_COMPLETED,
+    EXECUTION_COORDINATION_FAILED,
+    EXECUTION_COORDINATION_REJECTED,
+    ExecutionCoordinateResult,
+    ExecutionCoordinator,
+)
 from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 
@@ -95,7 +101,7 @@ def test_coordinator_completes_started_task(tmp_path) -> None:
     )
 
     assert result.task_id == task.id
-    assert result.completed is True
+    assert result.status == EXECUTION_COORDINATION_COMPLETED
     assert result.outcome == EXECUTION_OUTCOME_COMPLETED
     assert result.reason == "execution completed successfully"
 
@@ -140,7 +146,7 @@ def test_coordinator_records_failed_execution(tmp_path) -> None:
     )
 
     assert result.task_id == task.id
-    assert result.completed is True
+    assert result.status == EXECUTION_COORDINATION_FAILED
     assert result.outcome == EXECUTION_OUTCOME_FAILED
     assert result.reason == "execution adapter reported failure"
 
@@ -195,7 +201,8 @@ def test_coordinator_does_not_execute_rejected_task(tmp_path) -> None:
         ExecutionRequest(task_id=task.id, target="test"),
     )
 
-    assert result.started is False
+    assert result.status == EXECUTION_COORDINATION_REJECTED
+    assert result.outcome is None
     assert result.reason == "task status is pending"
 
     assert (
@@ -324,12 +331,12 @@ def test_coordinator_rejects_unknown_execution_target_without_starting(
     assert before is not None
     assert before.status == TASK_STATUS_READY
 
-    try:
-        coordinator.coordinate(request)
-    except KeyError as exc:
-        assert str(exc) == "'unknown execution target'"
-    else:
-        raise AssertionError("unknown execution target must be rejected")
+    result = coordinator.coordinate(request)
+
+    assert result.task_id == task.id
+    assert result.status == EXECUTION_COORDINATION_REJECTED
+    assert result.outcome is None
+    assert result.reason == "unknown execution target"
 
     after = task_registry.get_task(task.id)
     assert after is not None
@@ -370,7 +377,7 @@ def test_coordinator_records_adapter_exception_as_failed(tmp_path) -> None:
     )
 
     assert result.task_id == task.id
-    assert result.completed is True
+    assert result.status == EXECUTION_COORDINATION_FAILED
     assert result.outcome == EXECUTION_OUTCOME_FAILED
     assert result.reason == "execution adapter failed: adapter crashed"
 
@@ -417,7 +424,7 @@ def test_coordinator_fails_task_when_adapter_returns_wrong_task(
     )
 
     assert result.task_id == task.id
-    assert result.completed is True
+    assert result.status == EXECUTION_COORDINATION_FAILED
     assert result.outcome == EXECUTION_OUTCOME_FAILED
     assert result.reason == (
         "execution adapter returned outcome for unexpected task"
@@ -426,3 +433,35 @@ def test_coordinator_fails_task_when_adapter_returns_wrong_task(
     updated_task = task_registry.get_task(task.id)
     assert updated_task is not None
     assert updated_task.status == TASK_STATUS_FAILED
+
+
+def test_execution_coordinate_result_is_immutable():
+    """Coordinator results cannot be modified."""
+    result = ExecutionCoordinateResult(
+        task_id="task-123",
+        status=EXECUTION_COORDINATION_COMPLETED,
+        outcome=EXECUTION_OUTCOME_COMPLETED,
+        reason="completed",
+    )
+
+    try:
+        result.status = EXECUTION_COORDINATION_FAILED
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError("execution coordinate result must be immutable")
+
+
+def test_execution_coordinate_result_rejects_unknown_status():
+    """Coordinator results reject unknown statuses."""
+    try:
+        ExecutionCoordinateResult(
+            task_id="task-123",
+            status="running",
+            outcome=None,
+            reason="invalid",
+        )
+    except ValueError as exc:
+        assert str(exc) == "unknown execution coordination status: running"
+    else:
+        raise AssertionError("unknown status must be rejected")
