@@ -4,10 +4,8 @@ from dataclasses import dataclass
 
 from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
-from aic_control_centre.execution.coordinator import (
-    ExecutionCoordinator,
-    ExecutionAdapter,
-)
+from aic_control_centre.execution.coordinator import ExecutionCoordinator
+from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 
 from aic_control_centre.execution.outcome import (
@@ -66,7 +64,17 @@ def test_coordinator_completes_started_task(tmp_path) -> None:
     """A successful adapter outcome completes the task."""
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
+    registry = ExecutionAdapterRegistry()
+    registry.register(
+        "test",
+        FakeExecutionAdapter(
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            reason="execution completed successfully",
+        ),
+    )
+
     coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
         starter=ExecutionStarter(
             admission=ExecutionAdmission(
                 readiness_evaluator=TaskReadinessEvaluator(
@@ -84,10 +92,6 @@ def test_coordinator_completes_started_task(tmp_path) -> None:
 
     result = coordinator.coordinate(
         ExecutionRequest(task_id=task.id, target="test"),
-        FakeExecutionAdapter(
-            outcome=EXECUTION_OUTCOME_COMPLETED,
-            reason="execution completed successfully",
-        ),
     )
 
     assert result.task_id == task.id
@@ -105,7 +109,17 @@ def test_coordinator_records_failed_execution(tmp_path) -> None:
     """A failed adapter outcome fails the task."""
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
+    registry = ExecutionAdapterRegistry()
+    registry.register(
+        "test",
+        FakeExecutionAdapter(
+            outcome=EXECUTION_OUTCOME_FAILED,
+            reason="execution adapter reported failure",
+        ),
+    )
+
     coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
         starter=ExecutionStarter(
             admission=ExecutionAdmission(
                 readiness_evaluator=TaskReadinessEvaluator(
@@ -123,10 +137,6 @@ def test_coordinator_records_failed_execution(tmp_path) -> None:
 
     result = coordinator.coordinate(
         ExecutionRequest(task_id=task.id, target="test"),
-        FakeExecutionAdapter(
-            outcome=EXECUTION_OUTCOME_FAILED,
-            reason="execution adapter reported failure",
-        ),
     )
 
     assert result.task_id == task.id
@@ -161,7 +171,11 @@ def test_coordinator_does_not_execute_rejected_task(tmp_path) -> None:
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             raise AssertionError("adapter must not execute rejected task")
 
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", FailingAdapter())
+
     coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
         starter=ExecutionStarter(
             admission=ExecutionAdmission(
                 readiness_evaluator=TaskReadinessEvaluator(
@@ -179,7 +193,6 @@ def test_coordinator_does_not_execute_rejected_task(tmp_path) -> None:
 
     result = coordinator.coordinate(
         ExecutionRequest(task_id=task.id, target="test"),
-        FailingAdapter(),
     )
 
     assert result.started is False
@@ -206,7 +219,11 @@ def test_coordinator_passes_request_to_adapter(tmp_path) -> None:
                 outcome=EXECUTION_OUTCOME_COMPLETED,
             )
 
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", RecordingAdapter())
+
     coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
         starter=ExecutionStarter(
             admission=ExecutionAdmission(
                 readiness_evaluator=TaskReadinessEvaluator(
@@ -224,7 +241,7 @@ def test_coordinator_passes_request_to_adapter(tmp_path) -> None:
 
     request = ExecutionRequest(task_id=task.id, target="test")
 
-    coordinator.coordinate(request, RecordingAdapter())
+    coordinator.coordinate(request)
 
     assert received == [request]
 
@@ -233,7 +250,17 @@ def test_coordinator_does_not_directly_change_outcome(tmp_path) -> None:
     """The coordinator records the adapter's declared outcome."""
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
+    registry = ExecutionAdapterRegistry()
+    registry.register(
+        "test",
+        FakeExecutionAdapter(
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            reason="adapter declared completion",
+        ),
+    )
+
     coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
         starter=ExecutionStarter(
             admission=ExecutionAdmission(
                 readiness_evaluator=TaskReadinessEvaluator(
@@ -251,11 +278,48 @@ def test_coordinator_does_not_directly_change_outcome(tmp_path) -> None:
 
     result = coordinator.coordinate(
         ExecutionRequest(task_id=task.id, target="test"),
-        FakeExecutionAdapter(
-            outcome=EXECUTION_OUTCOME_COMPLETED,
-            reason="adapter declared completion",
-        ),
     )
 
     assert result.outcome == EXECUTION_OUTCOME_COMPLETED
     assert result.reason == "adapter declared completion"
+
+
+def test_coordinator_rejects_unknown_execution_target(tmp_path) -> None:
+    """An unknown execution target cannot reach an adapter."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+
+    class FailingAdapter:
+        def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
+            raise AssertionError("adapter must not execute unknown target")
+
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", FailingAdapter())
+
+    coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(
+                readiness_evaluator=TaskReadinessEvaluator(
+                    goal_registry=goal_registry,
+                    task_registry=task_registry,
+                )
+            ),
+            task_registry=task_registry,
+        ),
+        outcome_recorder=ExecutionOutcomeRecorder(
+            task_registry=task_registry,
+            goal_registry=goal_registry,
+        ),
+    )
+
+    request = ExecutionRequest(
+        task_id=task.id,
+        target="missing",
+    )
+
+    try:
+        coordinator.coordinate(request)
+    except KeyError as exc:
+        assert str(exc) == "'unknown execution target'"
+    else:
+        raise AssertionError("unknown execution target must be rejected")

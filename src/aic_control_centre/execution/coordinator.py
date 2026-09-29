@@ -2,40 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 from aic_control_centre.execution.contract import ExecutionRequest
 from aic_control_centre.execution.outcome import (
     ExecutionOutcome,
     ExecutionOutcomeRecorder,
     ExecutionOutcomeResult,
 )
+from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.execution.start import ExecutionStartResult, ExecutionStarter
 
 
-class ExecutionAdapter(Protocol):
-    """Boundary for the component that performs actual execution."""
-
-    def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
-        """Execute a request and return its outcome."""
-        ...
-
-
 class ExecutionCoordinator:
-    """Coordinate admission, start, execution, and outcome recording."""
+    """Coordinate admission, start, adapter execution, and outcome recording."""
 
     def __init__(
         self,
+        adapter_registry: ExecutionAdapterRegistry | None = None,
         starter: ExecutionStarter | None = None,
         outcome_recorder: ExecutionOutcomeRecorder | None = None,
     ) -> None:
+        self.adapter_registry = adapter_registry or ExecutionAdapterRegistry()
         self.starter = starter or ExecutionStarter()
         self.outcome_recorder = outcome_recorder or ExecutionOutcomeRecorder()
 
     def coordinate(
         self,
         request: ExecutionRequest,
-        adapter: ExecutionAdapter,
     ) -> ExecutionOutcomeResult | ExecutionStartResult:
         """Coordinate one execution request through its lifecycle."""
         start_result = self.starter.start(request)
@@ -43,6 +35,7 @@ class ExecutionCoordinator:
         if not start_result.started:
             return start_result
 
+        adapter = self.adapter_registry.resolve(request.target)
         outcome = adapter.execute(request)
 
         return self.outcome_recorder.record(
