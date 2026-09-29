@@ -10,11 +10,15 @@ class ExecutionRequest:
     """Describe a request to execute a persisted task."""
 
     task_id: str
+    target: str
 
     def __post_init__(self) -> None:
-        """Reject requests without a task identifier."""
+        """Reject requests without required execution identifiers."""
         if not self.task_id.strip():
             raise ValueError("task ID cannot be empty")
+
+        if not self.target.strip():
+            raise ValueError("execution target cannot be empty")
 
 
 @dataclass(frozen=True)

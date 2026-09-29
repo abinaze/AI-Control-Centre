@@ -83,7 +83,7 @@ def test_coordinator_completes_started_task(tmp_path) -> None:
     )
 
     result = coordinator.coordinate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
         FakeExecutionAdapter(
             outcome=EXECUTION_OUTCOME_COMPLETED,
             reason="execution completed successfully",
@@ -122,7 +122,7 @@ def test_coordinator_records_failed_execution(tmp_path) -> None:
     )
 
     result = coordinator.coordinate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
         FakeExecutionAdapter(
             outcome=EXECUTION_OUTCOME_FAILED,
             reason="execution adapter reported failure",
@@ -178,7 +178,7 @@ def test_coordinator_does_not_execute_rejected_task(tmp_path) -> None:
     )
 
     result = coordinator.coordinate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
         FailingAdapter(),
     )
 
@@ -222,7 +222,7 @@ def test_coordinator_passes_request_to_adapter(tmp_path) -> None:
         ),
     )
 
-    request = ExecutionRequest(task_id=task.id)
+    request = ExecutionRequest(task_id=task.id, target="test")
 
     coordinator.coordinate(request, RecordingAdapter())
 
@@ -250,7 +250,7 @@ def test_coordinator_does_not_directly_change_outcome(tmp_path) -> None:
     )
 
     result = coordinator.coordinate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
         FakeExecutionAdapter(
             outcome=EXECUTION_OUTCOME_COMPLETED,
             reason="adapter declared completion",

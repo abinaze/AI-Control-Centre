@@ -69,7 +69,7 @@ def test_ready_task_is_started(tmp_path):
     starter, task_registry, task = create_ready_task(tmp_path)
 
     result = starter.start(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -102,7 +102,7 @@ def test_pending_task_is_not_started(tmp_path):
     assert before.status == TASK_STATUS_PENDING
 
     result = starter.start(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     after = task_registry.get_task(task.id)
@@ -119,7 +119,7 @@ def test_missing_task_is_not_started(tmp_path):
     starter, _, _ = build_starter(tmp_path)
 
     result = starter.start(
-        ExecutionRequest(task_id="missing-task"),
+        ExecutionRequest(task_id="missing-task", target="test"),
     )
 
     assert result.task_id == "missing-task"
@@ -132,7 +132,7 @@ def test_start_persists_running_status(tmp_path):
     starter, task_registry, task = create_ready_task(tmp_path)
 
     starter.start(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     persisted = json.loads(

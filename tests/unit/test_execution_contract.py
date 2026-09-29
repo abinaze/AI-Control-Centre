@@ -8,16 +8,23 @@ from aic_control_centre.execution.contract import (
 )
 
 
-def test_execution_request_stores_task_id():
-    """An execution request identifies the task being requested."""
-    request = ExecutionRequest(task_id="task-123")
+def test_execution_request_stores_task_id_and_target():
+    """An execution request identifies its task and target."""
+    request = ExecutionRequest(
+        task_id="task-123",
+        target="test",
+    )
 
     assert request.task_id == "task-123"
+    assert request.target == "test"
 
 
 def test_execution_request_is_immutable():
     """Execution requests cannot be modified after creation."""
-    request = ExecutionRequest(task_id="task-123")
+    request = ExecutionRequest(
+        task_id="task-123",
+        target="test",
+    )
 
     with pytest.raises(AttributeError):
         request.task_id = "task-456"
@@ -27,7 +34,20 @@ def test_execution_request_is_immutable():
 def test_execution_request_rejects_empty_task_id(task_id):
     """Execution requests require a non-empty task ID."""
     with pytest.raises(ValueError, match="task ID cannot be empty"):
-        ExecutionRequest(task_id=task_id)
+        ExecutionRequest(
+            task_id=task_id,
+            target="test",
+        )
+
+
+@pytest.mark.parametrize("target", ["", "   ", "\t"])
+def test_execution_request_rejects_empty_target(target):
+    """Execution requests require a non-empty target."""
+    with pytest.raises(ValueError, match="execution target cannot be empty"):
+        ExecutionRequest(
+            task_id="task-123",
+            target=target,
+        )
 
 
 def test_execution_result_represents_acceptance():

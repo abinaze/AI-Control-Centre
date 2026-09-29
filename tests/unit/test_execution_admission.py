@@ -82,7 +82,7 @@ def test_ready_task_is_accepted(tmp_path):
     admission, _, _, task = create_ready_task(tmp_path)
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -107,7 +107,7 @@ def test_pending_task_is_rejected(tmp_path):
     task_registry.add_task(task)
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -120,7 +120,7 @@ def test_missing_task_is_rejected(tmp_path):
     admission, _, _ = build_admission(tmp_path)
 
     result = admission.evaluate(
-        ExecutionRequest(task_id="missing-task"),
+        ExecutionRequest(task_id="missing-task", target="test"),
     )
 
     assert result.task_id == "missing-task"
@@ -139,7 +139,7 @@ def test_orphan_task_is_rejected(tmp_path):
     task_registry.add_task(task)
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -155,7 +155,7 @@ def test_completed_goal_rejects_ready_task(tmp_path):
     )
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -172,7 +172,7 @@ def test_admission_does_not_change_task_status(tmp_path):
     assert before.status == TASK_STATUS_READY
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     after = task_registry.get_task(task.id)
@@ -191,7 +191,7 @@ def test_admission_does_not_modify_persisted_task_file(tmp_path):
     before = registry_path.read_text(encoding="utf-8")
 
     admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     after = registry_path.read_text(encoding="utf-8")
@@ -207,7 +207,7 @@ def test_failed_goal_rejects_ready_task(tmp_path):
     )
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
@@ -223,7 +223,7 @@ def test_invalid_goal_rejects_ready_task(tmp_path):
     )
 
     result = admission.evaluate(
-        ExecutionRequest(task_id=task.id),
+        ExecutionRequest(task_id=task.id, target="test"),
     )
 
     assert result.task_id == task.id
