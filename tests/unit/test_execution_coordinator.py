@@ -377,3 +377,52 @@ def test_coordinator_records_adapter_exception_as_failed(tmp_path) -> None:
     updated_task = task_registry.get_task(task.id)
     assert updated_task is not None
     assert updated_task.status == TASK_STATUS_FAILED
+
+
+def test_coordinator_fails_task_when_adapter_returns_wrong_task(
+    tmp_path,
+) -> None:
+    """A mismatched adapter outcome fails the requested task."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+
+    class MismatchedAdapter:
+        def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
+            return ExecutionOutcome(
+                task_id="different-task",
+                outcome=EXECUTION_OUTCOME_COMPLETED,
+            )
+
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", MismatchedAdapter())
+
+    coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(
+                readiness_evaluator=TaskReadinessEvaluator(
+                    goal_registry=goal_registry,
+                    task_registry=task_registry,
+                )
+            ),
+            task_registry=task_registry,
+        ),
+        outcome_recorder=ExecutionOutcomeRecorder(
+            task_registry=task_registry,
+            goal_registry=goal_registry,
+        ),
+    )
+
+    result = coordinator.coordinate(
+        ExecutionRequest(task_id=task.id, target="test"),
+    )
+
+    assert result.task_id == task.id
+    assert result.completed is True
+    assert result.outcome == EXECUTION_OUTCOME_FAILED
+    assert result.reason == (
+        "execution adapter returned outcome for unexpected task"
+    )
+
+    updated_task = task_registry.get_task(task.id)
+    assert updated_task is not None
+    assert updated_task.status == TASK_STATUS_FAILED

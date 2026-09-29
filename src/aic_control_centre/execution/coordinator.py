@@ -48,6 +48,15 @@ class ExecutionCoordinator:
                 )
             )
 
+        if outcome.task_id != request.task_id:
+            return self.outcome_recorder.record(
+                ExecutionOutcome(
+                    task_id=request.task_id,
+                    outcome=EXECUTION_OUTCOME_FAILED,
+                    reason="execution adapter returned outcome for unexpected task",
+                )
+            )
+
         return self.outcome_recorder.record(
             ExecutionOutcome(
                 task_id=request.task_id,
