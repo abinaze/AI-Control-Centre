@@ -435,6 +435,50 @@ def test_coordinator_fails_task_when_adapter_returns_wrong_task(
     assert updated_task.status == TASK_STATUS_FAILED
 
 
+def test_coordinator_fails_task_when_adapter_returns_invalid_result(
+    tmp_path,
+) -> None:
+    """An invalid adapter result fails the running task."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+
+    class InvalidAdapter:
+        def execute(self, request: ExecutionRequest):
+            return None
+
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", InvalidAdapter())
+
+    coordinator = ExecutionCoordinator(
+        adapter_registry=registry,
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(
+                readiness_evaluator=TaskReadinessEvaluator(
+                    goal_registry=goal_registry,
+                    task_registry=task_registry,
+                )
+            ),
+            task_registry=task_registry,
+        ),
+        outcome_recorder=ExecutionOutcomeRecorder(
+            task_registry=task_registry,
+            goal_registry=goal_registry,
+        ),
+    )
+
+    result = coordinator.coordinate(
+        ExecutionRequest(task_id=task.id, target="test"),
+    )
+
+    assert result.task_id == task.id
+    assert result.status == EXECUTION_COORDINATION_FAILED
+    assert result.outcome == EXECUTION_OUTCOME_FAILED
+    assert result.reason == "execution adapter returned invalid outcome"
+
+    updated_task = task_registry.get_task(task.id)
+    assert updated_task is not None
+    assert updated_task.status == TASK_STATUS_FAILED
+
+
 def test_execution_coordinate_result_is_immutable():
     """Coordinator results cannot be modified."""
     result = ExecutionCoordinateResult(

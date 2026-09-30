@@ -102,6 +102,16 @@ class ExecutionCoordinator:
             )
             return self._from_recorded_outcome(recorded)
 
+        if not isinstance(outcome, ExecutionOutcome):
+            recorded = self.outcome_recorder.record(
+                ExecutionOutcome(
+                    task_id=request.task_id,
+                    outcome=EXECUTION_OUTCOME_FAILED,
+                    reason="execution adapter returned invalid outcome",
+                )
+            )
+            return self._from_recorded_outcome(recorded)
+
         if outcome.task_id != request.task_id:
             recorded = self.outcome_recorder.record(
                 ExecutionOutcome(
