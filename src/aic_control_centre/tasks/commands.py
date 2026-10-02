@@ -167,7 +167,20 @@ def _readiness_evaluator() -> TaskReadinessEvaluator:
 
 
 def mark_task_ready(task_id: str) -> int:
-    """Move a pending task to the ready state."""
+    """Move a pending task to the ready state.
+
+    The parent goal must still be open. Task readiness cannot be checked
+    here, because the task is not ready until this transition happens.
+    """
+    task = _find_task(task_id)
+
+    if task is not None:
+        blocker = _readiness_evaluator().parent_goal_blocker(task.goal_id)
+
+        if blocker is not None:
+            print(f"Error: task cannot be marked ready: {blocker}")
+            return 1
+
     return transition_task_status(
         task_id=task_id,
         new_status=TASK_STATUS_READY,
