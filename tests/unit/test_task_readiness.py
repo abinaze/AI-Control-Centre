@@ -1,8 +1,14 @@
 """Tests for task readiness evaluation."""
 
+from dataclasses import replace
+
+import pytest
+
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
+    GOAL_STATUS_IN_PROGRESS,
+    GOAL_STATUS_PENDING,
     Goal,
 )
 from aic_control_centre.goals.registry import GoalRegistry
@@ -235,3 +241,65 @@ def test_invalid_goal_status_blocks_ready_task(tmp_path) -> None:
 
     assert result.ready is False
     assert result.reason == "parent goal has invalid status: corrupted"
+
+
+def test_parent_goal_blocker_reports_missing_goal(tmp_path) -> None:
+    """A goal that does not exist blocks execution."""
+    evaluator = TaskReadinessEvaluator(
+        goal_registry=GoalRegistry(tmp_path / "goals.json"),
+        task_registry=TaskRegistry(tmp_path / "tasks.json"),
+    )
+
+    assert evaluator.parent_goal_blocker("missing-goal") == (
+        "parent goal not found"
+    )
+
+
+@pytest.mark.parametrize(
+    "status",
+    [GOAL_STATUS_PENDING, GOAL_STATUS_IN_PROGRESS],
+)
+def test_parent_goal_blocker_allows_open_goal(tmp_path, status) -> None:
+    """Pending and in-progress goals do not block execution."""
+    goal_registry = GoalRegistry(tmp_path / "goals.json")
+    goal = replace(
+        Goal.create(description="Open goal", project="TestProject"),
+        status=status,
+    )
+    goal_registry.add_goal(goal)
+
+    evaluator = TaskReadinessEvaluator(
+        goal_registry=goal_registry,
+        task_registry=TaskRegistry(tmp_path / "tasks.json"),
+    )
+
+    assert evaluator.parent_goal_blocker(goal.id) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (GOAL_STATUS_COMPLETED, "parent goal is completed"),
+        (GOAL_STATUS_FAILED, "parent goal is failed"),
+        ("corrupted", "parent goal has invalid status: corrupted"),
+    ],
+)
+def test_parent_goal_blocker_reports_closed_goal(
+    tmp_path,
+    status,
+    reason,
+) -> None:
+    """Closed and invalid goals block execution with an explicit reason."""
+    goal_registry = GoalRegistry(tmp_path / "goals.json")
+    goal = replace(
+        Goal.create(description="Closed goal", project="TestProject"),
+        status=status,
+    )
+    goal_registry.add_goal(goal)
+
+    evaluator = TaskReadinessEvaluator(
+        goal_registry=goal_registry,
+        task_registry=TaskRegistry(tmp_path / "tasks.json"),
+    )
+
+    assert evaluator.parent_goal_blocker(goal.id) == reason
