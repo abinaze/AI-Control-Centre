@@ -148,6 +148,24 @@ def transition_task_status(task_id: str, new_status: str) -> int:
     return 0
 
 
+def _find_task(task_id: str) -> Task | None:
+    """Return the persisted task for an ID, or None if there is none."""
+    cleaned = task_id.strip()
+
+    if not cleaned:
+        return None
+
+    return TaskRegistry().get_task(cleaned)
+
+
+def _readiness_evaluator() -> TaskReadinessEvaluator:
+    """Build a readiness evaluator over the command registries."""
+    return TaskReadinessEvaluator(
+        goal_registry=GoalRegistry(),
+        task_registry=TaskRegistry(),
+    )
+
+
 def mark_task_ready(task_id: str) -> int:
     """Move a pending task to the ready state."""
     return transition_task_status(
@@ -157,7 +175,23 @@ def mark_task_ready(task_id: str) -> int:
 
 
 def start_task(task_id: str) -> int:
-    """Move a ready task to the running state."""
+    """Move a ready task to the running state.
+
+    The task must pass the readiness boundary first. Empty and unknown
+    task IDs are left to the lifecycle transition to report.
+    """
+    task = _find_task(task_id)
+
+    if task is not None:
+        readiness = _readiness_evaluator().evaluate(task.id)
+
+        if not readiness.ready:
+            print(
+                "Error: task is not ready for execution: "
+                f"{readiness.reason}"
+            )
+            return 1
+
     return transition_task_status(
         task_id=task_id,
         new_status=TASK_STATUS_RUNNING,
