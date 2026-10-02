@@ -41,9 +41,9 @@ The current implementation does **not** provide:
 
 These capabilities are intentionally deferred until the underlying control boundaries are stable and well tested.
 
-### Known gap
+### Known gaps
 
-The CLI lifecycle commands (`aic task ready`, `start`, `complete`, `fail`) are not gated by the readiness and admission boundaries. Only the library execution path is. This is tracked as G1 in [docs/STATUS.md](docs/STATUS.md).
+Goal project names are not validated, persistence is not crash-safe, and a `running` task has no recovery path. These are tracked as G3, G4, and G5 in [docs/STATUS.md](docs/STATUS.md).
 
 ## Quick Start
 
@@ -74,8 +74,8 @@ aic task create --goal <goal-id> "<title>"
 aic task list
 aic task status <task-id>
 aic task readiness <task-id>                Check whether a task is ready for execution
-aic task ready <task-id>                    pending -> ready
-aic task start <task-id>                    ready -> running
+aic task ready <task-id>                    pending -> ready (parent goal must be open)
+aic task start <task-id>                    ready -> running (must pass readiness)
 aic task complete <task-id>                 running -> completed
 aic task fail <task-id>                     running -> failed
 ```
