@@ -1,5 +1,9 @@
 """Tests for task CLI commands."""
 
+from dataclasses import replace
+
+import pytest
+
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
@@ -567,3 +571,119 @@ def test_create_task_rejects_failed_goal(
         in capsys.readouterr().out
     )
     assert TaskRegistry(task_path).list_tasks() == []
+
+
+def _patch_registries(monkeypatch, goal_path, task_path) -> None:
+    """Point the task commands at temporary registries."""
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.GoalRegistry",
+        lambda: GoalRegistry(goal_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.tasks.commands.TaskRegistry",
+        lambda: TaskRegistry(task_path),
+    )
+
+
+def _add_goal(goal_path, status) -> Goal:
+    """Persist a goal with an explicit status."""
+    goal = replace(
+        Goal.create(description="Gate goal", project="TestProject"),
+        status=status,
+    )
+    GoalRegistry(goal_path).add_goal(goal)
+    return goal
+
+
+def _add_task(task_path, goal_id, status="pending") -> Task:
+    """Persist a task, moving it to ready when requested."""
+    registry = TaskRegistry(task_path)
+    task = Task.create(goal_id=goal_id, title="Gate task")
+    registry.add_task(task)
+
+    if status == "ready":
+        registry.update_task_status(task.id, "ready")
+
+    return task
+
+
+@pytest.mark.parametrize(
+    ("goal_status", "reason"),
+    [
+        (GOAL_STATUS_FAILED, "parent goal is failed"),
+        (GOAL_STATUS_COMPLETED, "parent goal is completed"),
+    ],
+)
+def test_start_task_rejects_task_in_closed_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    goal_status,
+    reason,
+) -> None:
+    """A ready task cannot start while its parent goal is closed."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, goal_status)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 1
+
+    assert (
+        f"Error: task is not ready for execution: {reason}"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+
+
+def test_start_task_rejects_task_with_missing_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task without a parent goal cannot start."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    task = _add_task(task_path, "missing-goal", status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 1
+
+    assert "parent goal not found" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+
+
+def test_start_task_rejects_pending_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task that is not ready cannot start."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 1
+
+    assert "task status is pending" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(task.id).status == "pending"
+
+
+def test_start_task_still_reports_unknown_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Unknown task IDs keep the lifecycle transition's error message."""
+    _patch_registries(
+        monkeypatch,
+        tmp_path / "goals.json",
+        tmp_path / "tasks.json",
+    )
+
+    assert start_task("missing-task") == 1
+
+    assert "Task not found: missing-task" in capsys.readouterr().out
