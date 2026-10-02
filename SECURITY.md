@@ -17,6 +17,15 @@ The project currently does not include:
 
 Execution currently operates through explicit contracts, readiness checks, execution targets, registered adapters, and outcome recording.
 
+## Known Boundary Gaps
+
+These are current, verified limitations of the security boundary. Details and reproduction steps are in [docs/STATUS.md](docs/STATUS.md).
+
+- **The execution boundary does not bind the CLI.** `aic task ready`, `start`, `complete`, and `fail` change task state directly and do not pass through readiness or admission. A task whose parent goal is failed can be moved to `running` from the CLI.
+- **Local state is unauthenticated and unprotected.** Project, goal, and task state is stored as plain JSON. Anyone with write access to the data directory can change it. It is not encrypted, signed, or tamper-evident, and there is no access control.
+- **Persistence is not crash-safe.** Writes are not atomic and there is no file locking, so a crash or concurrent processes can corrupt or overwrite state.
+- **No execution history is recorded.** Only creation and update timestamps exist, so actions cannot yet be audited after the fact.
+
 ## Reporting Security Issues
 
 If a security issue is discovered, provide enough information to reproduce and understand the issue without exposing sensitive credentials, tokens, personal information, or other private data.
