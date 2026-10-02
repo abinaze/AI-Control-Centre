@@ -4,6 +4,12 @@ All notable changes to AI Control Centre are documented here.
 
 ## Unreleased
 
+### Changed
+
+- `aic task start` now evaluates task readiness and refuses to start a task that is not ready, for example when its parent goal is failed or completed. It reports the readiness reason instead of the generic invalid-transition error.
+- `aic task ready` now refuses when the parent goal is missing, completed, failed, or has an invalid status.
+- `TaskReadinessEvaluator.parent_goal_blocker` exposes the parent goal check, and `evaluate` now uses it.
+
 ### Documentation
 
 - Completed the README. It was truncated and ended inside an unclosed code block. Added a quick start, a command reference, and configuration.
@@ -18,7 +24,6 @@ All notable changes to AI Control Centre are documented here.
 
 ### Known issues (documented, not fixed)
 
-- CLI lifecycle commands (`aic task ready`, `start`, `complete`, `fail`) bypass readiness and admission.
 - Goal project names are not validated against the project registry.
 - JSON persistence is not atomic, locked, or versioned.
 - A `running` task has no recovery path.
