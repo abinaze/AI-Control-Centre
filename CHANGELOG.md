@@ -4,7 +4,26 @@ All notable changes to AI Control Centre are documented here.
 
 ## Unreleased
 
-- Documentation updates for the current architecture and development workflow.
+### Documentation
+
+- Completed the README. It was truncated and ended inside an unclosed code block. Added a quick start, a command reference, and configuration.
+- Added `docs/STATUS.md`: verified status, capability labels, known gaps, and invariants.
+- Added `docs/DESIGN_DIRECTIONS.md`: research-stage design ideas, clearly separated from implemented behavior.
+- Reconciled `docs/ARCHITECTURE.md` with the code: module map, goal derivation rules, task transition table, readiness check order, persistence, and execution entry points.
+- Corrected the "no silent repair" wording. Validation is read-only; reconciliation, including `aic goal status`, persists derived goal status.
+- Described Phase 2 in the roadmap as implemented at the library level, and added a proposed Phase 2.5 for boundary hardening.
+- Extended `CONTRIBUTING.md` with environment setup, test isolation, and the working agreement.
+- Documented current security-relevant gaps in `SECURITY.md`.
+- Filled in `.env.example` and the pull request template, which were empty.
+
+### Known issues (documented, not fixed)
+
+- CLI lifecycle commands (`aic task ready`, `start`, `complete`, `fail`) bypass readiness and admission.
+- Goal project names are not validated against the project registry.
+- JSON persistence is not atomic, locked, or versioned.
+- A `running` task has no recovery path.
+
+See `docs/STATUS.md` for details and reproduction steps.
 
 ## 0.1.0
 
