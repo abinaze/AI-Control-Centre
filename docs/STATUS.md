@@ -28,6 +28,8 @@ Keep this file honest. Update it whenever a milestone lands. If a statement here
 | Whitespace, CRLF, tab, and final-newline scan of `.py`, `.md`, `.toml` | Clean |
 | Test isolation | Running the suite does not create the default user data directory |
 
+These results are for commit `4ea03cf`. After the G1 fix the suite has 196 tests, all passing in the same environment.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -60,11 +62,13 @@ Keep this file honest. Update it whenever a milestone lands. If a statement here
 
 Each item below was checked against the code. Items marked **reproduced** were confirmed by running the real CLI; items marked **source** were confirmed by reading the code.
 
-### G1. Two routes to `running`; only one is gated (reproduced)
+### G1. Two routes to `running`; only one was gated (closed)
+
+**Closed.** `aic task start` now evaluates readiness and refuses when the task is not ready. `aic task ready` refuses when the parent goal is missing, completed, failed, or has an invalid status. See [ROADMAP.md](../ROADMAP.md), Phase 2.5, Step 1. The rest of this entry records the original defect.
 
 `ExecutionStarter` (library) runs readiness and admission before moving a task to `running`. The CLI commands `aic task ready`, `aic task start`, `aic task complete`, and `aic task fail` call `TaskRegistry.update_task_status` directly and do not consult readiness or admission.
 
-Reproduction: create a goal with two tasks, drive the first to `failed` (the goal becomes `failed`), then use the second task.
+Reproduction before the fix: create a goal with two tasks, drive the first to `failed` (the goal becomes `failed`), then use the second task.
 
 ```text
 aic task readiness <task-b>   ->  Ready: no   Reason: parent goal is failed   (exit 1)
@@ -73,7 +77,7 @@ aic task start <task-b>       ->  succeeds    (exit 0)   task is now "running"
 aic validate                  ->  Validation passed.
 ```
 
-No existing test pins this behavior. It is an unspecified design gap, not a documented decision. See INV-4 below and the proposed resolution in [ROADMAP.md](../ROADMAP.md).
+No test pinned this behavior, so it was an unspecified design gap, not a documented decision. See INV-4 below.
 
 ### G2. `aic goal status` writes state (reproduced; intentional and tested)
 
@@ -122,13 +126,16 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-1 | A rejected execution request must not mutate task state. | Yes, at admission, start, and coordinator | `test_pending_task_is_not_started` (status and `updated_at` unchanged), `test_admission_does_not_modify_persisted_task_file`, `test_coordinator_does_not_execute_rejected_task` |
 | INV-2 | Only `running` tasks may record an execution outcome. | Yes, in `ExecutionOutcomeRecorder` | `test_pending_task_cannot_record_outcome`, `test_ready_task_cannot_record_outcome`, `test_missing_task_cannot_record_outcome` |
 | INV-3 | `completed` and `failed` tasks cannot transition further. | Yes, via `TASK_STATUS_TRANSITIONS` in the registry | `test_invalid_task_status_transitions`, `test_registry_rejects_invalid_status_transition` |
-| INV-4 | A task enters `running` only if readiness passes. | **Partly.** Enforced on the `ExecutionStarter` path; **not** on the CLI path (G1) | Library path tested; CLI path untested |
+| INV-4 | A task enters `running` only if readiness passes. | Yes, on the `ExecutionStarter` path and on `aic task start` | `test_start_task_rejects_task_in_closed_goal`, `test_start_task_rejects_pending_task`, `test_failed_goal_blocks_remaining_tasks_from_cli_lifecycle` |
 | INV-5 | An unknown execution target never starts a task. | Yes, the coordinator resolves the target first | `test_coordinator_rejects_unknown_execution_target_without_starting` |
 | INV-6 | Adapter failures never bypass outcome recording. | Yes, exception, wrong-task, and invalid-result cases | Coordinator tests for each case |
 | INV-7 | Validation never modifies persisted state. | By construction: the validator only calls `list_*` methods | No dedicated non-mutation test |
+| INV-8 | A task is marked `ready` only while its parent goal is open. | Yes, in `aic task ready` | `test_mark_task_ready_rejects_task_in_closed_goal`, `test_mark_task_ready_rejects_task_with_missing_goal` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-Close G1 before adding any new execution capability. See [ROADMAP.md](../ROADMAP.md) for the options and the recommended approach. Everything later in the roadmap, including real adapters, assumes that `running` can only be entered through a gated boundary.
+G1 is closed. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: project reference validation (G3), crash-safe persistence (G4), the recovery path for `running` tasks (G5), and execution records.
+
+Recommended next: G4, atomic writes and a schema version. Every later feature writes state, so the persistence layer should be safe before more is built on it.
