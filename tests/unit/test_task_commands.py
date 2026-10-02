@@ -687,3 +687,68 @@ def test_start_task_still_reports_unknown_task(
     assert start_task("missing-task") == 1
 
     assert "Task not found: missing-task" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("goal_status", "reason"),
+    [
+        (GOAL_STATUS_FAILED, "parent goal is failed"),
+        (GOAL_STATUS_COMPLETED, "parent goal is completed"),
+    ],
+)
+def test_mark_task_ready_rejects_task_in_closed_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    goal_status,
+    reason,
+) -> None:
+    """A pending task cannot become ready while its goal is closed."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, goal_status)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(task.id) == 1
+
+    assert (
+        f"Error: task cannot be marked ready: {reason}"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == "pending"
+
+
+def test_mark_task_ready_rejects_task_with_missing_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task without a parent goal cannot become ready."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    task = _add_task(task_path, "missing-goal")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(task.id) == 1
+
+    assert "parent goal not found" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(task.id).status == "pending"
+
+
+def test_mark_task_ready_allows_task_in_open_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A pending task in an open goal can still become ready."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(task.id) == 0
+
+    assert "Status: ready" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
