@@ -43,15 +43,17 @@ Status: Implemented at the library level
 
 This phase establishes the execution control boundary without introducing unrestricted execution capabilities.
 
-"Implemented at the library level" is deliberate. The boundaries and the coordinator exist and are tested, but no CLI command invokes the coordinator, and the manual lifecycle commands (`aic task ready`, `start`, `complete`, `fail`) do not pass through readiness or admission. See G1 and G6 in [docs/STATUS.md](docs/STATUS.md).
+"Implemented at the library level" is deliberate. The boundaries and the coordinator exist and are tested, but no CLI command invokes the coordinator (G6 in [docs/STATUS.md](docs/STATUS.md)). The manual lifecycle commands `aic task ready` and `aic task start` are gated by readiness; see Phase 2.5, Step 1.
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: Proposed
+Status: In progress. Step 1 is implemented.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
 ### Step 1 — Gate manual lifecycle commands (closes G1)
+
+Status: Implemented, using option 1.
 
 Verified problem: a task in a failed goal can be moved `ready → running` from the CLI even though readiness reports it is not ready.
 
