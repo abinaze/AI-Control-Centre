@@ -752,3 +752,35 @@ def test_mark_task_ready_allows_task_in_open_goal(
 
     assert "Status: ready" in capsys.readouterr().out
     assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+
+
+def test_failed_goal_blocks_remaining_tasks_from_cli_lifecycle(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Once a goal has failed, its other tasks cannot be ready or started."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    first = _add_task(task_path, goal.id)
+    second = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(first.id) == 0
+    assert start_task(first.id) == 0
+    assert fail_task(first.id) == 0
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_FAILED
+    )
+    capsys.readouterr()
+
+    assert mark_task_ready(second.id) == 1
+    assert "parent goal is failed" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(second.id).status == "pending"
+
+    TaskRegistry(task_path).update_task_status(second.id, "ready")
+
+    assert start_task(second.id) == 1
+    assert "parent goal is failed" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(second.id).status == "ready"
