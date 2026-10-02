@@ -54,34 +54,13 @@ class TaskReadinessEvaluator:
                 reason="task not found",
             )
 
-        goal = self.goal_registry.get_goal(task.goal_id)
+        blocker = self.parent_goal_blocker(task.goal_id)
 
-        if goal is None:
+        if blocker is not None:
             return TaskReadiness(
                 task_id=task.id,
                 ready=False,
-                reason="parent goal not found",
-            )
-
-        if goal.status not in KNOWN_GOAL_STATUSES:
-            return TaskReadiness(
-                task_id=task.id,
-                ready=False,
-                reason=f"parent goal has invalid status: {goal.status}",
-            )
-
-        if goal.status == GOAL_STATUS_COMPLETED:
-            return TaskReadiness(
-                task_id=task.id,
-                ready=False,
-                reason="parent goal is completed",
-            )
-
-        if goal.status == GOAL_STATUS_FAILED:
-            return TaskReadiness(
-                task_id=task.id,
-                ready=False,
-                reason="parent goal is failed",
+                reason=blocker,
             )
 
         if task.status != TASK_STATUS_READY:
@@ -96,3 +75,21 @@ class TaskReadinessEvaluator:
             ready=True,
             reason="task is ready for execution",
         )
+
+    def parent_goal_blocker(self, goal_id: str) -> str | None:
+        """Return the reason a goal blocks execution, if any."""
+        goal = self.goal_registry.get_goal(goal_id)
+
+        if goal is None:
+            return "parent goal not found"
+
+        if goal.status not in KNOWN_GOAL_STATUSES:
+            return f"parent goal has invalid status: {goal.status}"
+
+        if goal.status == GOAL_STATUS_COMPLETED:
+            return "parent goal is completed"
+
+        if goal.status == GOAL_STATUS_FAILED:
+            return "parent goal is failed"
+
+        return None
