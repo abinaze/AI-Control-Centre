@@ -118,11 +118,11 @@ The readiness evaluator produces an explicit result and reason. It checks, in or
 5. The parent goal is not `failed`.
 6. The task status is `ready`.
 
-The goal checks run before the task status check. A `pending` task in a failed goal therefore reports "parent goal is failed", not "task status is pending".
+The goal checks run before the task status check. A `pending` task in a failed goal therefore reports "parent goal is failed", not "task status is pending". Checks 2 to 5 are also available on their own as `parent_goal_blocker`.
 
 Readiness does not itself mutate lifecycle state.
 
-A task must satisfy the readiness contract before execution-specific starting is allowed. See "Execution Entry Points" below for where this is and is not enforced today.
+A task must satisfy the readiness contract before it can start, whether it starts through the execution boundary or through the CLI. See "Execution Entry Points" below.
 
 ## Execution Architecture
 
@@ -190,16 +190,20 @@ The coordinator is a library component. No CLI command invokes it today.
 
 ## Execution Entry Points
 
-There are two ways a task reaches the `running` state today, and they do not enforce the same rules.
+A task can reach the `running` state through the execution boundary or through the CLI. Both paths enforce readiness.
 
-| Path | Readiness and admission enforced |
+| Path | What is enforced |
 | --- | --- |
-| `ExecutionCoordinator` / `ExecutionStarter` (library) | Yes |
-| `aic task start` (CLI) | **No** |
+| `ExecutionCoordinator` / `ExecutionStarter` (library) | Readiness and admission |
+| `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open |
+| `aic task ready` (CLI) | The parent goal must be open |
+| `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running` |
 
-The CLI lifecycle commands `aic task ready`, `start`, `complete`, and `fail` call the task registry directly. They enforce the transition table but not readiness. As a result, a task whose parent goal is failed can still be moved to `running` from the CLI, even though the readiness evaluator reports it as not ready. This was reproduced and is tracked as G1 in [STATUS.md](STATUS.md), with proposed resolutions in [ROADMAP.md](../ROADMAP.md).
+The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them.
 
-Until that gap is closed, the readiness and admission boundaries bind the library execution path but not every path.
+The CLI does not use `ExecutionStarter`, because that requires an execution target. A task started from the CLI is started by a person and is not handed to an adapter, so admission through a target applies to the library path only.
+
+This closes G1 in [STATUS.md](STATUS.md). Before the fix, `aic task start` moved a task whose parent goal was failed to `running`, even though the readiness evaluator reported it as not ready.
 
 ## Persistence
 
@@ -268,4 +272,4 @@ Concrete system-level execution adapters, execution permissions, execution limit
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
-Future execution capabilities must preserve the existing lifecycle, readiness, admission, and outcome boundaries. That requirement currently has one open exception: the CLI lifecycle commands (see "Execution Entry Points").
+Future execution capabilities must preserve the existing lifecycle, readiness, admission, and outcome boundaries. The CLI lifecycle commands already follow this rule; see "Execution Entry Points".
