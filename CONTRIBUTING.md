@@ -99,3 +99,4 @@ These rules keep the project's claims tied to evidence.
 - **Documentation follows the code.** Describe a capability as implemented only when its code and tests exist. Label everything else planned or research. See [docs/STATUS.md](docs/STATUS.md) for the labels.
 - **Update `docs/STATUS.md`** when a change alters behavior, closes a known gap, or opens a new one.
 - **Invariants need tests.** When a change relies on an invariant in `docs/STATUS.md`, make sure a test pins it.
+- **State file changes bump the schema version.** If a change alters the shape of a persisted state file, raise `SCHEMA_VERSION` in `src/aic_control_centre/storage.py` and add a migration that reads the previous version.
