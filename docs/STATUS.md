@@ -32,6 +32,8 @@ These results are for commit `4ea03cf`. After the G1 fix the suite has 196 tests
 
 The maintainer ran the suite on Windows under Git Bash at commit `00e3582` (after the G1 fix): 196 passed.
 
+After the atomic write change the suite has 208 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eight commits in that change; at `2481490` it gave 208 passed. Those runs include replacing an existing state file with `os.replace` on Windows.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -91,9 +93,11 @@ This behavior is pinned by `test_show_goal_status_reconciles_tasks`, so it is in
 
 `aic goal create "..." --project does-not-exist` succeeds with exit 0, although the help text says "Registered project name". `aic validate` does not check goal-to-project references. Goals therefore link to projects by free-text name only.
 
-### G4. Persistence is not crash-safe (source)
+### G4. Persistence is only partly crash-safe (source; partly closed)
 
-All three registries persist with a direct `Path.write_text`. There is no atomic replace, no file locking, no schema version field, and no transition history. A crash during a write can corrupt a file, and two concurrent processes can overwrite each other. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
+**Partly closed.** All three registries now write through `write_text_atomic`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact. The rest of this entry records what is still open.
+
+Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; there is no schema version field; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
 
 ### G5. A `running` task has no recovery path (source)
 
@@ -133,11 +137,12 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-6 | Adapter failures never bypass outcome recording. | Yes, exception, wrong-task, and invalid-result cases | Coordinator tests for each case |
 | INV-7 | Validation never modifies persisted state. | By construction: the validator only calls `list_*` methods | No dedicated non-mutation test |
 | INV-8 | A task is marked `ready` only while its parent goal is open. | Yes, in `aic task ready` | `test_mark_task_ready_rejects_task_in_closed_goal`, `test_mark_task_ready_rejects_task_with_missing_goal` |
+| INV-9 | A failed write of a state file leaves the previous file intact. | Yes, via `write_text_atomic` in all three registries | `test_failed_replace_keeps_original_and_cleans_up`, `test_failed_save_keeps_existing_registry_file`, `test_registry_failed_status_update_keeps_existing_status` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1 is closed. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: project reference validation (G3), crash-safe persistence (G4), the recovery path for `running` tasks (G5), and execution records.
+G1 is closed and G4 is partly closed. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: a schema version for the state files and file locking (the rest of G4), project reference validation (G3), the recovery path for `running` tasks (G5), and execution records.
 
-Recommended next: G4, atomic writes and a schema version. Every later feature writes state, so the persistence layer should be safe before more is built on it.
+Recommended next: the schema version. It has to exist before any on-disk shape changes, including the execution records and any change that follows from G3. Existing unversioned files should be read as version 1, so no data needs converting by hand.
