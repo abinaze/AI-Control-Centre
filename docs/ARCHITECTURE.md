@@ -43,6 +43,7 @@ src/aic_control_centre/
   cli.py            argparse entry point (the `aic` command)
   config.py         data directory and state file locations
   doctor.py         environment checks (Python version, git on PATH)
+  storage.py        atomic text file writes for state files
   projects/         project registry and commands
   goals/            goal model, registry, and commands
   tasks/            task model (lifecycle table), registry, and commands
@@ -223,11 +224,13 @@ The data directory is resolved in this order:
 
 Identifiers are UUID4 strings. Timestamps are UTC ISO-8601 strings. Each registry accepts an explicit file path, which the tests use to stay isolated from real user data.
 
+Writes are atomic. Each registry writes through `write_text_atomic` in `storage.py`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact, and the temporary file is removed.
+
 Current limitations of persistence:
 
-- Writes are direct file writes, not atomic replacements.
-- There is no file locking.
+- There is no file locking, so concurrent processes can still overwrite each other's changes.
 - Files carry no schema version.
+- A hard kill during a write can leave a stale temporary file named `.<file>.<id>.tmp`. The registries ignore it.
 - Only `created_at` and `updated_at` are stored. There is no transition or execution history.
 
 See G4 in [STATUS.md](STATUS.md).
