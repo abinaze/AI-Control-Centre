@@ -68,12 +68,14 @@ def test_registry_writes_json(tmp_path) -> None:
     registry.add_goal(goal)
 
     data = json.loads(registry_path.read_text(encoding="utf-8"))
+    goals = data["goals"]
 
-    assert len(data) == 1
-    assert data[0]["id"] == goal.id
-    assert data[0]["description"] == goal.description
-    assert data[0]["project"] == goal.project
-    assert data[0]["status"] == goal.status
+    assert data["schema_version"] == 1
+    assert len(goals) == 1
+    assert goals[0]["id"] == goal.id
+    assert goals[0]["description"] == goal.description
+    assert goals[0]["project"] == goal.project
+    assert goals[0]["status"] == goal.status
 
 
 def test_registry_updates_goal(tmp_path) -> None:
