@@ -199,6 +199,11 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
+    return _run(parser, args)
+
+
+def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
+    """Run the command selected by the parsed arguments."""
     if args.command == "doctor":
         return run_doctor()
 
