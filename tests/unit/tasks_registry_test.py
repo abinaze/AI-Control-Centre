@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_READY,
@@ -169,3 +171,55 @@ def test_registry_lists_tasks_for_goal(tmp_path) -> None:
     assert registry.list_tasks_for_goal("goal-123") == [first, third]
     assert registry.list_tasks_for_goal("goal-456") == [second]
     assert registry.list_tasks_for_goal("missing-goal") == []
+
+
+def _fail_replace(*args, **kwargs) -> None:
+    """Simulate a crash while a state file is being replaced."""
+    raise OSError("simulated crash")
+
+
+def test_registry_failed_save_keeps_existing_file(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A failed write leaves the previous registry file intact."""
+    registry_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(registry_path)
+    first = Task.create(goal_id="goal-123", title="First task")
+    registry.add_task(first)
+    before = registry_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "aic_control_centre.storage.os.replace",
+        _fail_replace,
+    )
+
+    with pytest.raises(OSError, match="simulated crash"):
+        registry.add_task(Task.create(goal_id="goal-123", title="Second"))
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    assert TaskRegistry(registry_path).list_tasks() == [first]
+    assert [path.name for path in tmp_path.iterdir()] == ["tasks.json"]
+
+
+def test_registry_failed_status_update_keeps_existing_status(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A failed status write leaves the stored status unchanged."""
+    registry_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(registry_path)
+    task = Task.create(goal_id="goal-123", title="Status task")
+    registry.add_task(task)
+    before = registry_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "aic_control_centre.storage.os.replace",
+        _fail_replace,
+    )
+
+    with pytest.raises(OSError, match="simulated crash"):
+        registry.update_task_status(task.id, TASK_STATUS_READY)
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    assert TaskRegistry(registry_path).get_task(task.id).status == "pending"
