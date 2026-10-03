@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from aic_control_centre.projects.registry import ProjectRegistry
+from aic_control_centre.storage import UnsupportedSchemaVersionError
 
 
 def test_empty_registry_returns_no_projects(tmp_path):
@@ -98,3 +100,67 @@ def test_failed_save_keeps_existing_registry_file(tmp_path, monkeypatch):
         "projects.json",
         "second-project",
     ]
+
+
+def test_registry_writes_versioned_file(tmp_path):
+    project_path = tmp_path / "my-project"
+    project_path.mkdir()
+    registry_path = tmp_path / "projects.json"
+
+    project = ProjectRegistry(registry_path).add_project(project_path)
+
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+
+    assert data["schema_version"] == 1
+    assert data["projects"] == [
+        {"name": project.name, "path": str(project.path)},
+    ]
+
+
+def test_registry_reads_legacy_list_file_without_rewriting_it(tmp_path):
+    project_path = tmp_path / "my-project"
+    project_path.mkdir()
+    registry_path = tmp_path / "projects.json"
+    legacy = [{"name": "my-project", "path": str(project_path)}]
+    registry_path.write_text(json.dumps(legacy), encoding="utf-8")
+    before = registry_path.read_bytes()
+
+    projects = ProjectRegistry(registry_path).list_projects()
+
+    assert [project.name for project in projects] == ["my-project"]
+    assert registry_path.read_bytes() == before
+
+
+def test_registry_upgrades_legacy_file_on_save(tmp_path):
+    first_path = tmp_path / "first-project"
+    first_path.mkdir()
+    second_path = tmp_path / "second-project"
+    second_path.mkdir()
+    registry_path = tmp_path / "projects.json"
+    legacy = [{"name": "first-project", "path": str(first_path)}]
+    registry_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    ProjectRegistry(registry_path).add_project(second_path)
+
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+
+    assert data["schema_version"] == 1
+    assert [item["name"] for item in data["projects"]] == [
+        "first-project",
+        "second-project",
+    ]
+
+
+def test_registry_refuses_newer_schema_version(tmp_path):
+    registry_path = tmp_path / "projects.json"
+    text = json.dumps({"schema_version": 99, "projects": []})
+    registry_path.write_text(text, encoding="utf-8")
+    registry = ProjectRegistry(registry_path)
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.list_projects()
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.add_project(tmp_path)
+
+    assert registry_path.read_text(encoding="utf-8") == text
