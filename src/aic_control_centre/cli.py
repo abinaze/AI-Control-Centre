@@ -11,6 +11,7 @@ from aic_control_centre.goals.commands import (
     show_goal_status,
 )
 from aic_control_centre.projects.commands import add_project, list_projects
+from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.commands import (
     complete_task,
     create_task,
@@ -199,7 +200,11 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    return _run(parser, args)
+    try:
+        return _run(parser, args)
+    except StateFileError as exc:
+        print(f"Error: {exc}")
+        return 1
 
 
 def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
