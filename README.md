@@ -24,7 +24,7 @@ The current implementation provides:
 - Execution admission, start, and outcome recording (library level)
 - Execution target selection and adapter registration (library level)
 - Execution coordination (library level)
-- Deterministic local JSON persistence
+- Deterministic local JSON persistence with atomic writes
 
 "Library level" means the component exists and is tested, but no CLI command invokes it yet.
 
@@ -43,7 +43,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-Goal project names are not validated, persistence is not crash-safe, and a `running` task has no recovery path. These are tracked as G3, G4, and G5 in [docs/STATUS.md](docs/STATUS.md).
+Goal project names are not validated, state files have no locking or schema version, and a `running` task has no recovery path. These are tracked as G3, G4, and G5 in [docs/STATUS.md](docs/STATUS.md).
 
 ## Quick Start
 
