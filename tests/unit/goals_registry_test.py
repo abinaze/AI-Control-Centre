@@ -6,6 +6,7 @@ import pytest
 
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.storage import UnsupportedSchemaVersionError
 
 
 def test_registry_starts_empty(tmp_path) -> None:
@@ -150,3 +151,61 @@ def test_registry_failed_save_keeps_existing_file(
     assert registry_path.read_text(encoding="utf-8") == before
     assert GoalRegistry(registry_path).list_goals() == [first]
     assert [path.name for path in tmp_path.iterdir()] == ["goals.json"]
+
+
+def _make_legacy(registry_path, collection) -> None:
+    """Rewrite a versioned state file as a pre-versioning bare list."""
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry_path.write_text(
+        json.dumps(data[collection], indent=2),
+        encoding="utf-8",
+    )
+
+
+def test_registry_reads_legacy_list_file_without_rewriting_it(
+    tmp_path,
+) -> None:
+    """A pre-versioning bare list is read and left untouched."""
+    registry_path = tmp_path / "goals.json"
+    goal = Goal.create(description="Legacy goal", project="TestProject")
+    GoalRegistry(registry_path).add_goal(goal)
+    _make_legacy(registry_path, "goals")
+    before = registry_path.read_bytes()
+
+    assert GoalRegistry(registry_path).list_goals() == [goal]
+    assert registry_path.read_bytes() == before
+
+
+def test_registry_upgrades_legacy_file_on_save(tmp_path) -> None:
+    """Saving a legacy file rewrites it in the versioned shape."""
+    registry_path = tmp_path / "goals.json"
+    registry = GoalRegistry(registry_path)
+    first = Goal.create(description="First goal", project="TestProject")
+    second = Goal.create(description="Second goal", project="TestProject")
+    registry.add_goal(first)
+    _make_legacy(registry_path, "goals")
+
+    registry.add_goal(second)
+
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+
+    assert data["schema_version"] == 1
+    assert [item["id"] for item in data["goals"]] == [first.id, second.id]
+
+
+def test_registry_refuses_newer_schema_version(tmp_path) -> None:
+    """A file from a newer schema version is refused and left untouched."""
+    registry_path = tmp_path / "goals.json"
+    text = json.dumps({"schema_version": 99, "goals": []})
+    registry_path.write_text(text, encoding="utf-8")
+    registry = GoalRegistry(registry_path)
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.list_goals()
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.add_goal(
+            Goal.create(description="New goal", project="TestProject"),
+        )
+
+    assert registry_path.read_text(encoding="utf-8") == text
