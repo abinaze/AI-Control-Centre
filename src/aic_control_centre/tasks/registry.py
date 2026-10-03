@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from aic_control_centre.config import load_config
+from aic_control_centre.storage import write_text_atomic
 from aic_control_centre.tasks.model import (
     Task,
     can_transition,
@@ -57,9 +58,9 @@ class TaskRegistry:
             for task in tasks
         ]
 
-        self.registry_path.write_text(
+        write_text_atomic(
+            self.registry_path,
             json.dumps(data, indent=2),
-            encoding="utf-8",
         )
 
     def list_tasks(self) -> list[Task]:
