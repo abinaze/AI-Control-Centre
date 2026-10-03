@@ -9,6 +9,8 @@ All notable changes to AI Control Centre are documented here.
 - `aic task start` now evaluates task readiness and refuses to start a task that is not ready, for example when its parent goal is failed or completed. It reports the readiness reason instead of the generic invalid-transition error.
 - `aic task ready` now refuses when the parent goal is missing, completed, failed, or has an invalid status.
 - `TaskReadinessEvaluator.parent_goal_blocker` exposes the parent goal check, and `evaluate` now uses it.
+- The project, goal, and task registries now write their JSON files atomically: a temporary file, a flush to disk, then a replace. A crash or error during a write no longer risks leaving a truncated state file.
+- Added `aic_control_centre.storage.write_text_atomic`, the helper the registries use.
 
 ### Documentation
 
@@ -25,7 +27,7 @@ All notable changes to AI Control Centre are documented here.
 ### Known issues (documented, not fixed)
 
 - Goal project names are not validated against the project registry.
-- JSON persistence is not atomic, locked, or versioned.
+- JSON persistence has no file locking or schema version.
 - A `running` task has no recovery path.
 
 See `docs/STATUS.md` for details and reproduction steps.
