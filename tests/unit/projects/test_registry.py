@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from aic_control_centre.projects.registry import ProjectRegistry
 
 
@@ -64,3 +66,35 @@ def test_add_project_rejects_file_path(tmp_path):
         pass
     else:
         raise AssertionError("Expected NotADirectoryError")
+
+
+def _fail_replace(*args, **kwargs):
+    raise OSError("simulated crash")
+
+
+def test_failed_save_keeps_existing_registry_file(tmp_path, monkeypatch):
+    first_path = tmp_path / "first-project"
+    first_path.mkdir()
+    second_path = tmp_path / "second-project"
+    second_path.mkdir()
+
+    registry_path = tmp_path / "projects.json"
+    registry = ProjectRegistry(registry_path)
+    first = registry.add_project(first_path)
+    before = registry_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "aic_control_centre.storage.os.replace",
+        _fail_replace,
+    )
+
+    with pytest.raises(OSError, match="simulated crash"):
+        registry.add_project(second_path)
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    assert ProjectRegistry(registry_path).list_projects() == [first]
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "first-project",
+        "projects.json",
+        "second-project",
+    ]
