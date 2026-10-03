@@ -17,7 +17,7 @@ Keep this file honest. Update it whenever a milestone lands. If a statement here
 
 - Commit: `4ea03cf` (`docs: document project architecture and workflow`), the HEAD of `main`. The maintainer confirmed with `git log` and `git status` that `main` was in sync with `origin/main` and the working tree was clean.
 - The source-level checks below were run on a GitHub archive of that commit. The archive contained no `.git` directory, so they were not run inside the repository itself.
-- Verified with Python 3.12.3 and pytest 9.1.1 on Linux. The project's primary environment (Windows + Git Bash) was not exercised by those checks.
+- Verified with Python 3.12.3 and pytest 9.1.1 on Linux. Those checks did not cover the project's primary environment; the maintainer's Windows run is recorded under Verification results.
 
 ## Verification results
 
@@ -29,6 +29,8 @@ Keep this file honest. Update it whenever a milestone lands. If a statement here
 | Test isolation | Running the suite does not create the default user data directory |
 
 These results are for commit `4ea03cf`. After the G1 fix the suite has 196 tests, all passing in the same environment.
+
+The maintainer ran the suite on Windows under Git Bash at commit `00e3582` (after the G1 fix): 196 passed.
 
 ## Capability status
 
