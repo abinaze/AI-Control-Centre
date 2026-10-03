@@ -34,6 +34,8 @@ The maintainer ran the suite on Windows under Git Bash at commit `00e3582` (afte
 
 After the atomic write change the suite has 208 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eight commits in that change; at `2481490` it gave 208 passed. Those runs include replacing an existing state file with `os.replace` on Windows.
 
+After the schema version change the suite has 238 tests, all passing on Linux.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -93,11 +95,13 @@ This behavior is pinned by `test_show_goal_status_reconciles_tasks`, so it is in
 
 `aic goal create "..." --project does-not-exist` succeeds with exit 0, although the help text says "Registered project name". `aic validate` does not check goal-to-project references. Goals therefore link to projects by free-text name only.
 
-### G4. Persistence is only partly crash-safe (source; partly closed)
+### G4. Persistence has no locking or history (source; mostly closed)
 
-**Partly closed.** All three registries now write through `write_text_atomic`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact. The rest of this entry records what is still open.
+**Mostly closed.** All three registries now write through `write_text_atomic`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact. The rest of this entry records what is still open.
 
-Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; there is no schema version field; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
+**Schema version.** Each state file is now a JSON object with a `schema_version` number and its items under `projects`, `goals`, or `tasks`. Files written before versioning are a bare list and are read as version 1; they are rewritten in the versioned shape the next time the tool saves them, and reading never rewrites them. A file with a newer version than the tool supports, a file that is not valid JSON, and a file with an unusable shape are refused with an error and left untouched.
+
+Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
 
 ### G5. A `running` task has no recovery path (source)
 
@@ -138,11 +142,13 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-7 | Validation never modifies persisted state. | By construction: the validator only calls `list_*` methods | No dedicated non-mutation test |
 | INV-8 | A task is marked `ready` only while its parent goal is open. | Yes, in `aic task ready` | `test_mark_task_ready_rejects_task_in_closed_goal`, `test_mark_task_ready_rejects_task_with_missing_goal` |
 | INV-9 | A failed write of a state file leaves the previous file intact. | Yes, via `write_text_atomic` in all three registries | `test_failed_replace_keeps_original_and_cleans_up`, `test_failed_save_keeps_existing_registry_file`, `test_registry_failed_status_update_keeps_existing_status` |
+| INV-10 | A state file written by a newer schema version, or one that is malformed, is refused and left unmodified. | Yes, in `read_state_items`; every registry read goes through it | `test_read_state_items_refuses_newer_schema_version`, `test_read_state_items_rejects_malformed_files`, `test_registry_refuses_newer_schema_version` |
+| INV-11 | Loading a state file never rewrites it, including a legacy file. Commands that save, such as `aic goal status`, do write (see G2). | Yes, loads only parse the file; only saves write | `test_read_state_items_does_not_modify_the_file`, `test_registry_reads_legacy_list_file_without_rewriting_it` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1 is closed and G4 is partly closed. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: a schema version for the state files and file locking (the rest of G4), project reference validation (G3), the recovery path for `running` tasks (G5), and execution records.
+G1 is closed, and G4 is mostly closed: only file locking and transition history remain. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: project reference validation (G3), the recovery path for `running` tasks (G5), execution records, and the remainder of G4.
 
-Recommended next: the schema version. It has to exist before any on-disk shape changes, including the execution records and any change that follows from G3. Existing unversioned files should be read as version 1, so no data needs converting by hand.
+Recommended next: G3. It is small and finishes the validation rules before execution records are added. It needs one decision first: whether a goal must reference a project that is registered. Execution records can then be added as a new versioned state file from the start.
