@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from aic_control_centre.storage import UnsupportedSchemaVersionError
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_READY,
@@ -225,3 +226,59 @@ def test_registry_failed_status_update_keeps_existing_status(
 
     assert registry_path.read_text(encoding="utf-8") == before
     assert TaskRegistry(registry_path).get_task(task.id).status == "pending"
+
+
+def _make_legacy(registry_path, collection) -> None:
+    """Rewrite a versioned state file as a pre-versioning bare list."""
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry_path.write_text(
+        json.dumps(data[collection], indent=2),
+        encoding="utf-8",
+    )
+
+
+def test_registry_reads_legacy_list_file_without_rewriting_it(
+    tmp_path,
+) -> None:
+    """A pre-versioning bare list is read and left untouched."""
+    registry_path = tmp_path / "tasks.json"
+    task = Task.create(goal_id="goal-123", title="Legacy task")
+    TaskRegistry(registry_path).add_task(task)
+    _make_legacy(registry_path, "tasks")
+    before = registry_path.read_bytes()
+
+    assert TaskRegistry(registry_path).list_tasks() == [task]
+    assert registry_path.read_bytes() == before
+
+
+def test_registry_upgrades_legacy_file_on_save(tmp_path) -> None:
+    """Saving a legacy file rewrites it in the versioned shape."""
+    registry_path = tmp_path / "tasks.json"
+    registry = TaskRegistry(registry_path)
+    first = Task.create(goal_id="goal-123", title="First task")
+    second = Task.create(goal_id="goal-123", title="Second task")
+    registry.add_task(first)
+    _make_legacy(registry_path, "tasks")
+
+    registry.add_task(second)
+
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+
+    assert data["schema_version"] == 1
+    assert [item["id"] for item in data["tasks"]] == [first.id, second.id]
+
+
+def test_registry_refuses_newer_schema_version(tmp_path) -> None:
+    """A file from a newer schema version is refused and left untouched."""
+    registry_path = tmp_path / "tasks.json"
+    text = json.dumps({"schema_version": 99, "tasks": []})
+    registry_path.write_text(text, encoding="utf-8")
+    registry = TaskRegistry(registry_path)
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.list_tasks()
+
+    with pytest.raises(UnsupportedSchemaVersionError):
+        registry.add_task(Task.create(goal_id="goal-123", title="New task"))
+
+    assert registry_path.read_text(encoding="utf-8") == text
