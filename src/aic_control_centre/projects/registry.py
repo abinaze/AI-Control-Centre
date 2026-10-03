@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aic_control_centre.config import load_config
+from aic_control_centre.storage import write_text_atomic
 
 
 @dataclass(frozen=True)
@@ -51,9 +52,9 @@ class ProjectRegistry:
             for project in projects
         ]
 
-        self.registry_path.write_text(
+        write_text_atomic(
+            self.registry_path,
             json.dumps(data, indent=2),
-            encoding="utf-8",
         )
 
     def list_projects(self) -> list[Project]:
