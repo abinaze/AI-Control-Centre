@@ -22,7 +22,7 @@ Execution currently operates through explicit contracts, readiness checks, execu
 These are current, verified limitations of the security boundary. Details and reproduction steps are in [docs/STATUS.md](docs/STATUS.md).
 
 - **Local state is unauthenticated and unprotected.** Project, goal, and task state is stored as plain JSON. Anyone with write access to the data directory can change it. It is not encrypted, signed, or tamper-evident, and there is no access control.
-- **Persistence is not crash-safe.** Writes are not atomic and there is no file locking, so a crash or concurrent processes can corrupt or overwrite state.
+- **Concurrent writers are not coordinated.** Writes are atomic, so a crash or error during a write does not corrupt a state file. There is no file locking and no schema version, so two processes can still overwrite each other's changes.
 - **No execution history is recorded.** Only creation and update timestamps exist, so actions cannot yet be audited after the fact.
 
 ## Reporting Security Issues
