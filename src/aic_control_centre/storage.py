@@ -1,10 +1,74 @@
-"""Crash-safe file writing for AI-Control-Centre state files."""
+"""Crash-safe, versioned reading and writing of state files."""
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
+
+SCHEMA_VERSION = 1
+
+
+class StateFileError(ValueError):
+    """A state file cannot be read as AI-Control-Centre state."""
+
+
+class UnsupportedSchemaVersionError(StateFileError):
+    """A state file was written by a newer schema version."""
+
+
+def read_state_items(path: Path, collection: str) -> list[Any]:
+    """Return the items stored in a state file.
+
+    A versioned file is a JSON object with a schema_version number and a
+    list of items under the collection name. A file written before
+    versioning is a bare JSON list; it is read as schema version 1.
+
+    Reading never modifies the file. A file written by a newer schema
+    version than this one supports is refused rather than guessed at.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise StateFileError(f"{path} is not valid JSON: {exc}") from exc
+
+    if isinstance(data, list):
+        return data
+
+    if not isinstance(data, dict):
+        raise StateFileError(f"{path} must contain a JSON object or list")
+
+    version = data.get("schema_version")
+
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version < 1
+    ):
+        raise StateFileError(f"{path} has no valid schema_version")
+
+    if version > SCHEMA_VERSION:
+        raise UnsupportedSchemaVersionError(
+            f"{path} uses schema version {version}, but this version of "
+            f"AI-Control-Centre supports up to {SCHEMA_VERSION}"
+        )
+
+    items = data.get(collection)
+
+    if not isinstance(items, list):
+        raise StateFileError(f"{path} has no '{collection}' list")
+
+    return items
+
+
+def serialize_state_items(collection: str, items: list[Any]) -> str:
+    """Return versioned JSON text for a state file."""
+    return json.dumps(
+        {"schema_version": SCHEMA_VERSION, collection: items},
+        indent=2,
+    )
 
 
 def write_text_atomic(
