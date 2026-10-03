@@ -22,7 +22,7 @@ Status: In progress
 Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
 - Decide whether goals must reference a registered project (G3)
-- Make persistence crash-safe and versioned (G4)
+- Add a schema version to the state files and decide on file locking (the rest of G4)
 
 ## Phase 2 — Readiness and Execution Boundaries
 
@@ -47,7 +47,7 @@ This phase establishes the execution control boundary without introducing unrest
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Step 1 is implemented.
+Status: In progress. Step 1 is implemented and Step 3 is partly implemented.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -72,7 +72,9 @@ Either validate `--project` against the project registry at goal creation and in
 
 ### Step 3 — Crash-safe persistence (closes G4)
 
-Atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
+Status: Partly implemented. Atomic write-and-replace is done for all three JSON registries. An explicit schema version field and file locking are still open.
+
+Scope: atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
 
 ### Step 4 — Design the recovery path for `running` tasks (addresses G5)
 
