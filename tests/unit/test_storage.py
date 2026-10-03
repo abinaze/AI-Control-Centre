@@ -1,8 +1,17 @@
 """Tests for atomic state file writing."""
 
+import json
+
 import pytest
 
-from aic_control_centre.storage import write_text_atomic
+from aic_control_centre.storage import (
+    SCHEMA_VERSION,
+    StateFileError,
+    UnsupportedSchemaVersionError,
+    read_state_items,
+    serialize_state_items,
+    write_text_atomic,
+)
 
 
 def _fail(*args, **kwargs) -> None:
@@ -107,3 +116,92 @@ def test_missing_parent_directory_is_an_error(tmp_path) -> None:
         write_text_atomic(target, "content")
 
     assert not (tmp_path / "missing").exists()
+
+
+def test_serialize_state_items_writes_version_first() -> None:
+    """Serialized state names its schema version before its items."""
+    data = json.loads(serialize_state_items("goals", [{"id": "g1"}]))
+
+    assert data == {"schema_version": SCHEMA_VERSION, "goals": [{"id": "g1"}]}
+    assert list(data) == ["schema_version", "goals"]
+
+
+def test_read_state_items_round_trips_versioned_state(tmp_path) -> None:
+    """Items written by serialize_state_items are read back unchanged."""
+    path = tmp_path / "state.json"
+    items = [{"id": "one"}, {"id": "two"}]
+    path.write_text(serialize_state_items("tasks", items), encoding="utf-8")
+
+    assert read_state_items(path, "tasks") == items
+
+
+def test_read_state_items_reads_legacy_list_as_version_one(tmp_path) -> None:
+    """A bare list written before versioning is still readable."""
+    path = tmp_path / "state.json"
+    path.write_text('[{"id": "old"}]', encoding="utf-8")
+
+    assert read_state_items(path, "tasks") == [{"id": "old"}]
+
+
+def test_read_state_items_does_not_modify_the_file(tmp_path) -> None:
+    """Reading a legacy file leaves its bytes untouched."""
+    path = tmp_path / "state.json"
+    path.write_text('[{"id": "old"}]', encoding="utf-8")
+    before = path.read_bytes()
+
+    read_state_items(path, "tasks")
+
+    assert path.read_bytes() == before
+
+
+def test_read_state_items_refuses_newer_schema_version(tmp_path) -> None:
+    """A file from a newer schema version is refused, not guessed at."""
+    path = tmp_path / "state.json"
+    text = json.dumps({"schema_version": SCHEMA_VERSION + 1, "tasks": []})
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(UnsupportedSchemaVersionError) as error:
+        read_state_items(path, "tasks")
+
+    assert f"schema version {SCHEMA_VERSION + 1}" in str(error.value)
+    assert f"supports up to {SCHEMA_VERSION}" in str(error.value)
+    assert path.read_text(encoding="utf-8") == text
+
+
+def test_unsupported_version_error_is_a_state_file_error() -> None:
+    """Callers can catch every state file problem with one exception."""
+    assert issubclass(UnsupportedSchemaVersionError, StateFileError)
+    assert issubclass(StateFileError, ValueError)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "not json at all",
+        "",
+        '"just a string"',
+        "42",
+        '{"tasks": []}',
+        '{"schema_version": "1", "tasks": []}',
+        '{"schema_version": true, "tasks": []}',
+        '{"schema_version": 0, "tasks": []}',
+        '{"schema_version": 1}',
+        '{"schema_version": 1, "tasks": {"id": "x"}}',
+    ],
+)
+def test_read_state_items_rejects_malformed_files(tmp_path, content) -> None:
+    """Files that are not valid state raise a StateFileError."""
+    path = tmp_path / "state.json"
+    path.write_text(content, encoding="utf-8")
+
+    with pytest.raises(StateFileError):
+        read_state_items(path, "tasks")
+
+
+def test_read_state_items_rejects_undecodable_bytes(tmp_path) -> None:
+    """Bytes that are not UTF-8 raise a StateFileError."""
+    path = tmp_path / "state.json"
+    path.write_bytes(b"\xff\xfe\x00")
+
+    with pytest.raises(StateFileError):
+        read_state_items(path, "tasks")
