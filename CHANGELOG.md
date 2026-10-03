@@ -11,6 +11,10 @@ All notable changes to AI Control Centre are documented here.
 - `TaskReadinessEvaluator.parent_goal_blocker` exposes the parent goal check, and `evaluate` now uses it.
 - The project, goal, and task registries now write their JSON files atomically: a temporary file, a flush to disk, then a replace. A crash or error during a write no longer risks leaving a truncated state file.
 - Added `aic_control_centre.storage.write_text_atomic`, the helper the registries use.
+- State files now record a schema version. Each file is a JSON object with a `schema_version` number and its items under `projects`, `goals`, or `tasks`. Files that are a bare list, as written by earlier versions, are read as version 1 and are rewritten in the new shape the next time they are saved.
+- Upgrade note: once a state file has been saved in the new shape, versions of the tool from before this change cannot read it. Back up the data directory before upgrading if you may need to go back.
+- A state file that is not valid JSON, has an unusable `schema_version`, or was written by a newer schema version is now reported as `Error: ...` with exit status 1 instead of a traceback, and is not modified.
+- Added `read_state_items`, `serialize_state_items`, `StateFileError`, and `UnsupportedSchemaVersionError` to `aic_control_centre.storage`.
 
 ### Documentation
 
@@ -27,7 +31,7 @@ All notable changes to AI Control Centre are documented here.
 ### Known issues (documented, not fixed)
 
 - Goal project names are not validated against the project registry.
-- JSON persistence has no file locking or schema version.
+- JSON persistence has no file locking.
 - A `running` task has no recovery path.
 
 See `docs/STATUS.md` for details and reproduction steps.
