@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from aic_control_centre.config import load_config
-from aic_control_centre.storage import write_text_atomic
+from aic_control_centre.storage import (
+    read_state_items,
+    serialize_state_items,
+    write_text_atomic,
+)
 
 
 @dataclass(frozen=True)
@@ -30,7 +33,7 @@ class ProjectRegistry:
         if not self.registry_path.exists():
             return []
 
-        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
+        data = read_state_items(self.registry_path, "projects")
 
         return [
             Project(
@@ -54,7 +57,7 @@ class ProjectRegistry:
 
         write_text_atomic(
             self.registry_path,
-            json.dumps(data, indent=2),
+            serialize_state_items("projects", data),
         )
 
     def list_projects(self) -> list[Project]:
