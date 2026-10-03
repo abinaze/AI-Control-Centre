@@ -236,7 +236,7 @@ def test_outcome_is_persisted(tmp_path):
 
     persisted = json.loads(
         task_registry.registry_path.read_text(encoding="utf-8"),
-    )
+    )["tasks"]
 
     assert len(persisted) == 1
     assert persisted[0]["id"] == task.id

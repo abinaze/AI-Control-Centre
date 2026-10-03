@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from aic_control_centre.config import load_config
-from aic_control_centre.storage import write_text_atomic
+from aic_control_centre.storage import (
+    read_state_items,
+    serialize_state_items,
+    write_text_atomic,
+)
 from aic_control_centre.tasks.model import (
     Task,
     can_transition,
@@ -26,7 +29,7 @@ class TaskRegistry:
         if not self.registry_path.exists():
             return []
 
-        data = json.loads(self.registry_path.read_text(encoding="utf-8"))
+        data = read_state_items(self.registry_path, "tasks")
 
         return [
             Task(
@@ -60,7 +63,7 @@ class TaskRegistry:
 
         write_text_atomic(
             self.registry_path,
-            json.dumps(data, indent=2),
+            serialize_state_items("tasks", data),
         )
 
     def list_tasks(self) -> list[Task]:

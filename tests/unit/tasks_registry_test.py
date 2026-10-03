@@ -72,12 +72,14 @@ def test_registry_writes_json(tmp_path) -> None:
     registry.add_task(task)
 
     data = json.loads(registry_path.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
 
-    assert len(data) == 1
-    assert data[0]["id"] == task.id
-    assert data[0]["goal_id"] == task.goal_id
-    assert data[0]["title"] == task.title
-    assert data[0]["status"] == task.status
+    assert data["schema_version"] == 1
+    assert len(tasks) == 1
+    assert tasks[0]["id"] == task.id
+    assert tasks[0]["goal_id"] == task.goal_id
+    assert tasks[0]["title"] == task.title
+    assert tasks[0]["status"] == task.status
 
 
 def test_registry_updates_task_status(tmp_path) -> None:
