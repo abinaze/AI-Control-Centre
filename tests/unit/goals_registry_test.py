@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
 
@@ -115,3 +117,34 @@ def test_registry_rejects_unknown_goal_update(tmp_path) -> None:
         assert str(exc) == f"Goal not found: {goal.id}"
     else:
         raise AssertionError("Expected ValueError for unknown goal")
+
+
+def _fail_replace(*args, **kwargs) -> None:
+    """Simulate a crash while a state file is being replaced."""
+    raise OSError("simulated crash")
+
+
+def test_registry_failed_save_keeps_existing_file(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A failed write leaves the previous registry file intact."""
+    registry_path = tmp_path / "goals.json"
+    registry = GoalRegistry(registry_path)
+    first = Goal.create(description="First goal", project="TestProject")
+    registry.add_goal(first)
+    before = registry_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        "aic_control_centre.storage.os.replace",
+        _fail_replace,
+    )
+
+    with pytest.raises(OSError, match="simulated crash"):
+        registry.add_goal(
+            Goal.create(description="Second goal", project="TestProject"),
+        )
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    assert GoalRegistry(registry_path).list_goals() == [first]
+    assert [path.name for path in tmp_path.iterdir()] == ["goals.json"]
