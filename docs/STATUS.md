@@ -36,6 +36,8 @@ After the atomic write change the suite has 208 tests. The maintainer ran the fu
 
 After the schema version change the suite has 238 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eleven code commits in that change and again after the documentation commits; the final run at `df1cbbb` gave 238 passed.
 
+After the project reference change the suite has 251 tests.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -91,9 +93,13 @@ No test pinned this behavior, so it was an unspecified design gap, not a documen
 
 This behavior is pinned by `test_show_goal_status_reconciles_tasks`, so it is intentional. Earlier documentation described the principle as "no silent repair" without this exception. The documentation now states the actual rule; see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### G3. Goal project names are not validated (reproduced)
+### G3. Goal project names were not validated (closed)
 
-`aic goal create "..." --project does-not-exist` succeeds with exit 0, although the help text says "Registered project name". `aic validate` does not check goal-to-project references. Goals therefore link to projects by free-text name only.
+**Closed.** `aic goal create` now refuses a project that is not registered, and `aic validate` reports goals whose project is not registered. Names are matched exactly, so `Aircursor` and `aircursor` are different projects. The rest of this entry records the original defect.
+
+Original defect: `aic goal create "..." --project does-not-exist` succeeded with exit 0, although the help text says "Registered project name". `aic validate` did not check goal-to-project references, so goals linked to projects by free-text name only.
+
+Goals created before this change that point at an unregistered project are not modified. `aic validate` reports them until the project is registered with `aic project add <path>`.
 
 ### G4. Persistence has no locking or history (source; mostly closed)
 
@@ -144,11 +150,13 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-9 | A failed write of a state file leaves the previous file intact. | Yes, via `write_text_atomic` in all three registries | `test_failed_replace_keeps_original_and_cleans_up`, `test_failed_save_keeps_existing_registry_file`, `test_registry_failed_status_update_keeps_existing_status` |
 | INV-10 | A state file written by a newer schema version, or one that is malformed, is refused and left unmodified. | Yes, in `read_state_items`; every registry read goes through it | `test_read_state_items_refuses_newer_schema_version`, `test_read_state_items_rejects_malformed_files`, `test_registry_refuses_newer_schema_version` |
 | INV-11 | Loading a state file never rewrites it, including a legacy file. Commands that save, such as `aic goal status`, do write (see G2). | Yes, loads only parse the file; only saves write | `test_read_state_items_does_not_modify_the_file`, `test_registry_reads_legacy_list_file_without_rewriting_it` |
+| INV-12 | A goal is created only for a registered project. | Yes, in `create_goal` | `test_create_goal_rejects_unregistered_project`, `test_create_goal_matches_project_names_exactly`, `test_main_goal_create_rejects_unregistered_project` |
+| INV-13 | Validation reports every goal whose project is not registered when the validator is given a project registry; `aic validate` always gives it one. | Yes, in `GoalTaskValidator` | `test_goal_for_unregistered_project_is_reported`, `test_every_goal_with_an_unregistered_project_is_reported`, `test_main_validate_reports_goal_for_unregistered_project` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1 is closed, and G4 is mostly closed: only file locking and transition history remain. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: project reference validation (G3), the recovery path for `running` tasks (G5), execution records, and the remainder of G4.
+G1 and G3 are closed, and G4 is mostly closed: only file locking and transition history remain. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the recovery path for `running` tasks (G5), execution records, and the remainder of G4.
 
-Recommended next: G3. It is small and finishes the validation rules before execution records are added. It needs one decision first: whether a goal must reference a project that is registered. Execution records can then be added as a new versioned state file from the start.
+Recommended next: settle the G5 design in a short written note before any code: what marks a task as interrupted, and which transition may leave `running` when no outcome was recorded. Execution records can then be added as a new versioned state file, and the same note decides what they must contain to support recovery.
