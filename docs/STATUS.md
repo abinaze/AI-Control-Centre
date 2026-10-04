@@ -34,7 +34,7 @@ The maintainer ran the suite on Windows under Git Bash at commit `00e3582` (afte
 
 After the atomic write change the suite has 208 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eight commits in that change; at `2481490` it gave 208 passed. Those runs include replacing an existing state file with `os.replace` on Windows.
 
-After the schema version change the suite has 238 tests, all passing on Linux.
+After the schema version change the suite has 238 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eleven code commits in that change and again after the documentation commits; the final run at `df1cbbb` gave 238 passed.
 
 ## Capability status
 
