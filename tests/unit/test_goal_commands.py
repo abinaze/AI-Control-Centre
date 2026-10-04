@@ -11,8 +11,21 @@ from aic_control_centre.goals.model import (
     Goal,
 )
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.model import TASK_STATUS_COMPLETED, Task
 from aic_control_centre.tasks.registry import TaskRegistry
+
+
+def register_project(tmp_path, monkeypatch, name) -> None:
+    """Register a project in a temporary registry for the goal commands."""
+    project_path = tmp_path / name
+    project_path.mkdir(exist_ok=True)
+    ProjectRegistry(tmp_path / "projects.json").add_project(project_path)
+
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.ProjectRegistry",
+        lambda: ProjectRegistry(tmp_path / "projects.json"),
+    )
 
 
 def test_create_goal_persists_goal(tmp_path, monkeypatch, capsys) -> None:
@@ -23,6 +36,8 @@ def test_create_goal_persists_goal(tmp_path, monkeypatch, capsys) -> None:
         "aic_control_centre.goals.commands.GoalRegistry",
         lambda: GoalRegistry(registry_path),
     )
+
+    register_project(tmp_path, monkeypatch, "Aircursor")
 
     result = create_goal(
         description="Improve Aircursor security",
@@ -79,6 +94,9 @@ def test_list_goals_prints_registered_goals(
         "aic_control_centre.goals.commands.GoalRegistry",
         lambda: GoalRegistry(registry_path),
     )
+
+    register_project(tmp_path, monkeypatch, "ProjectA")
+    register_project(tmp_path, monkeypatch, "ProjectB")
 
     create_goal(
         description="First goal",

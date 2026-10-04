@@ -4,6 +4,7 @@ import sys
 from aic_control_centre.cli import build_parser, main
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.projects.registry import ProjectRegistry
 
 
 def test_parser_program_name():
@@ -113,6 +114,10 @@ def test_main_reads_legacy_file_and_upgrades_it_on_save(
     assert run_cli(monkeypatch, tmp_path, "goal", "list") == 0
     assert "Legacy goal" in capsys.readouterr().out
     assert isinstance(json.loads(goals_file.read_text(encoding="utf-8")), list)
+
+    project_path = tmp_path / "TestProject"
+    project_path.mkdir()
+    ProjectRegistry(tmp_path / "projects.json").add_project(project_path)
 
     result = run_cli(
         monkeypatch,
