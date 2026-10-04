@@ -164,3 +164,27 @@ def test_registry_refuses_newer_schema_version(tmp_path):
         registry.add_project(tmp_path)
 
     assert registry_path.read_text(encoding="utf-8") == text
+
+
+def test_get_project_finds_a_registered_project_by_name(tmp_path):
+    project_path = tmp_path / "my-project"
+    project_path.mkdir()
+    registry = ProjectRegistry(tmp_path / "projects.json")
+    project = registry.add_project(project_path)
+
+    assert registry.get_project("my-project") == project
+
+
+def test_get_project_returns_none_for_an_unknown_name(tmp_path):
+    registry = ProjectRegistry(tmp_path / "projects.json")
+
+    assert registry.get_project("ghost") is None
+
+
+def test_get_project_matches_names_exactly(tmp_path):
+    project_path = tmp_path / "My-Project"
+    project_path.mkdir()
+    registry = ProjectRegistry(tmp_path / "projects.json")
+    registry.add_project(project_path)
+
+    assert registry.get_project("my-project") is None
