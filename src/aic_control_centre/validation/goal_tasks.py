@@ -13,6 +13,7 @@ from aic_control_centre.goals.model import (
 )
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import derive_goal_status
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -53,20 +54,37 @@ class ValidationResult:
 
 
 class GoalTaskValidator:
-    """Validate persisted goal/task relationships without modifying state."""
+    """Validate persisted goal/task relationships without modifying state.
+
+    Goal project references are checked only when a project registry is
+    given; without one, project names are not checked.
+    """
 
     def __init__(
         self,
         goal_registry: GoalRegistry | None = None,
         task_registry: TaskRegistry | None = None,
+        project_registry: ProjectRegistry | None = None,
     ) -> None:
         self.goal_registry = goal_registry or GoalRegistry()
         self.task_registry = task_registry or TaskRegistry()
+        self.project_registry = project_registry
+
+    def _registered_project_names(self) -> set[str] | None:
+        """Return registered project names, or None when not checking."""
+        if self.project_registry is None:
+            return None
+
+        return {
+            project.name
+            for project in self.project_registry.list_projects()
+        }
 
     def validate(self) -> ValidationResult:
         """Validate the complete persisted goal/task graph."""
         goals = self.goal_registry.list_goals()
         tasks = self.task_registry.list_tasks()
+        registered_projects = self._registered_project_names()
 
         errors: list[str] = []
 
@@ -81,6 +99,16 @@ class GoalTaskValidator:
             if goal.status not in KNOWN_GOAL_STATUSES:
                 errors.append(
                     f"Goal {goal.id} has unknown status: {goal.status}"
+                )
+
+
+            if (
+                registered_projects is not None
+                and goal.project not in registered_projects
+            ):
+                errors.append(
+                    f"Goal {goal.id} references unregistered project: "
+                    f"{goal.project}"
                 )
 
         task_ids: set[str] = set()
