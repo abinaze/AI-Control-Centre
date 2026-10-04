@@ -15,6 +15,9 @@ All notable changes to AI Control Centre are documented here.
 - Upgrade note: once a state file has been saved in the new shape, versions of the tool from before this change cannot read it. Back up the data directory before upgrading if you may need to go back.
 - A state file that is not valid JSON, has an unusable `schema_version`, or was written by a newer schema version is now reported as `Error: ...` with exit status 1 instead of a traceback, and is not modified.
 - Added `read_state_items`, `serialize_state_items`, `StateFileError`, and `UnsupportedSchemaVersionError` to `aic_control_centre.storage`.
+- `aic goal create` now refuses a project that is not registered and points to `aic project add <path>`. Project names are matched exactly.
+- `aic validate` now reports goals whose project is not registered. Upgrade note: goals created earlier for an unregistered project are not modified, but `aic validate` fails until that project is registered with `aic project add <path>`.
+- Added `ProjectRegistry.get_project` and an optional `project_registry` argument to `GoalTaskValidator`. The project check runs only when that argument is given.
 
 ### Documentation
 
@@ -30,7 +33,6 @@ All notable changes to AI Control Centre are documented here.
 
 ### Known issues (documented, not fixed)
 
-- Goal project names are not validated against the project registry.
 - JSON persistence has no file locking.
 - A `running` task has no recovery path.
 
