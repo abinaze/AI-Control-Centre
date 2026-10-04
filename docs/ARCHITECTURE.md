@@ -63,7 +63,7 @@ A project is the top-level persisted unit of work. It is a registered local dire
 
 Project state is stored locally and managed through deterministic commands.
 
-Goals currently refer to a project by free-text name. The name is not checked against the project registry (see G3 in [STATUS.md](STATUS.md)).
+A goal refers to a project by name. `aic goal create` refuses a project that is not registered, and `aic validate` reports goals whose project is not registered. Names are matched exactly.
 
 ### Goal
 
@@ -102,7 +102,7 @@ The transition table lives in the task model and is enforced by the task registr
 
 Validation provides a deterministic boundary for checking persisted project state.
 
-The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, and goals whose persisted status differs from the status derived from their tasks.
+The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, and goals whose persisted status differs from the status derived from their tasks. The project check runs only when the validator is given a project registry; `aic validate` always gives it one.
 
 Validation reports state inconsistencies and invalid conditions without modifying persisted state. It is a read-only operation.
 
