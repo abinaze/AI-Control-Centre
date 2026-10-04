@@ -11,6 +11,7 @@ from aic_control_centre.goals.commands import (
     show_goal_status,
 )
 from aic_control_centre.projects.commands import add_project, list_projects
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.commands import (
     complete_task,
@@ -213,7 +214,8 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         return run_doctor()
 
     if args.command == "validate":
-        result = GoalTaskValidator().validate()
+        validator = GoalTaskValidator(project_registry=ProjectRegistry())
+        result = validator.validate()
 
         if result.valid:
             print("Validation passed.")
