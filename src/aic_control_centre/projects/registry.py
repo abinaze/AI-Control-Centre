@@ -93,3 +93,10 @@ class ProjectRegistry:
         self._save(projects)
 
         return project
+    def get_project(self, name: str) -> Project | None:
+        """Return the registered project with this exact name, if any."""
+        for project in self._load():
+            if project.name == name:
+                return project
+
+        return None
