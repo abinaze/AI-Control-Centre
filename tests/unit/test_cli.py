@@ -156,3 +156,37 @@ def test_main_goal_create_rejects_unregistered_project(
     assert result == 1
     assert "project is not registered: Ghost" in output
     assert not (tmp_path / "goals.json").exists()
+
+
+def test_main_validate_reports_goal_for_unregistered_project(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    goal = Goal.create(description="Orphan goal", project="Ghost")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+
+    result = run_cli(monkeypatch, tmp_path, "validate")
+
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "Validation failed." in output
+    assert f"Goal {goal.id} references unregistered project: Ghost" in output
+
+
+def test_main_validate_passes_once_the_project_is_registered(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    goal = Goal.create(description="Registered goal", project="Aircursor")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    project_path = tmp_path / "Aircursor"
+    project_path.mkdir()
+    ProjectRegistry(tmp_path / "projects.json").add_project(project_path)
+
+    result = run_cli(monkeypatch, tmp_path, "validate")
+
+    assert result == 0
+    assert "Validation passed." in capsys.readouterr().out
