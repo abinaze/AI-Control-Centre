@@ -7,6 +7,7 @@ from aic_control_centre.goals.model import (
     Goal,
 )
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     Task,
@@ -320,3 +321,80 @@ def test_in_progress_goal_can_receive_new_task() -> None:
     assert validate_task_creation(active_goal) is None
 
 
+def _validator_with_projects(tmp_path, project_names):
+    """Build a validator whose project registry holds the given names."""
+    project_registry = ProjectRegistry(tmp_path / "projects.json")
+
+    for name in project_names:
+        project_path = tmp_path / name
+        project_path.mkdir()
+        project_registry.add_project(project_path)
+
+    return GoalTaskValidator(
+        goal_registry=GoalRegistry(tmp_path / "goals.json"),
+        task_registry=TaskRegistry(tmp_path / "tasks.json"),
+        project_registry=project_registry,
+    )
+
+
+def test_project_references_are_not_checked_without_a_registry(
+    tmp_path,
+) -> None:
+    """Without a project registry, project names are not validated."""
+    goal_registry = GoalRegistry(tmp_path / "goals.json")
+    goal_registry.add_goal(
+        Goal.create(description="Unchecked goal", project="Unregistered"),
+    )
+    validator = GoalTaskValidator(
+        goal_registry=goal_registry,
+        task_registry=TaskRegistry(tmp_path / "tasks.json"),
+    )
+
+    assert validator.validate().valid is True
+
+
+def test_goal_for_registered_project_is_valid(tmp_path) -> None:
+    """A goal whose project is registered passes validation."""
+    validator = _validator_with_projects(tmp_path, ["Aircursor"])
+    validator.goal_registry.add_goal(
+        Goal.create(description="Registered goal", project="Aircursor"),
+    )
+
+    result = validator.validate()
+
+    assert result.valid is True
+    assert result.errors == ()
+
+
+def test_goal_for_unregistered_project_is_reported(tmp_path) -> None:
+    """A goal pointing at an unregistered project is a validation error."""
+    validator = _validator_with_projects(tmp_path, ["Aircursor"])
+    goal = Goal.create(description="Orphan goal", project="Ghost")
+    validator.goal_registry.add_goal(goal)
+
+    result = validator.validate()
+
+    assert result.valid is False
+    assert result.errors == (
+        f"Goal {goal.id} references unregistered project: Ghost",
+    )
+
+
+def test_every_goal_with_an_unregistered_project_is_reported(
+    tmp_path,
+) -> None:
+    """Each goal with an unregistered project gets its own error."""
+    validator = _validator_with_projects(tmp_path, ["Aircursor"])
+    first = Goal.create(description="First orphan", project="Ghost")
+    second = Goal.create(description="Second orphan", project="Phantom")
+    valid = Goal.create(description="Fine goal", project="Aircursor")
+
+    for goal in (first, valid, second):
+        validator.goal_registry.add_goal(goal)
+
+    result = validator.validate()
+
+    assert result.errors == (
+        f"Goal {first.id} references unregistered project: Ghost",
+        f"Goal {second.id} references unregistered project: Phantom",
+    )
