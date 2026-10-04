@@ -21,7 +21,6 @@ Status: In progress
 
 Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
-- Decide whether goals must reference a registered project (G3)
 - Decide on file locking (the rest of G4)
 
 ## Phase 2 — Readiness and Execution Boundaries
@@ -47,7 +46,7 @@ This phase establishes the execution control boundary without introducing unrest
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Steps 1 and 3 are implemented, apart from file locking.
+Status: In progress. Steps 1, 2 and 3 are implemented, apart from file locking.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -68,7 +67,9 @@ Option 1 is recommended because it closes the gap without changing what the comm
 
 ### Step 2 — Decide and enforce project references (closes G3)
 
-Either validate `--project` against the project registry at goal creation and in `aic validate`, or document free-text project names as intended.
+Status: Implemented. `aic goal create` refuses an unregistered project and `aic validate` reports goals whose project is not registered. Names are matched exactly.
+
+Original options: validate `--project` against the project registry at goal creation and in `aic validate`, or document free-text project names as intended.
 
 ### Step 3 — Crash-safe persistence (closes G4)
 
