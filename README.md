@@ -43,7 +43,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-Goal project names are not validated, state files have no locking, and a `running` task has no recovery path. These are tracked as G3, G4, and G5 in [docs/STATUS.md](docs/STATUS.md).
+State files have no locking, and a `running` task has no recovery path. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md).
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ aic validate                                Validate persisted goal and task sta
 aic project add <path>                      Register a local project
 aic project list                            List registered projects
 
-aic goal create "<description>" --project <name>
+aic goal create "<description>" --project <name>   (the project must be registered)
 aic goal list
 aic goal status <goal-id>                   Show a goal (reconciles and saves its status)
 
