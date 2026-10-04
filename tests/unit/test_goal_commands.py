@@ -247,3 +247,65 @@ def test_show_goal_status_unknown_goal(tmp_path, monkeypatch, capsys) -> None:
 
     assert result == 1
     assert "Goal not found: missing-goal" in capsys.readouterr().out
+
+
+def test_create_goal_rejects_unregistered_project(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A goal cannot be created for a project that is not registered."""
+    goals_path = tmp_path / "goals.json"
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.GoalRegistry",
+        lambda: GoalRegistry(goals_path),
+    )
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.ProjectRegistry",
+        lambda: ProjectRegistry(tmp_path / "projects.json"),
+    )
+
+    result = create_goal(description="Orphan goal", project="Ghost")
+
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "project is not registered: Ghost" in output
+    assert "aic project add" in output
+    assert not goals_path.exists()
+
+
+def test_create_goal_matches_project_names_exactly(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Project names are case sensitive."""
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.GoalRegistry",
+        lambda: GoalRegistry(tmp_path / "goals.json"),
+    )
+    register_project(tmp_path, monkeypatch, "Aircursor")
+
+    result = create_goal(description="Wrong case", project="aircursor")
+
+    assert result == 1
+    assert "project is not registered: aircursor" in capsys.readouterr().out
+
+
+def test_create_goal_ignores_whitespace_around_project_name(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Surrounding whitespace is stripped before the project is looked up."""
+    goals_path = tmp_path / "goals.json"
+    monkeypatch.setattr(
+        "aic_control_centre.goals.commands.GoalRegistry",
+        lambda: GoalRegistry(goals_path),
+    )
+    register_project(tmp_path, monkeypatch, "Aircursor")
+
+    result = create_goal(description="Padded", project="  Aircursor  ")
+
+    assert result == 0
+    assert GoalRegistry(goals_path).list_goals()[0].project == "Aircursor"

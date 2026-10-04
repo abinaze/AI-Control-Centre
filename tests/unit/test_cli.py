@@ -134,3 +134,25 @@ def test_main_reads_legacy_file_and_upgrades_it_on_save(
     assert result == 0
     assert data["schema_version"] == 1
     assert len(data["goals"]) == 2
+
+
+def test_main_goal_create_rejects_unregistered_project(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "goal",
+        "create",
+        "Orphan goal",
+        "--project",
+        "Ghost",
+    )
+
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "project is not registered: Ghost" in output
+    assert not (tmp_path / "goals.json").exists()
