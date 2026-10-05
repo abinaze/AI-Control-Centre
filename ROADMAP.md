@@ -79,7 +79,7 @@ Scope: atomic write-and-replace for the JSON registries and an explicit schema v
 
 ### Step 4 — Design the recovery path for `running` tasks (addresses G5)
 
-Design before code: what marks a task as interrupted, and what transition is allowed out of `running` when no outcome was recorded.
+Design before code: what marks a task as interrupted, and what transition is allowed out of `running` when no outcome was recorded. A design note with options and a recommendation is proposed in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
 
 ### Step 5 — Execution records
 
