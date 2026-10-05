@@ -101,7 +101,6 @@ class GoalTaskValidator:
                     f"Goal {goal.id} has unknown status: {goal.status}"
                 )
 
-
             if (
                 registered_projects is not None
                 and goal.project not in registered_projects
