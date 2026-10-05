@@ -36,7 +36,7 @@ After the atomic write change the suite has 208 tests. The maintainer ran the fu
 
 After the schema version change the suite has 238 tests. The maintainer ran the full suite on Windows under Git Bash before each of the eleven code commits in that change and again after the documentation commits; the final run at `df1cbbb` gave 238 passed.
 
-After the project reference change the suite has 251 tests.
+After the project reference change the suite has 251 tests. The maintainer ran the full suite on Windows under Git Bash at commit `d064385`: 251 passed.
 
 ## Capability status
 
