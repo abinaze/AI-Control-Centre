@@ -109,9 +109,9 @@ Goals created before this change that point at an unregistered project are not m
 
 Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
 
-### G5. A `running` task has no recovery path (source)
+### G5. A `running` task has no recovery path (reproduced; design proposed)
 
-The transition table allows `running → completed | failed` only. If a process dies after a task is started but before an outcome is recorded, the task stays `running` with nothing to time it out or recover it. Recovery and timeouts are listed as future work in [ARCHITECTURE.md](ARCHITECTURE.md).
+The transition table allows `running → completed | failed` only. If a process dies after a task is started but before an outcome is recorded, the task stays `running` with nothing to time it out or recover it. Recovery and timeouts are listed as future work in [ARCHITECTURE.md](ARCHITECTURE.md). Reproduced with the CLI: the only ways out of a dead `running` task are a false `aic task complete` or an `aic task fail` that fails the whole goal, after which nothing in that goal can run again. A design note with options and a recommendation is in [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (status: proposed).
 
 ### G6. The coordinator is unreachable from the CLI (reproduced)
 
@@ -159,4 +159,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1 and G3 are closed, and G4 is mostly closed: only file locking and transition history remain. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the recovery path for `running` tasks (G5), execution records, and the remainder of G4.
 
-Recommended next: settle the G5 design in a short written note before any code: what marks a task as interrupted, and which transition may leave `running` when no outcome was recorded. Execution records can then be added as a new versioned state file, and the same note decides what they must contain to support recovery.
+Recommended next: approve or change the G5 design note in [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (status: proposed). It recommends an operator command, `aic task requeue`, so that a dead `running` task can be retried without failing its goal. No code should be written until the note is approved. Execution records follow, as a new versioned state file.
