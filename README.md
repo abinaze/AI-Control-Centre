@@ -180,6 +180,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/STATUS.md](docs/STATUS.md) | Verified status, known gaps, and invariants |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system is structured today |
 | [docs/DESIGN_DIRECTIONS.md](docs/DESIGN_DIRECTIONS.md) | Research on future directions; not committed |
+| [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Proposed design for recovering tasks left in `running` |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
