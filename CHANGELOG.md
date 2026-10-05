@@ -30,6 +30,7 @@ All notable changes to AI Control Centre are documented here.
 - Extended `CONTRIBUTING.md` with environment setup, test isolation, and the working agreement.
 - Documented current security-relevant gaps in `SECURITY.md`.
 - Filled in `.env.example` and the pull request template, which were empty.
+- Added `docs/RECOVERY_DESIGN.md`: a proposed design for recovering tasks left in `running` (G5), with options and a recommendation. Nothing is implemented yet.
 
 ### Known issues (documented, not fixed)
 
