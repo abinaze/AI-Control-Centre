@@ -784,3 +784,31 @@ def test_failed_goal_blocks_remaining_tasks_from_cli_lifecycle(
     assert start_task(second.id) == 1
     assert "parent goal is failed" in capsys.readouterr().out
     assert TaskRegistry(task_path).get_task(second.id).status == "ready"
+
+
+def _add_running_task(task_path, goal_id) -> Task:
+    """Persist a task that has been started and is now running."""
+    task = _add_task(task_path, goal_id, status="ready")
+    TaskRegistry(task_path).update_task_status(task.id, "running")
+    return task
+
+
+def test_mark_task_ready_refuses_running_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """The ready command does not send a running task back to ready."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    before = TaskRegistry(task_path).get_task(task.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(task.id) == 1
+
+    output = capsys.readouterr().out
+
+    assert "Error: task is running and cannot be marked ready." in output
+    assert TaskRegistry(task_path).get_task(task.id) == before
