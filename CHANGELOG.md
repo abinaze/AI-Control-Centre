@@ -18,6 +18,8 @@ All notable changes to AI Control Centre are documented here.
 - `aic goal create` now refuses a project that is not registered and points to `aic project add <path>`. Project names are matched exactly.
 - `aic validate` now reports goals whose project is not registered. Upgrade note: goals created earlier for an unregistered project are not modified, but `aic validate` fails until that project is registered with `aic project add <path>`.
 - Added `ProjectRegistry.get_project` and an optional `project_registry` argument to `GoalTaskValidator`. The project check runs only when that argument is given.
+- Added `aic task requeue <task-id> --reason "<text>"`. It returns a `running` task to `ready`, so a task whose process died can be retried through readiness without failing its goal. A reason is required. The command refuses a task that is not `running` and a task whose parent goal is missing, completed, failed, or has an invalid status. It does not start the task and never changes a goal to a closed status. The reason is printed but not stored.
+- The task transition table now allows `running → ready`. `aic task ready` refuses a `running` task and points to `aic task requeue`, so the new edge is reached only through requeue.
 
 ### Documentation
 
@@ -30,12 +32,13 @@ All notable changes to AI Control Centre are documented here.
 - Extended `CONTRIBUTING.md` with environment setup, test isolation, and the working agreement.
 - Documented current security-relevant gaps in `SECURITY.md`.
 - Filled in `.env.example` and the pull request template, which were empty.
-- Added `docs/RECOVERY_DESIGN.md`: a proposed design for recovering tasks left in `running` (G5), with options and a recommendation. Nothing is implemented yet.
+- Added `docs/RECOVERY_DESIGN.md`: a design for recovering tasks left in `running` (G5), with options and a recommendation. Its Option A is now implemented as `aic task requeue`.
 
 ### Known issues (documented, not fixed)
 
 - JSON persistence has no file locking.
-- A `running` task has no recovery path.
+- Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone.
+- The reason given to `aic task requeue` is printed but not stored.
 
 See `docs/STATUS.md` for details and reproduction steps.
 
