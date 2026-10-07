@@ -812,6 +812,10 @@ def test_mark_task_ready_refuses_running_task(
     output = capsys.readouterr().out
 
     assert "Error: task is running and cannot be marked ready." in output
+    assert (
+        f'To retry it, use: aic task requeue {task.id} --reason "<text>"'
+        in output
+    )
     assert TaskRegistry(task_path).get_task(task.id) == before
 
 

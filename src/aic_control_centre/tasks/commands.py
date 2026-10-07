@@ -173,13 +173,17 @@ def mark_task_ready(task_id: str) -> int:
     here, because the task is not ready until this transition happens.
 
     A running task is refused. Sending it back to ready is a recovery
-    action that needs a reason, so it is not done by this command.
+    action that needs a reason, so it is done only by `aic task requeue`.
     """
     task = _find_task(task_id)
 
     if task is not None:
         if task.status == TASK_STATUS_RUNNING:
             print("Error: task is running and cannot be marked ready.")
+            print(
+                "To retry it, use: "
+                f'aic task requeue {task.id} --reason "<text>"'
+            )
             return 1
 
         blocker = _readiness_evaluator().parent_goal_blocker(task.goal_id)
