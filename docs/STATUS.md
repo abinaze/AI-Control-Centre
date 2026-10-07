@@ -38,15 +38,18 @@ After the schema version change the suite has 238 tests. The maintainer ran the 
 
 After the project reference change the suite has 251 tests. The maintainer ran the full suite on Windows under Git Bash at commit `d064385`: 251 passed.
 
+After the task requeue change the suite has 274 tests: the 251 above plus 23 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Project registry | Implemented | `aic project add`, `aic project list` |
 | Goal registry and lifecycle | Implemented | Goal status is derived from task status |
-| Task registry and lifecycle | Implemented | `pending → ready → running → completed \| failed` |
+| Task registry and lifecycle | Implemented | `pending → ready → running → completed \| failed`; a stuck `running` task returns to `ready` only through `aic task requeue` |
 | Goal/task validation | Implemented | `aic validate`; read-only |
 | Task readiness | Implemented | `aic task readiness` |
+| Task requeue | Implemented | `aic task requeue <task-id> --reason "<text>"`; the reason is printed, not stored |
 | Execution request/result contracts | Implemented | Library only |
 | Execution admission | Implemented | Library only |
 | Execution start | Implemented | Library only |
@@ -109,9 +112,17 @@ Goals created before this change that point at an unregistered project are not m
 
 Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
 
-### G5. A `running` task has no recovery path (reproduced; design proposed)
+### G5. A `running` task had no recovery path (reproduced; closed, with detection and audit trail still open)
 
-The transition table allows `running → completed | failed` only. If a process dies after a task is started but before an outcome is recorded, the task stays `running` with nothing to time it out or recover it. Recovery and timeouts are listed as future work in [ARCHITECTURE.md](ARCHITECTURE.md). Reproduced with the CLI: the only ways out of a dead `running` task are a false `aic task complete` or an `aic task fail` that fails the whole goal, after which nothing in that goal can run again. A design note with options and a recommendation is in [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (status: proposed).
+**Closed for the operator path.** `aic task requeue <task-id> --reason "<text>"` moves a `running` task back to `ready` without failing its goal. The task then goes through `aic task start` and readiness like any other. The command requires a reason, refuses a task that is not `running`, and refuses a task whose parent goal is missing, completed, failed, or has an invalid status. See [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (accepted, Option A) and [ROADMAP.md](../ROADMAP.md), Phase 2.5, Step 4. The rest of this entry records the original defect and what is still open.
+
+Original defect: the transition table allowed `running → completed | failed` only. If a process dies after a task is started but before an outcome is recorded, the task stays `running` with nothing to time it out or recover it. Reproduced with the CLI: the only ways out of a dead `running` task were a false `aic task complete` or an `aic task fail` that fails the whole goal, after which nothing in that goal can run again.
+
+Still open:
+
+- Nothing detects a dead process. A person has to decide that a `running` task is dead. If its process is in fact alive, requeueing and starting it again runs the task twice.
+- The reason is printed but not stored, and nothing records that a requeue happened. That needs execution records.
+- `aic task complete` on a dead task is still accepted, so a false success can still be recorded.
 
 ### G6. The coordinator is unreachable from the CLI (reproduced)
 
@@ -152,11 +163,13 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-11 | Loading a state file never rewrites it, including a legacy file. Commands that save, such as `aic goal status`, do write (see G2). | Yes, loads only parse the file; only saves write | `test_read_state_items_does_not_modify_the_file`, `test_registry_reads_legacy_list_file_without_rewriting_it` |
 | INV-12 | A goal is created only for a registered project. | Yes, in `create_goal` | `test_create_goal_rejects_unregistered_project`, `test_create_goal_matches_project_names_exactly`, `test_main_goal_create_rejects_unregistered_project` |
 | INV-13 | Validation reports every goal whose project is not registered when the validator is given a project registry; `aic validate` always gives it one. | Yes, in `GoalTaskValidator` | `test_goal_for_unregistered_project_is_reported`, `test_every_goal_with_an_unregistered_project_is_reported`, `test_main_validate_reports_goal_for_unregistered_project` |
+| INV-14 | Only a `running` task can be requeued, only while its parent goal is open, and requeueing never changes a goal to a closed status. | Yes, in `requeue_task`; the transition table keeps `completed` and `failed` terminal | `test_requeue_task_refuses_task_that_is_not_running`, `test_requeue_task_rejects_task_in_closed_goal`, `test_requeue_task_keeps_goal_in_progress`, `test_registry_still_rejects_failed_to_ready` |
+| INV-15 | In the CLI, `aic task ready` never moves a `running` task back to `ready`. Only `aic task requeue`, with a reason, does. The library call `TaskRegistry.update_task_status` does allow the edge, and no library code calls it. | Yes, in `mark_task_ready` and `requeue_task` | `test_mark_task_ready_refuses_running_task`, `test_requeue_task_requires_a_reason`, `test_task_requeue_requires_a_reason`, `test_stuck_running_task_can_be_requeued_and_finished` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1 and G3 are closed, and G4 is mostly closed: only file locking and transition history remain. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the recovery path for `running` tasks (G5), execution records, and the remainder of G4.
+G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs and a stored audit trail are still open. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: execution records and the remainder of G4.
 
-Recommended next: approve or change the G5 design note in [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (status: proposed). It recommends an operator command, `aic task requeue`, so that a dead `running` task can be retried without failing its goal. No code should be written until the note is approved. Execution records follow, as a new versioned state file.
+Recommended next: write a design note for execution records, as a new versioned state file with one record per attempt, holding the start time, the outcome and, for a requeue, the reason. They give automatic detection the start time it needs. No code should be written until the note is approved.
