@@ -19,6 +19,7 @@ from aic_control_centre.tasks.commands import (
     fail_task,
     list_tasks,
     mark_task_ready,
+    requeue_task,
     show_task_readiness,
     show_task_status,
     start_task,
@@ -193,6 +194,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Task ID.",
     )
 
+    task_requeue_parser = task_subparsers.add_parser(
+        "requeue",
+        help="Return a running task to ready so it can be retried.",
+    )
+    task_requeue_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+    task_requeue_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Why the task is being requeued.",
+    )
+
     return parser
 
 
@@ -281,6 +296,12 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.task_command == "fail":
             return fail_task(args.task_id)
+
+        if args.task_command == "requeue":
+            return requeue_task(
+                task_id=args.task_id,
+                reason=args.reason,
+            )
 
         parser.parse_args(["task", "--help"])
         return 0
