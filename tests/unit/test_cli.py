@@ -1,10 +1,14 @@
 import json
 import sys
 
+import pytest
+
 from aic_control_centre.cli import build_parser, main
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.projects.registry import ProjectRegistry
+from aic_control_centre.tasks.model import Task
+from aic_control_centre.tasks.registry import TaskRegistry
 
 
 def test_parser_program_name():
@@ -190,3 +194,60 @@ def test_main_validate_passes_once_the_project_is_registered(
 
     assert result == 0
     assert "Validation passed." in capsys.readouterr().out
+
+
+def test_task_requeue_command_is_registered():
+    """The task requeue command takes a task ID and a reason."""
+    parser = build_parser()
+
+    args = parser.parse_args(
+        ["task", "requeue", "task-123", "--reason", "worker died"],
+    )
+
+    assert args.command == "task"
+    assert args.task_command == "requeue"
+    assert args.task_id == "task-123"
+    assert args.reason == "worker died"
+
+
+def test_main_task_requeue_returns_running_task_to_ready(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """aic task requeue moves a running task back to ready."""
+    goal = Goal.create(description="Stuck goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    registry = TaskRegistry(tmp_path / "tasks.json")
+    task = Task.create(goal_id=goal.id, title="Stuck task")
+    registry.add_task(task)
+    registry.update_task_status(task.id, "ready")
+    registry.update_task_status(task.id, "running")
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        "requeue",
+        task.id,
+        "--reason",
+        "worker process died",
+    )
+
+    output = capsys.readouterr().out
+
+    assert result == 0
+    assert "Status: ready" in output
+    assert "Reason: worker process died" in output
+    assert registry.get_task(task.id).status == "ready"
+
+
+def test_task_requeue_requires_a_reason(capsys):
+    """The parser rejects a requeue that gives no reason."""
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["task", "requeue", "task-123"])
+
+    assert excinfo.value.code == 2
+    assert "--reason" in capsys.readouterr().err
