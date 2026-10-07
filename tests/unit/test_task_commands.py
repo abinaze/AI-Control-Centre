@@ -1028,3 +1028,43 @@ def test_requeued_task_can_be_started_again(
     assert start_task(task.id) == 0
 
     assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+def test_stuck_running_task_can_be_requeued_and_finished(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task stuck in running goes back through the gates and finishes."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert mark_task_ready(task.id) == 0
+    assert start_task(task.id) == 0
+
+    # The process that ran the task is gone and recorded no outcome.
+    capsys.readouterr()
+
+    assert mark_task_ready(task.id) == 1
+    assert "task is running and cannot be marked ready" in (
+        capsys.readouterr().out
+    )
+    assert start_task(task.id) == 1
+    assert "task status is running" in capsys.readouterr().out
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+    assert requeue_task(task.id, "worker process died") == 0
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_IN_PROGRESS
+    )
+
+    assert start_task(task.id) == 0
+    assert complete_task(task.id) == 0
+    assert TaskRegistry(task_path).get_task(task.id).status == "completed"
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_COMPLETED
+    )
