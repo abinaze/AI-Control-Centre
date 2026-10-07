@@ -171,10 +171,17 @@ def mark_task_ready(task_id: str) -> int:
 
     The parent goal must still be open. Task readiness cannot be checked
     here, because the task is not ready until this transition happens.
+
+    A running task is refused. Sending it back to ready is a recovery
+    action that needs a reason, so it is not done by this command.
     """
     task = _find_task(task_id)
 
     if task is not None:
+        if task.status == TASK_STATUS_RUNNING:
+            print("Error: task is running and cannot be marked ready.")
+            return 1
+
         blocker = _readiness_evaluator().parent_goal_blocker(task.goal_id)
 
         if blocker is not None:
