@@ -1,6 +1,6 @@
 # Design Note: Recovering a Task Left in `running`
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's approval, or changes, before any code is written. It addresses gap G5 in [STATUS.md](STATUS.md).
+**Status: Accepted and implemented (Option A).** `aic task requeue` was built as described under Recommendation. Option B, automatic detection, is not built. It addresses gap G5 in [STATUS.md](STATUS.md).
 
 ## Problem
 
@@ -18,7 +18,7 @@ So the only ways to get unstuck are to claim a false success or to fail the goal
 ## Facts about the current code
 
 - A task stores `id`, `goal_id`, `title`, `description`, `status`, `created_at`, and `updated_at`. There is no start time, owner, or attempt count. `updated_at` is the time of the last status change, so it is the only hint of how long a task has been `running`.
-- The transition table allows `running` to go only to `completed` or `failed`. Both are terminal.
+- When this note was written, the transition table allowed `running` to go only to `completed` or `failed`. Both are terminal. The table now also allows `running → ready`; see "Found while implementing".
 - A goal's status is derived from its tasks. Any `failed` task makes the goal `failed`, and a failed goal accepts no new work.
 - Readiness, and so admission, refuses a task unless it is `ready` and its goal is open. `aic task start` and the library `ExecutionStarter` both enforce this (INV-4).
 - The outcome recorder accepts an outcome only for a `running` task (INV-2).
@@ -68,7 +68,7 @@ Behaviour:
 
 What changes in the code: one entry in the transition table, one new command, and tests. What does not change: the statuses, the persisted shape, the schema version, goal derivation, readiness, and admission.
 
-Tests it would need:
+Tests the note planned:
 
 - Requeue from `running` works and the task is then `ready`.
 - Every other status is refused.
@@ -79,7 +79,7 @@ Tests it would need:
 - Completed and failed tasks still cannot transition (INV-3).
 - A failed save leaves the previous file intact (INV-9).
 
-A new invariant would be added to [STATUS.md](STATUS.md): only a `running` task can be requeued, and requeueing never changes a goal to a closed status.
+Two invariants were added to [STATUS.md](STATUS.md): INV-14 (only a `running` task can be requeued, and requeueing never changes a goal to a closed status) and INV-15 (`aic task ready` never requeues; only `aic task requeue`, with a reason, does).
 
 ## Risks
 
@@ -92,6 +92,16 @@ A new invariant would be added to [STATUS.md](STATUS.md): only a `running` task 
 1. Should the reason be stored now? That needs a new field on the task, a schema version bump to 2, and a migration. Recommendation: no. Wait for execution records, which are the natural place to store it.
 2. Should requeue be refused when the goal is closed? Recommendation: yes, as described above.
 3. Should there be a confirmation prompt? Recommendation: no. The tool is non-interactive, and a required reason is the deliberate step.
+
+Answered: the maintainer approved the recommendation on all three. The reason is not stored yet, a task in a closed goal is refused, and there is no confirmation prompt.
+
+## Found while implementing
+
+`aic task ready` has no status check of its own. It checks the parent goal and then asks the registry for the transition to `ready`, and the registry accepts any edge in the transition table. So adding `running → ready` to the table by itself would have turned `aic task ready` into a silent requeue: no reason, exit status 0. It was reproduced with the table change applied and no guard. The existing tests did not catch it, because none of them asks `aic task ready` to handle a `running` task.
+
+The change was therefore built guard first. `aic task ready` was made to refuse a `running` task before the table gained the new edge, so the CLI never had a state where `aic task ready` could requeue. Afterwards the table allows the edge, and the CLI reaches it only through `aic task requeue`. The library call `TaskRegistry.update_task_status` allows the edge as well; no library code uses it for this.
+
+The failed-save case from the planned tests is not repeated for this transition. The existing test for a failed status update covers the save path that every transition shares.
 
 ## After this decision
 
