@@ -46,7 +46,7 @@ This phase establishes the execution control boundary without introducing unrest
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Steps 1, 2 and 3 are implemented, apart from file locking.
+Status: In progress. Steps 1, 2, 3 and 4 are implemented, apart from file locking and automatic detection of dead runs.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -77,9 +77,11 @@ Status: Implemented, except file locking. Atomic write-and-replace and an explic
 
 Scope: atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
 
-### Step 4 — Design the recovery path for `running` tasks (addresses G5)
+### Step 4 — Recovery path for `running` tasks (addresses G5)
 
-Design before code: what marks a task as interrupted, and what transition is allowed out of `running` when no outcome was recorded. A design note with options and a recommendation is proposed in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
+Status: Implemented, using Option A (operator requeue). `aic task requeue <task-id> --reason "<text>"` returns a `running` task to `ready` so it can pass readiness and start again. It adds only the `running → ready` transition and does not change any state file shape.
+
+Not done: automatic detection of dead runs, and storing the reason. Both depend on Step 5. Options and the decision are in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
 
 ### Step 5 — Execution records
 
