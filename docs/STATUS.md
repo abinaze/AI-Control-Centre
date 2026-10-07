@@ -57,7 +57,7 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 | Execution adapter registry | Implemented | Library only |
 | Execution coordinator | Implemented | Library only; no CLI command invokes it |
 | Concrete execution adapters | Planned | None exist; only test doubles |
-| Execution records / history | Planned | Only `created_at` / `updated_at` are stored |
+| Execution records / history | Planned | Only `created_at` / `updated_at` are stored. A design is proposed in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md) |
 | Task dependencies | Planned | Tasks belong to a goal; no task-to-task links |
 | Event / workflow boundary | Planned | |
 | Evidence | Planned | |
@@ -172,4 +172,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs and a stored audit trail are still open. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: execution records and the remainder of G4.
 
-Recommended next: write a design note for execution records, as a new versioned state file with one record per attempt, holding the start time, the outcome and, for a requeue, the reason. They give automatic detection the start time it needs. No code should be written until the note is approved.
+Recommended next: approve or change the design note in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md) (status: proposed). It recommends a new versioned state file with one record per attempt, holding the start time, the outcome and, for a requeue, the reason. Those records give automatic detection the start time it needs. No code should be written until the note is approved.
