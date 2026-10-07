@@ -92,11 +92,13 @@ Tasks have an explicit lifecycle. Transitions are allowed only as follows:
 | --- | --- |
 | `pending` | `ready` |
 | `ready` | `running` |
-| `running` | `completed`, `failed` |
+| `running` | `completed`, `failed`, `ready` (only through `aic task requeue`) |
 | `completed` | none |
 | `failed` | none |
 
 The transition table lives in the task model and is enforced by the task registry. Task lifecycle transitions are handled explicitly rather than being inferred from arbitrary execution behavior.
+
+The `running` to `ready` transition exists for recovery, when the process running a task has died without recording an outcome. The table allows it, but the CLI reaches it only through `aic task requeue`, which requires a reason and refuses a task that is not `running` or whose parent goal is closed. `aic task ready` refuses a `running` task. See [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md).
 
 ## Validation Boundary
 
@@ -197,10 +199,11 @@ A task can reach the `running` state through the execution boundary or through t
 | --- | --- |
 | `ExecutionCoordinator` / `ExecutionStarter` (library) | Readiness and admission |
 | `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open |
-| `aic task ready` (CLI) | The parent goal must be open |
+| `aic task ready` (CLI) | The parent goal must be open; a `running` task is refused |
 | `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running` |
+| `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required |
 
-The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them.
+The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them. `aic task requeue` is the only CLI path from `running` back to `ready`. It does not start the task: the task must still pass readiness through `aic task start`.
 
 The CLI does not use `ExecutionStarter`, because that requires an execution target. A task started from the CLI is started by a person and is not handed to an adapter, so admission through a target applies to the library path only.
 
@@ -274,7 +277,7 @@ None of this exists in code. It is recorded as research in [DESIGN_DIRECTIONS.md
 
 The current architecture does not yet provide unrestricted execution capabilities.
 
-Concrete system-level execution adapters, execution permissions, execution limits, timeouts, post-execution validation, diagnostics, recovery, and stronger isolation remain future work.
+Concrete system-level execution adapters, execution permissions, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
