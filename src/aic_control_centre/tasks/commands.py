@@ -232,3 +232,46 @@ def fail_task(task_id: str) -> int:
         task_id=task_id,
         new_status=TASK_STATUS_FAILED,
     )
+
+
+def requeue_task(task_id: str, reason: str) -> int:
+    """Return a running task to the ready state so it can be retried.
+
+    This is the recovery path for a task whose process is gone and
+    never recorded an outcome. A person decides that the run is dead,
+    so a reason is required. The reason is printed but not stored.
+
+    The task must be running and its parent goal must be open. The
+    task is not started: starting still goes through readiness. Empty
+    and unknown task IDs are left to the lifecycle transition to report.
+    """
+    if not reason.strip():
+        print("Error: a reason is required to requeue a task.")
+        return 1
+
+    task = _find_task(task_id)
+
+    if task is not None:
+        if task.status != TASK_STATUS_RUNNING:
+            print(
+                "Error: only a running task can be requeued "
+                f"(task status is {task.status})."
+            )
+            return 1
+
+        blocker = _readiness_evaluator().parent_goal_blocker(task.goal_id)
+
+        if blocker is not None:
+            print(f"Error: task cannot be requeued: {blocker}")
+            return 1
+
+    result = transition_task_status(
+        task_id=task_id,
+        new_status=TASK_STATUS_READY,
+    )
+
+    if task is not None and result == 0:
+        print(f"Previous status: running (last updated {task.updated_at})")
+        print(f"Reason: {reason.strip()}")
+
+    return result
