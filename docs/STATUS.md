@@ -38,7 +38,7 @@ After the schema version change the suite has 238 tests. The maintainer ran the 
 
 After the project reference change the suite has 251 tests. The maintainer ran the full suite on Windows under Git Bash at commit `d064385`: 251 passed.
 
-After the task requeue change the suite has 274 tests: the 251 above plus 23 new ones.
+After the task requeue change the suite has 274 tests: the 251 above plus 23 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the ten code commits in that change and again after the documentation commits; the final run at `db4bb41` gave 274 passed.
 
 ## Capability status
 
