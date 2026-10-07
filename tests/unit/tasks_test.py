@@ -93,3 +93,17 @@ def test_unknown_task_status_transitions_are_rejected() -> None:
     assert not can_transition(TASK_STATUS_PENDING, "unknown")
     assert not can_transition("unknown", "unknown")
 
+
+def test_running_task_can_return_to_ready() -> None:
+    """A running task can be returned to ready so it can be retried."""
+    assert can_transition(TASK_STATUS_RUNNING, TASK_STATUS_READY)
+
+
+def test_only_a_running_task_returns_to_ready() -> None:
+    """Ready, completed, and failed tasks cannot move to ready."""
+    for current_status in (
+        TASK_STATUS_READY,
+        TASK_STATUS_COMPLETED,
+        TASK_STATUS_FAILED,
+    ):
+        assert not can_transition(current_status, TASK_STATUS_READY)

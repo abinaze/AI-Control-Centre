@@ -7,7 +7,9 @@ import pytest
 from aic_control_centre.storage import UnsupportedSchemaVersionError
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
     TASK_STATUS_READY,
+    TASK_STATUS_RUNNING,
     Task,
 )
 from aic_control_centre.tasks.registry import TaskRegistry
@@ -282,3 +284,35 @@ def test_registry_refuses_newer_schema_version(tmp_path) -> None:
         registry.add_task(Task.create(goal_id="goal-123", title="New task"))
 
     assert registry_path.read_text(encoding="utf-8") == text
+
+
+def test_registry_returns_running_task_to_ready(tmp_path) -> None:
+    """A running task can move back to ready and the move is saved."""
+    path = tmp_path / "tasks.json"
+    registry = TaskRegistry(path)
+    task = Task.create(goal_id="goal-123", title="Retry me")
+    registry.add_task(task)
+    registry.update_task_status(task.id, TASK_STATUS_READY)
+    registry.update_task_status(task.id, TASK_STATUS_RUNNING)
+
+    updated = registry.update_task_status(task.id, TASK_STATUS_READY)
+
+    assert updated.status == TASK_STATUS_READY
+    assert updated.created_at == task.created_at
+    assert TaskRegistry(path).get_task(task.id) == updated
+
+
+def test_registry_still_rejects_failed_to_ready(tmp_path) -> None:
+    """A failed task stays failed: the retry edge is only for running."""
+    path = tmp_path / "tasks.json"
+    registry = TaskRegistry(path)
+    task = Task.create(goal_id="goal-123", title="Fail me")
+    registry.add_task(task)
+    registry.update_task_status(task.id, TASK_STATUS_READY)
+    registry.update_task_status(task.id, TASK_STATUS_RUNNING)
+    registry.update_task_status(task.id, TASK_STATUS_FAILED)
+
+    with pytest.raises(ValueError, match="failed -> ready"):
+        registry.update_task_status(task.id, TASK_STATUS_READY)
+
+    assert registry.get_task(task.id).status == TASK_STATUS_FAILED
