@@ -20,6 +20,10 @@ TASK_STATUS_TRANSITIONS = {
     TASK_STATUS_RUNNING: {
         TASK_STATUS_COMPLETED,
         TASK_STATUS_FAILED,
+        # Recovery only: a task whose process died without an outcome.
+        # The CLI reaches this edge through `aic task requeue`, never
+        # through `aic task ready`.
+        TASK_STATUS_READY,
     },
     TASK_STATUS_COMPLETED: set(),
     TASK_STATUS_FAILED: set(),
