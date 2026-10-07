@@ -17,6 +17,7 @@ from aic_control_centre.tasks.commands import (
     fail_task,
     list_tasks,
     mark_task_ready,
+    requeue_task,
     show_task_status,
     start_task,
 )
@@ -812,3 +813,214 @@ def test_mark_task_ready_refuses_running_task(
 
     assert "Error: task is running and cannot be marked ready." in output
     assert TaskRegistry(task_path).get_task(task.id) == before
+
+
+_PATH_TO_STATUS = {
+    "pending": (),
+    "ready": ("ready",),
+    "completed": ("ready", "running", "completed"),
+    "failed": ("ready", "running", "failed"),
+}
+
+
+def _add_task_with_status(task_path, goal_id, status) -> Task:
+    """Persist a task and walk it through the lifecycle to a status."""
+    task = _add_task(task_path, goal_id)
+    registry = TaskRegistry(task_path)
+
+    for step in _PATH_TO_STATUS[status]:
+        registry.update_task_status(task.id, step)
+
+    return task
+
+
+def test_requeue_task_returns_running_task_to_ready(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Requeueing a running task makes it ready and reports why."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    previous = TaskRegistry(task_path).get_task(task.id).updated_at
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "  worker process died  ") == 0
+
+    output = capsys.readouterr().out
+
+    assert "Task status updated." in output
+    assert "Status: ready" in output
+    assert f"Previous status: running (last updated {previous})" in output
+    assert "Reason: worker process died" in output
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+
+
+def test_requeue_task_keeps_goal_in_progress(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Requeueing never closes the goal."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 0
+
+    assert GoalRegistry(goal_path).get_goal(goal.id).status == (
+        GOAL_STATUS_IN_PROGRESS
+    )
+
+
+@pytest.mark.parametrize("reason", ["", "   "])
+def test_requeue_task_requires_a_reason(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    reason,
+) -> None:
+    """A blank reason is refused and the task stays running."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, reason) == 1
+
+    assert (
+        "Error: a reason is required to requeue a task."
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["pending", "ready", "completed", "failed"],
+)
+def test_requeue_task_refuses_task_that_is_not_running(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    status,
+) -> None:
+    """Only a running task can be requeued."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task_with_status(task_path, goal.id, status)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 1
+
+    assert (
+        "Error: only a running task can be requeued "
+        f"(task status is {status})."
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == status
+
+
+@pytest.mark.parametrize(
+    ("goal_status", "reason"),
+    [
+        (GOAL_STATUS_FAILED, "parent goal is failed"),
+        (GOAL_STATUS_COMPLETED, "parent goal is completed"),
+    ],
+)
+def test_requeue_task_rejects_task_in_closed_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    goal_status,
+    reason,
+) -> None:
+    """A task cannot be requeued while its parent goal is closed."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, goal_status)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 1
+
+    assert (
+        f"Error: task cannot be requeued: {reason}"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+def test_requeue_task_rejects_task_with_missing_goal(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task without a parent goal cannot be requeued."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    task = _add_running_task(task_path, "missing-goal")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 1
+
+    assert (
+        "Error: task cannot be requeued: parent goal not found"
+        in capsys.readouterr().out
+    )
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+def test_requeue_task_reports_unknown_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """An unknown task ID is reported by the lifecycle transition."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task("no-such-task", "worker process died") == 1
+
+    assert "Task not found: no-such-task" in capsys.readouterr().out
+
+
+def test_requeue_task_rejects_empty_task_id(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """An empty task ID is reported by the lifecycle transition."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task("   ", "worker process died") == 1
+
+    assert "task ID cannot be empty" in capsys.readouterr().out
+
+
+def test_requeued_task_can_be_started_again(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A requeued task passes readiness and can run again."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 0
+    capsys.readouterr()
+
+    assert start_task(task.id) == 0
+
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
