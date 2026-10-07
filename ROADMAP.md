@@ -85,6 +85,8 @@ Not done: automatic detection of dead runs, and storing the reason. Both depend 
 
 ### Step 5 — Execution records
 
+Status: Proposed. A design note with options and a recommendation is in [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md). It proposes narrowing the scope below: records for attempts that started, without the request or the admission result.
+
 A persisted record per execution attempt (request, admission result, outcome, timestamps). This is the minimum history needed for later recovery, evidence, and explainability.
 
 ## Phase 3 — Controlled Execution
