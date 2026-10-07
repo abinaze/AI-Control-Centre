@@ -43,7 +43,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-State files have no locking, and a `running` task has no recovery path. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md).
+State files have no locking, and nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md).
 
 ## Quick Start
 
@@ -78,6 +78,7 @@ aic task ready <task-id>                    pending -> ready (parent goal must b
 aic task start <task-id>                    ready -> running (must pass readiness)
 aic task complete <task-id>                 running -> completed
 aic task fail <task-id>                     running -> failed
+aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
 ```
 
 A minimal walkthrough:
@@ -180,7 +181,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/STATUS.md](docs/STATUS.md) | Verified status, known gaps, and invariants |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system is structured today |
 | [docs/DESIGN_DIRECTIONS.md](docs/DESIGN_DIRECTIONS.md) | Research on future directions; not committed |
-| [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Proposed design for recovering tasks left in `running` |
+| [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Design for recovering tasks left in `running`; Option A is implemented as `aic task requeue` |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
