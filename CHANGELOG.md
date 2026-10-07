@@ -33,6 +33,7 @@ All notable changes to AI Control Centre are documented here.
 - Documented current security-relevant gaps in `SECURITY.md`.
 - Filled in `.env.example` and the pull request template, which were empty.
 - Added `docs/RECOVERY_DESIGN.md`: a design for recovering tasks left in `running` (G5), with options and a recommendation. Its Option A is now implemented as `aic task requeue`.
+- Added `docs/EXECUTION_RECORDS_DESIGN.md`: a proposed design for recording execution attempts (start time, outcome and reason), with options and a recommendation. Nothing is implemented yet.
 
 ### Known issues (documented, not fixed)
 
