@@ -11,6 +11,7 @@ from aic_control_centre.execution.coordinator import (
     ExecutionCoordinateResult,
     ExecutionCoordinator,
 )
+from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 
@@ -509,3 +510,98 @@ def test_execution_coordinate_result_rejects_unknown_status():
         assert str(exc) == "unknown execution coordination status: running"
     else:
         raise AssertionError("unknown status must be rejected")
+
+
+def _coordinator_for(goal_registry, task_registry, adapter):
+    """Build a coordinator whose registries all live under tmp_path."""
+    registry = ExecutionAdapterRegistry()
+    registry.register("test", adapter)
+
+    return ExecutionCoordinator(
+        adapter_registry=registry,
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(
+                readiness_evaluator=TaskReadinessEvaluator(
+                    goal_registry=goal_registry,
+                    task_registry=task_registry,
+                )
+            ),
+            task_registry=task_registry,
+        ),
+        outcome_recorder=ExecutionOutcomeRecorder(
+            task_registry=task_registry,
+            goal_registry=goal_registry,
+        ),
+    )
+
+
+def test_coordinator_records_one_attempt_for_a_completed_task(
+    tmp_path,
+) -> None:
+    """A whole run leaves one closed attempt with its start and reason."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+    coordinator = _coordinator_for(
+        goal_registry,
+        task_registry,
+        FakeExecutionAdapter(
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            reason="execution completed successfully",
+        ),
+    )
+
+    coordinator.coordinate(ExecutionRequest(task_id=task.id, target="test"))
+
+    records = ExecutionRecordRegistry(
+        tmp_path / "executions.json",
+    ).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].source == "coordinator"
+    assert records[0].target == "test"
+    assert records[0].started_at is not None
+    assert records[0].ended_as == "completed"
+    assert records[0].reason == "execution completed successfully"
+
+
+def test_coordinator_keeps_the_adapter_failure_reason(tmp_path) -> None:
+    """An adapter exception is stored as the reason the attempt failed."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+
+    class FailingAdapter:
+        def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
+            raise RuntimeError("adapter crashed")
+
+    coordinator = _coordinator_for(
+        goal_registry,
+        task_registry,
+        FailingAdapter(),
+    )
+
+    coordinator.coordinate(ExecutionRequest(task_id=task.id, target="test"))
+
+    records = ExecutionRecordRegistry(
+        tmp_path / "executions.json",
+    ).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].ended_as == "failed"
+    assert records[0].reason == "execution adapter failed: adapter crashed"
+
+
+def test_coordinator_writes_no_record_for_an_unknown_target(
+    tmp_path,
+) -> None:
+    """A request rejected before it starts leaves no attempt behind."""
+    goal_registry, task_registry, task = make_ready_task(tmp_path)
+    coordinator = _coordinator_for(
+        goal_registry,
+        task_registry,
+        FakeExecutionAdapter(outcome=EXECUTION_OUTCOME_COMPLETED),
+    )
+
+    result = coordinator.coordinate(
+        ExecutionRequest(task_id=task.id, target="unknown"),
+    )
+
+    assert result.status == EXECUTION_COORDINATION_REJECTED
+    assert not (tmp_path / "executions.json").exists()
