@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from aic_control_centre.execution.records import (
+    ENDED_AS_COMPLETED,
+    ENDED_AS_FAILED,
     EXECUTION_SOURCE_CLI,
     ExecutionRecordRegistry,
 )
@@ -241,20 +243,33 @@ def start_task(task_id: str) -> int:
     )
 
 
+def _finish_task(task_id: str, new_status: str, ended_as: str) -> int:
+    """Move a running task to a final status and close its attempt.
+
+    The task moves first and the attempt record is closed after it. A
+    crash in between leaves an open record for a task that is no longer
+    running, which is detectable.
+    """
+    result = transition_task_status(task_id=task_id, new_status=new_status)
+
+    if result == 0:
+        _record_registry().close_attempt(
+            task_id=task_id.strip(),
+            ended_as=ended_as,
+            source=EXECUTION_SOURCE_CLI,
+        )
+
+    return result
+
+
 def complete_task(task_id: str) -> int:
-    """Move a running task to the completed state."""
-    return transition_task_status(
-        task_id=task_id,
-        new_status=TASK_STATUS_COMPLETED,
-    )
+    """Move a running task to the completed state and close its attempt."""
+    return _finish_task(task_id, TASK_STATUS_COMPLETED, ENDED_AS_COMPLETED)
 
 
 def fail_task(task_id: str) -> int:
-    """Move a running task to the failed state."""
-    return transition_task_status(
-        task_id=task_id,
-        new_status=TASK_STATUS_FAILED,
-    )
+    """Move a running task to the failed state and close its attempt."""
+    return _finish_task(task_id, TASK_STATUS_FAILED, ENDED_AS_FAILED)
 
 
 def requeue_task(task_id: str, reason: str) -> int:
