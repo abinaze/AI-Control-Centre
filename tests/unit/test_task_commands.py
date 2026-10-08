@@ -1199,3 +1199,115 @@ def test_start_task_crash_after_record_leaves_an_open_attempt(
 
     assert TaskRegistry(task_path).get_task(task.id).status == "ready"
     assert _records(task_path).get_open_attempt(task.id) is not None
+
+
+@pytest.mark.parametrize(
+    ("finish", "ended_as"),
+    [(complete_task, "completed"), (fail_task, "failed")],
+)
+def test_finishing_a_task_closes_its_attempt(
+    tmp_path,
+    monkeypatch,
+    finish,
+    ended_as,
+) -> None:
+    """Completing or failing a started task closes its attempt."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    opened = _records(task_path).get_open_attempt(task.id)
+
+    assert finish(task.id) == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].id == opened.id
+    assert records[0].started_at == opened.started_at
+    assert records[0].ended_as == ended_as
+    assert records[0].ended_at is not None
+    assert records[0].reason == ""
+    assert _records(task_path).get_open_attempt(task.id) is None
+
+
+@pytest.mark.parametrize(
+    ("finish", "ended_as"),
+    [(complete_task, "completed"), (fail_task, "failed")],
+)
+def test_finishing_a_task_without_a_record_writes_a_legacy_record(
+    tmp_path,
+    monkeypatch,
+    finish,
+    ended_as,
+) -> None:
+    """A task running before records existed still gets its ending."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert finish(task.id) == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].started_at is None
+    assert records[0].source == EXECUTION_SOURCE_CLI
+    assert records[0].ended_as == ended_as
+
+
+def test_refused_finish_writes_no_record(tmp_path, monkeypatch) -> None:
+    """Completing a task that is not running changes nothing."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert complete_task(task.id) == 1
+    assert fail_task(task.id) == 1
+
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_finishing_an_unknown_task_writes_no_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An unknown task ID is reported and nothing is recorded."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert complete_task("no-such-task") == 1
+    assert fail_task("   ") == 1
+
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_failed_close_leaves_the_task_moved_and_attempt_open(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A crash after the task moved leaves an open record, not a lie."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+
+    def fail_close(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(ExecutionRecordRegistry, "close_attempt", fail_close)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        complete_task(task.id)
+
+    assert TaskRegistry(task_path).get_task(task.id).status == "completed"
+    assert _records(task_path).get_open_attempt(task.id) is not None
