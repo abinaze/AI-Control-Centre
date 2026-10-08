@@ -1311,3 +1311,130 @@ def test_failed_close_leaves_the_task_moved_and_attempt_open(
 
     assert TaskRegistry(task_path).get_task(task.id).status == "completed"
     assert _records(task_path).get_open_attempt(task.id) is not None
+
+
+def test_requeue_task_closes_the_attempt_with_the_reason(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Requeueing stores the reason in the attempt it ends."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    opened = _records(task_path).get_open_attempt(task.id)
+
+    assert requeue_task(task.id, "  worker process died  ") == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].id == opened.id
+    assert records[0].ended_as == "requeued"
+    assert records[0].reason == "worker process died"
+    assert records[0].source == EXECUTION_SOURCE_CLI
+    assert records[0].started_at == opened.started_at
+
+
+def test_requeued_task_gets_a_second_attempt_when_started_again(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Each start is its own attempt, so the history shows the retry."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    assert requeue_task(task.id, "worker process died") == 0
+
+    assert start_task(task.id) == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert [record.ended_as for record in records] == ["requeued", None]
+    assert records[0].id != records[1].id
+    assert records[1].is_open
+
+
+def test_requeue_of_a_task_without_a_record_writes_a_legacy_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A task running before records existed keeps its requeue reason."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].started_at is None
+    assert records[0].ended_as == "requeued"
+    assert records[0].reason == "worker process died"
+
+
+def test_refused_requeue_leaves_the_attempt_open(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A requeue without a reason changes neither task nor record."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    before = _records(task_path).list_records()
+
+    assert requeue_task(task.id, "   ") == 1
+
+    assert _records(task_path).list_records() == before
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+def test_refused_requeue_of_a_ready_task_writes_no_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Only a running task can be requeued, and nothing is recorded."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert requeue_task(task.id, "worker process died") == 1
+
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_failed_requeue_close_leaves_the_task_ready_and_attempt_open(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A crash after the task moved leaves an open record, not a lie."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+
+    def fail_close(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(ExecutionRecordRegistry, "close_attempt", fail_close)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        requeue_task(task.id, "worker process died")
+
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+    assert _records(task_path).get_open_attempt(task.id) is not None
