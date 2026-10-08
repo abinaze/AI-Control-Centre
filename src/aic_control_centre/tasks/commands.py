@@ -5,6 +5,7 @@ from __future__ import annotations
 from aic_control_centre.execution.records import (
     ENDED_AS_COMPLETED,
     ENDED_AS_FAILED,
+    ENDED_AS_REQUEUED,
     EXECUTION_SOURCE_CLI,
     ExecutionRecordRegistry,
 )
@@ -277,7 +278,8 @@ def requeue_task(task_id: str, reason: str) -> int:
 
     This is the recovery path for a task whose process is gone and
     never recorded an outcome. A person decides that the run is dead,
-    so a reason is required. The reason is printed but not stored.
+    so a reason is required. The reason is printed and kept in the
+    attempt record, which is closed after the task has moved to ready.
 
     The task must be running and its parent goal must be open. The
     task is not started: starting still goes through readiness. Empty
@@ -309,6 +311,13 @@ def requeue_task(task_id: str, reason: str) -> int:
     )
 
     if task is not None and result == 0:
+        _record_registry().close_attempt(
+            task_id=task.id,
+            ended_as=ENDED_AS_REQUEUED,
+            reason=reason,
+            source=EXECUTION_SOURCE_CLI,
+        )
+
         print(f"Previous status: running (last updated {task.updated_at})")
         print(f"Reason: {reason.strip()}")
 
