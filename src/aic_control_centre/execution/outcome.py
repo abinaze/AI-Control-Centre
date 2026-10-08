@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from aic_control_centre.execution.records import (
+    EXECUTION_SOURCE_COORDINATOR,
+    ExecutionRecordRegistry,
+)
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.tasks.model import (
@@ -74,9 +78,16 @@ class ExecutionOutcomeRecorder:
         self,
         task_registry: TaskRegistry | None = None,
         goal_registry: GoalRegistry | None = None,
+        record_registry: ExecutionRecordRegistry | None = None,
     ) -> None:
         self.task_registry = task_registry or TaskRegistry()
         self.goal_registry = goal_registry or GoalRegistry()
+        self.record_registry = (
+            record_registry
+            or ExecutionRecordRegistry.beside(
+                self.task_registry.registry_path,
+            )
+        )
         self.orchestrator = GoalTaskOrchestrator(
             goal_registry=self.goal_registry,
             task_registry=self.task_registry,
@@ -86,7 +97,12 @@ class ExecutionOutcomeRecorder:
         self,
         outcome: ExecutionOutcome,
     ) -> ExecutionOutcomeResult:
-        """Record a completed or failed outcome for a running task."""
+        """Record a completed or failed outcome for a running task.
+
+        The task moves first and the attempt record is closed after it.
+        A crash in between leaves an open record for a task that is no
+        longer running, which is detectable.
+        """
         task = self.task_registry.get_task(outcome.task_id)
 
         if task is None:
@@ -108,6 +124,13 @@ class ExecutionOutcomeRecorder:
         self.task_registry.update_task_status(
             task_id=outcome.task_id,
             new_status=outcome.outcome,
+        )
+
+        self.record_registry.close_attempt(
+            task_id=outcome.task_id,
+            ended_as=outcome.outcome,
+            reason=outcome.reason,
+            source=EXECUTION_SOURCE_COORDINATOR,
         )
 
         self.orchestrator.reconcile_goal(task.goal_id)
