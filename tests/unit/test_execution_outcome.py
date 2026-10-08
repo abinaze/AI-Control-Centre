@@ -11,6 +11,9 @@ from aic_control_centre.execution.outcome import (
     ExecutionOutcomeRecorder,
     ExecutionOutcomeResult,
 )
+from aic_control_centre.execution.records import (
+    EXECUTION_SOURCE_COORDINATOR,
+)
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
@@ -330,3 +333,136 @@ def test_execution_outcome_result_rejects_empty_reason(reason):
             outcome=EXECUTION_OUTCOME_COMPLETED,
             reason=reason,
         )
+
+
+def test_completed_outcome_closes_the_open_attempt(tmp_path):
+    """A completed outcome closes the attempt the start opened."""
+    recorder, _, _, task, _ = create_running_task(tmp_path)
+    opened = recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+
+    recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            reason="all checks passed",
+        ),
+    )
+
+    records = recorder.record_registry.list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].id == opened.id
+    assert records[0].started_at == opened.started_at
+    assert records[0].ended_as == "completed"
+    assert records[0].ended_at is not None
+    assert records[0].reason == "all checks passed"
+
+
+def test_failed_outcome_keeps_its_reason(tmp_path):
+    """A failed outcome stores the reason the adapter gave."""
+    recorder, _, _, task, _ = create_running_task(tmp_path)
+    recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+
+    recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_FAILED,
+            reason="execution adapter failed: disk full",
+        ),
+    )
+
+    record = recorder.record_registry.list_attempts(task.id)[0]
+
+    assert record.ended_as == "failed"
+    assert record.reason == "execution adapter failed: disk full"
+
+
+def test_outcome_without_reason_stores_an_empty_reason(tmp_path):
+    """The default result text is not stored as if it were a reason."""
+    recorder, _, _, task, _ = create_running_task(tmp_path)
+
+    recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+        ),
+    )
+
+    record = recorder.record_registry.list_attempts(task.id)[0]
+
+    assert record.reason == ""
+
+
+def test_outcome_for_a_task_without_a_record_writes_a_legacy_record(
+    tmp_path,
+):
+    """A task running before records existed still gets its ending."""
+    recorder, _, _, task, _ = create_running_task(tmp_path)
+
+    recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_FAILED,
+            reason="lost worker",
+        ),
+    )
+
+    records = recorder.record_registry.list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].started_at is None
+    assert records[0].source == EXECUTION_SOURCE_COORDINATOR
+    assert records[0].ended_as == "failed"
+
+
+def test_rejected_outcome_writes_no_record(tmp_path):
+    """An outcome for a task that is not running changes nothing."""
+    recorder, goal_registry, task_registry = build_recorder(tmp_path)
+    goal = Goal.create(description="Pending goal", project="TestProject")
+    goal_registry.add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Pending task")
+    task_registry.add_task(task)
+
+    result = recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+        ),
+    )
+
+    assert result.completed is False
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_failed_record_write_leaves_an_open_attempt(tmp_path, monkeypatch):
+    """A crash after the task moved leaves an open record, not a lie."""
+    recorder, _, task_registry, task, _ = create_running_task(tmp_path)
+    recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+
+    def fail_close(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(recorder.record_registry, "close_attempt", fail_close)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        recorder.record(
+            ExecutionOutcome(
+                task_id=task.id,
+                outcome=EXECUTION_OUTCOME_COMPLETED,
+            ),
+        )
+
+    assert task_registry.get_task(task.id).status == TASK_STATUS_COMPLETED
+    assert recorder.record_registry.get_open_attempt(task.id) is not None
