@@ -6,6 +6,11 @@ import pytest
 
 from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
+from aic_control_centre.execution.records import (
+    ENDED_AS_ABANDONED,
+    EXECUTION_SOURCE_CLI,
+    EXECUTION_SOURCE_COORDINATOR,
+)
 from aic_control_centre.execution.start import (
     ExecutionStartResult,
     ExecutionStarter,
@@ -179,3 +184,86 @@ def test_execution_start_result_rejects_empty_reason(reason):
             started=False,
             reason=reason,
         )
+
+
+def test_started_task_opens_an_attempt_record(tmp_path):
+    """Starting a task opens an attempt for it."""
+    starter, _, task = create_ready_task(tmp_path)
+
+    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    records = starter.record_registry.list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].is_open
+    assert records[0].source == EXECUTION_SOURCE_COORDINATOR
+    assert records[0].target == "test"
+    assert records[0].started_at is not None
+
+
+def test_attempt_records_are_stored_beside_the_task_file(tmp_path):
+    """The records file sits next to the task registry file."""
+    starter, _, task = create_ready_task(tmp_path)
+
+    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    assert (tmp_path / "executions.json").exists()
+
+
+def test_rejected_start_writes_no_attempt_record(tmp_path):
+    """A rejected request changes no task and writes no record."""
+    starter, _, _ = create_ready_task(tmp_path)
+
+    result = starter.start(
+        ExecutionRequest(task_id="missing-task", target="test"),
+    )
+
+    assert result.started is False
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_start_abandons_a_stale_open_attempt(tmp_path):
+    """An attempt left open for a ready task is closed as abandoned."""
+    starter, _, task = create_ready_task(tmp_path)
+    starter.record_registry.open_attempt(task.id, EXECUTION_SOURCE_CLI)
+
+    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    records = starter.record_registry.list_attempts(task.id)
+
+    assert [record.ended_as for record in records] == [
+        ENDED_AS_ABANDONED,
+        None,
+    ]
+    assert records[1].is_open
+
+
+def test_failed_attempt_write_leaves_the_task_ready(tmp_path, monkeypatch):
+    """If the record cannot be written, the task does not start."""
+    starter, task_registry, task = create_ready_task(tmp_path)
+
+    def fail_open(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(starter.record_registry, "open_attempt", fail_open)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    assert task_registry.get_task(task.id).status == TASK_STATUS_READY
+
+
+def test_failed_task_update_leaves_an_open_attempt(tmp_path, monkeypatch):
+    """A crash after the record leaves an open record and a ready task."""
+    starter, task_registry, task = create_ready_task(tmp_path)
+
+    def fail_update(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(task_registry, "update_task_status", fail_update)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    assert task_registry.get_task(task.id).status == TASK_STATUS_READY
+    assert starter.record_registry.get_open_attempt(task.id) is not None
