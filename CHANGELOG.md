@@ -20,6 +20,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `ProjectRegistry.get_project` and an optional `project_registry` argument to `GoalTaskValidator`. The project check runs only when that argument is given.
 - Added `aic task requeue <task-id> --reason "<text>"`. It returns a `running` task to `ready`, so a task whose process died can be retried through readiness without failing its goal. A reason is required. The command refuses a task that is not `running` and a task whose parent goal is missing, completed, failed, or has an invalid status. It does not start the task and never changes a goal to a closed status. The reason is printed but not stored.
 - The task transition table now allows `running → ready`. `aic task ready` refuses a `running` task and points to `aic task requeue`, so the new edge is reached only through requeue.
+- Added execution attempt records in `executions.json`, next to the task file, with the registry in `execution/records.py`. `ExecutionStarter` opens a record when it starts a task, and `ExecutionOutcomeRecorder` closes it with the outcome and its reason, so outcome reasons and adapter failure reasons are no longer dropped. A task that was already running before records existed gets a closed record with no start time. The CLI does not record yet, nothing validates the records, and there is no `aic task history`.
 
 ### Documentation
 
@@ -33,7 +34,7 @@ All notable changes to AI Control Centre are documented here.
 - Documented current security-relevant gaps in `SECURITY.md`.
 - Filled in `.env.example` and the pull request template, which were empty.
 - Added `docs/RECOVERY_DESIGN.md`: a design for recovering tasks left in `running` (G5), with options and a recommendation. Its Option A is now implemented as `aic task requeue`.
-- Added `docs/EXECUTION_RECORDS_DESIGN.md`: a proposed design for recording execution attempts (start time, outcome and reason), with options and a recommendation. Nothing is implemented yet.
+- Added `docs/EXECUTION_RECORDS_DESIGN.md`: a design for recording execution attempts (start time, outcome and reason), with options and a recommendation. It is accepted and being built in stages.
 
 ### Known issues (documented, not fixed)
 
