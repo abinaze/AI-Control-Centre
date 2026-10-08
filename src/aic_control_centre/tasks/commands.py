@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from aic_control_centre.execution.records import (
+    EXECUTION_SOURCE_CLI,
+    ExecutionRecordRegistry,
+)
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
@@ -166,6 +170,11 @@ def _readiness_evaluator() -> TaskReadinessEvaluator:
     )
 
 
+def _record_registry() -> ExecutionRecordRegistry:
+    """Build the execution record registry beside the task file."""
+    return ExecutionRecordRegistry.beside(TaskRegistry().registry_path)
+
+
 def mark_task_ready(task_id: str) -> int:
     """Move a pending task to the ready state.
 
@@ -203,6 +212,11 @@ def start_task(task_id: str) -> int:
 
     The task must pass the readiness boundary first. Empty and unknown
     task IDs are left to the lifecycle transition to report.
+
+    An attempt record is opened before the task moves to running. A
+    crash in between leaves an open record and a ready task, which is
+    detectable. The other order could leave a running task with no
+    start time.
     """
     task = _find_task(task_id)
 
@@ -215,6 +229,11 @@ def start_task(task_id: str) -> int:
                 f"{readiness.reason}"
             )
             return 1
+
+        _record_registry().open_attempt(
+            task_id=task.id,
+            source=EXECUTION_SOURCE_CLI,
+        )
 
     return transition_task_status(
         task_id=task_id,
