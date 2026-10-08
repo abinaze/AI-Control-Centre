@@ -4,6 +4,7 @@ import sys
 import pytest
 
 from aic_control_centre.cli import build_parser, main
+from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.projects.registry import ProjectRegistry
@@ -251,3 +252,51 @@ def test_task_requeue_requires_a_reason(capsys):
 
     assert excinfo.value.code == 2
     assert "--reason" in capsys.readouterr().err
+
+
+def test_main_task_lifecycle_records_attempts(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """The CLI records each attempt, including one that was requeued."""
+    goal = Goal.create(description="Recorded goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+
+    for command in ("ready", "start"):
+        result = run_cli(monkeypatch, tmp_path, "task", command, task.id)
+        assert result == 0
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        "requeue",
+        task.id,
+        "--reason",
+        "worker process died",
+    )
+    assert result == 0
+
+    for command in ("start", "complete"):
+        result = run_cli(monkeypatch, tmp_path, "task", command, task.id)
+        assert result == 0
+
+    capsys.readouterr()
+
+    records = ExecutionRecordRegistry(
+        tmp_path / "executions.json",
+    ).list_attempts(task.id)
+
+    assert [record.ended_as for record in records] == [
+        "requeued",
+        "completed",
+    ]
+    assert [record.reason for record in records] == [
+        "worker process died",
+        "",
+    ]
+    assert all(record.source == "cli" for record in records)
+    assert all(record.started_at is not None for record in records)
