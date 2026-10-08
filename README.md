@@ -182,7 +182,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system is structured today |
 | [docs/DESIGN_DIRECTIONS.md](docs/DESIGN_DIRECTIONS.md) | Research on future directions; not committed |
 | [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Design for recovering tasks left in `running`; Option A is implemented as `aic task requeue` |
-| [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Proposed design for recording execution attempts |
+| [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Design for recording execution attempts; accepted and being built in stages |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
