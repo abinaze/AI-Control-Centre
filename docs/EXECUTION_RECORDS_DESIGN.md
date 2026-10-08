@@ -1,6 +1,6 @@
 # Design Note: Execution Records
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's approval, or changes, before any code is written. It follows [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) and addresses what is still open in gap G5, and the missing transition history in gap G4, in [STATUS.md](STATUS.md).
+**Status: Accepted.** The maintainer approved the recommendation and all five answers below. It is being built in stages, and [STATUS.md](STATUS.md) says what is implemented. It follows [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) and addresses what is still open in gap G5, and the missing transition history in gap G4, in [STATUS.md](STATUS.md).
 
 ## Problem
 
@@ -131,6 +131,8 @@ Tests it would need:
 4. Should rejected requests be recorded? Recommendation: no, for the INV-1 reason above.
 5. Should the default file location sit beside the task registry's file, as proposed, or should `AppConfig` gain an `executions_file`? Recommendation: beside the task file, because it keeps every existing test isolated without new patching.
 
+Answered: the maintainer approved the recommendation on all five. A task already running gets a closed record with a `null` start when it ends. A stale open record is closed as `abandoned` when the task is next started. `--reason` for complete and fail is a later step. Rejected requests are not recorded. The file sits beside the task registry's file.
+
 ## After this decision
 
-Once the note is approved, the build would go in small steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applies: no step may leave a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking and a transition log remain separate decisions.
+The build goes in small steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applies: no step may leave a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking and a transition log remain separate decisions.
