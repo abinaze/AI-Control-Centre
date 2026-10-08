@@ -4,6 +4,11 @@ from dataclasses import replace
 
 import pytest
 
+from aic_control_centre.execution.records import (
+    ENDED_AS_ABANDONED,
+    EXECUTION_SOURCE_CLI,
+    ExecutionRecordRegistry,
+)
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
@@ -1068,3 +1073,129 @@ def test_stuck_running_task_can_be_requeued_and_finished(
     assert GoalRegistry(goal_path).get_goal(goal.id).status == (
         GOAL_STATUS_COMPLETED
     )
+
+
+def _records(task_path) -> ExecutionRecordRegistry:
+    """Return the execution record registry beside a task file."""
+    return ExecutionRecordRegistry.beside(task_path)
+
+
+def test_start_task_opens_an_attempt_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Starting a task from the CLI opens an attempt for it."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].is_open
+    assert records[0].source == EXECUTION_SOURCE_CLI
+    assert records[0].target is None
+    assert records[0].started_at is not None
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+def test_start_task_refused_writes_no_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A task that is not ready is not started and not recorded."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 1
+
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_start_task_unknown_task_writes_no_record(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An unknown task ID is reported and nothing is recorded."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task("no-such-task") == 1
+
+    assert not (tmp_path / "executions.json").exists()
+
+
+def test_start_task_abandons_a_stale_open_attempt(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An attempt left open for a ready task is closed as abandoned."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _records(task_path).open_attempt(task.id, EXECUTION_SOURCE_CLI)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert start_task(task.id) == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert [record.ended_as for record in records] == [
+        ENDED_AS_ABANDONED,
+        None,
+    ]
+    assert records[1].is_open
+
+
+def test_start_task_failed_record_write_keeps_task_ready(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """If the record cannot be written, the task does not start."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    def fail_open(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(ExecutionRecordRegistry, "open_attempt", fail_open)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        start_task(task.id)
+
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+
+
+def test_start_task_crash_after_record_leaves_an_open_attempt(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A crash after the record leaves an open record and a ready task."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    def fail_update(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(TaskRegistry, "update_task_status", fail_update)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        start_task(task.id)
+
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
+    assert _records(task_path).get_open_attempt(task.id) is not None
