@@ -85,7 +85,7 @@ Not done: automatic detection of dead runs, and storing the reason. Both depend 
 
 ### Step 5 — Execution records
 
-Status: Proposed. A design note with options and a recommendation is in [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md). It proposes narrowing the scope below: records for attempts that started, without the request or the admission result.
+Status: In progress. The design is accepted in [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md). It narrows the scope below to records for attempts that started, without the request or the admission result. Done: the record registry and recording from the library. Not done: recording from the CLI, the validation checks, and `aic task history`.
 
 A persisted record per execution attempt (request, admission result, outcome, timestamps). This is the minimum history needed for later recovery, evidence, and explainability.
 
