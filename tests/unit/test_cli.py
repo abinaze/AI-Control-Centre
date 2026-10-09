@@ -376,3 +376,73 @@ def test_main_validate_reports_an_unreadable_records_file(
 
     assert result == 1
     assert "executions.json" in captured.out + captured.err
+
+
+def test_task_history_command_is_registered():
+    """The task history command takes a task ID."""
+    parser = build_parser()
+
+    args = parser.parse_args(["task", "history", "task-123"])
+
+    assert args.command == "task"
+    assert args.task_command == "history"
+    assert args.task_id == "task-123"
+
+
+def test_main_task_history_shows_the_recorded_attempts(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """aic task history lists a retried task's attempts."""
+    goal = Goal.create(description="Recorded goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+
+    for command in ("ready", "start"):
+        result = run_cli(monkeypatch, tmp_path, "task", command, task.id)
+        assert result == 0
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        "requeue",
+        task.id,
+        "--reason",
+        "worker process died",
+    )
+    assert result == 0
+    assert run_cli(monkeypatch, tmp_path, "task", "start", task.id) == 0
+    capsys.readouterr()
+
+    result = run_cli(monkeypatch, tmp_path, "task", "history", task.id)
+
+    output = capsys.readouterr().out
+
+    assert result == 0
+    assert "Attempts: 2" in output
+    assert "Outcome: requeued" in output
+    assert "Reason: worker process died" in output
+    assert "Ended: still open" in output
+
+
+def test_main_task_history_reports_an_unreadable_records_file(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """A corrupt records file is reported as an error."""
+    goal = Goal.create(description="Recorded goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+    (tmp_path / "executions.json").write_text("{not json", encoding="utf-8")
+
+    result = run_cli(monkeypatch, tmp_path, "task", "history", task.id)
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "executions.json" in captured.out + captured.err
