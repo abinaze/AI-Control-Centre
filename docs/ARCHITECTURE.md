@@ -50,7 +50,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
-  execution/        contract, admission, start, outcome, registry, coordinator
+  execution/        contract, admission, start, outcome, records, registry, coordinator
 ```
 
 ## Core Lifecycle Model
@@ -191,17 +191,31 @@ Adapter exceptions, invalid adapter results, and task identity mismatches are co
 
 The coordinator is a library component. No CLI command invokes it today.
 
+### Execution Records
+
+An execution record describes one attempt to run a task. Records are stored in `executions.json`, next to the task file, through `ExecutionRecordRegistry` in `execution/records.py`. The registry takes its file path explicitly, and `ExecutionRecordRegistry.beside` places the file next to a task registry's file, which keeps tests that use temporary registries isolated from real user data.
+
+A record has an `id`, a `task_id`, a `source` (`cli` or `coordinator`), an optional `target`, a `started_at`, an `ended_at`, an `ended_as` (`completed`, `failed`, `requeued` or `abandoned`) and a `reason`. An attempt is open until it ends. Ending a task that has no open record, which is the case for a task that was already running before records existed, writes a closed record with no start time.
+
+Task status stays the authority, and the two files are written one after the other. Starting writes the open record first and then moves the task to `running`. Ending moves the task first and then closes the record. A crash between the two writes can therefore leave only one shape, an open record for a task that is not `running`, and never a `running` task whose record says it ended. When a task is next started, an open record left for it is closed as `abandoned`, in the same write that opens the new record.
+
+The library (`ExecutionStarter` and `ExecutionOutcomeRecorder`) and the CLI (`aic task start`, `complete`, `fail` and `requeue`) both record, and parity tests require the records to have the same shape. A rejected request or a refused command writes nothing.
+
+`aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID. It accepts a `running` task with no record. `aic task history <task-id>` lists a task's attempts, oldest first. Both are read-only.
+
+An attempt left open for a completed or failed task is never closed by the normal lifecycle (G11 in [STATUS.md](STATUS.md)). The design and its options are in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md).
+
 ## Execution Entry Points
 
 A task can reach the `running` state through the execution boundary or through the CLI. Both paths enforce readiness.
 
 | Path | What is enforced |
 | --- | --- |
-| `ExecutionCoordinator` / `ExecutionStarter` (library) | Readiness and admission |
-| `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open |
+| `ExecutionCoordinator` / `ExecutionStarter` (library) | Readiness and admission; an attempt record is opened before the task moves to `running` |
+| `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open; an attempt record is opened before the task moves to `running` |
 | `aic task ready` (CLI) | The parent goal must be open; a `running` task is refused |
-| `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running` |
-| `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required |
+| `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running`; the attempt record is closed after the task moves |
+| `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required; the attempt record is closed with the reason after the task moves |
 
 The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them. `aic task requeue` is the only CLI path from `running` back to `ready`. It does not start the task: the task must still pass readiness through `aic task start`.
 
@@ -218,6 +232,7 @@ State is stored as JSON files in a local data directory.
 | `projects.json` | Registered projects |
 | `goals.json` | Goals |
 | `tasks.json` | Tasks |
+| `executions.json` | Execution attempt records, created when the first attempt is recorded |
 
 The data directory is resolved in this order:
 
@@ -227,7 +242,7 @@ The data directory is resolved in this order:
 
 Identifiers are UUID4 strings. Timestamps are UTC ISO-8601 strings. Each registry accepts an explicit file path, which the tests use to stay isolated from real user data.
 
-Each file is a JSON object with a `schema_version` number and a list of items under the name of its collection: `projects`, `goals`, or `tasks`. For example, `goals.json` holds `{"schema_version": 1, "goals": [...]}`.
+Each file is a JSON object with a `schema_version` number and a list of items under the name of its collection: `projects`, `goals`, `tasks`, or `executions`. For example, `goals.json` holds `{"schema_version": 1, "goals": [...]}`.
 
 Files written before versioning are a bare JSON list. They are read as schema version 1 and are rewritten in the versioned shape the next time they are saved. Reading never modifies a file. A file whose `schema_version` is higher than this version of the tool supports is refused and left untouched, and so is a file that is not valid JSON or does not have the expected shape. The CLI reports these errors as `Error: ...` and exits with status 1. When the shape of a state file changes, `SCHEMA_VERSION` in `storage.py` is raised and a migration from the previous version is added.
 
@@ -237,7 +252,7 @@ Current limitations of persistence:
 
 - There is no file locking, so concurrent processes can still overwrite each other's changes.
 - A hard kill during a write can leave a stale temporary file named `.<file>.<id>.tmp`. The registries ignore it.
-- Only `created_at` and `updated_at` are stored. There is no transition or execution history.
+- Tasks store only `created_at` and `updated_at`. Execution attempts are recorded in `executions.json`, but there is no history of other status changes.
 
 See G4 in [STATUS.md](STATUS.md).
 
