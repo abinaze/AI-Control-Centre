@@ -21,9 +21,9 @@ Execution currently operates through explicit contracts, readiness checks, execu
 
 These are current, verified limitations of the security boundary. Details and reproduction steps are in [docs/STATUS.md](docs/STATUS.md).
 
-- **Local state is unauthenticated and unprotected.** Project, goal, and task state is stored as plain JSON. Anyone with write access to the data directory can change it. It is not encrypted, signed, or tamper-evident, and there is no access control.
+- **Local state is unauthenticated and unprotected.** Project, goal, task, and execution record state is stored as plain JSON. Anyone with write access to the data directory can change it. It is not encrypted, signed, or tamper-evident, and there is no access control.
 - **Concurrent writers are not coordinated.** Writes are atomic, so a crash or error during a write does not corrupt a state file. There is no file locking, so two processes can still overwrite each other's changes.
-- **No execution history is recorded.** Only creation and update timestamps exist, so actions cannot yet be audited after the fact.
+- **Execution history is local and not tamper-evident.** Each attempt is recorded in `executions.json` with its start, its end, its outcome, and a free-text reason. Reasons are stored as given, including adapter error messages, which can contain sensitive details. The file is plain JSON that anyone with write access to the data directory can change. Other status changes are not recorded.
 
 ## Reporting Security Issues
 
