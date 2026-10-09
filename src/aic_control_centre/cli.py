@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from aic_control_centre.doctor import run_doctor
+from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.commands import (
     create_goal,
     list_goals,
@@ -24,6 +25,7 @@ from aic_control_centre.tasks.commands import (
     show_task_status,
     start_task,
 )
+from aic_control_centre.tasks.registry import TaskRegistry
 from aic_control_centre.validation.goal_tasks import GoalTaskValidator
 
 
@@ -229,7 +231,12 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         return run_doctor()
 
     if args.command == "validate":
-        validator = GoalTaskValidator(project_registry=ProjectRegistry())
+        validator = GoalTaskValidator(
+            project_registry=ProjectRegistry(),
+            record_registry=ExecutionRecordRegistry.beside(
+                TaskRegistry().registry_path,
+            ),
+        )
         result = validator.validate()
 
         if result.valid:
