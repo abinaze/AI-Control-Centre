@@ -40,7 +40,7 @@ After the project reference change the suite has 251 tests. The maintainer ran t
 
 After the task requeue change the suite has 274 tests: the 251 above plus 23 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the ten code commits in that change and again after the documentation commits; the final run at `db4bb41` gave 274 passed.
 
-After the execution records change the suite has 371 tests: the 274 above plus 97 new ones.
+After the execution records change the suite has 371 tests: the 274 above plus 97 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the 25 code and test commits in that change and again after the documentation commits; the final run at `5dc48c9` gave 371 passed.
 
 ## Capability status
 
