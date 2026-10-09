@@ -46,7 +46,7 @@ This phase establishes the execution control boundary without introducing unrest
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Steps 1, 2, 3 and 4 are implemented, apart from file locking and automatic detection of dead runs.
+Status: In progress. Steps 1 to 5 are implemented, apart from file locking and automatic detection of dead runs.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -85,7 +85,7 @@ Not done: automatic detection of dead runs, and storing the reason. Both depend 
 
 ### Step 5 — Execution records
 
-Status: In progress. The design is accepted in [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md). It narrows the scope below to records for attempts that started, without the request or the admission result. Done: the record registry and recording from the library and from the CLI. Not done: the validation checks and `aic task history`.
+Status: Implemented, as designed in [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md). It narrows the scope below to records for attempts that started, without the request or the admission result. Records are written from the library and from the CLI, `aic validate` checks them, and `aic task history` shows them. Not done: timeouts and automatic detection of dead runs, which would use the recorded start time and belong with the adapter and limits work in Phase 3.
 
 A persisted record per execution attempt (request, admission result, outcome, timestamps). This is the minimum history needed for later recovery, evidence, and explainability.
 
