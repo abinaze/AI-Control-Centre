@@ -40,6 +40,8 @@ After the project reference change the suite has 251 tests. The maintainer ran t
 
 After the task requeue change the suite has 274 tests: the 251 above plus 23 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the ten code commits in that change and again after the documentation commits; the final run at `db4bb41` gave 274 passed.
 
+After the execution records change the suite has 371 tests: the 274 above plus 97 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -58,7 +60,7 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 | Execution coordinator | Implemented | Library only; no CLI command invokes it |
 | Concrete execution adapters | Planned | None exist; only test doubles |
 | Execution records: registry, library recording, and CLI recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` and `aic task start` open an attempt record before the task moves to `running`. `ExecutionOutcomeRecorder`, `aic task complete`, `aic task fail` and `aic task requeue` close it after the task moves, with the outcome and its reason |
-| Execution record validation and history | Designed | Accepted in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). Nothing validates the records yet, so an attempt left open by a crash is not reported, and there is no `aic task history` |
+| Execution record validation and history | Implemented | `aic validate` checks the records and stays read-only. `aic task history <task-id>` lists a task's attempts, oldest first. The design is in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md) |
 | Task dependencies | Planned | Tasks belong to a goal; no task-to-task links |
 | Event / workflow boundary | Planned | |
 | Evidence | Planned | |
@@ -111,9 +113,9 @@ Goals created before this change that point at an unregistered project are not m
 
 **Schema version.** Each state file is now a JSON object with a `schema_version` number and its items under `projects`, `goals`, or `tasks`. Files written before versioning are a bare list and are read as version 1; they are rewritten in the versioned shape the next time the tool saves them, and reading never rewrites them. A file with a newer version than the tool supports, a file that is not valid JSON, and a file with an unusable shape are refused with an error and left untouched.
 
-Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
+Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history, only the history of execution attempts that `aic task history` shows. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution.
 
-### G5. A `running` task had no recovery path (reproduced; closed, with detection and audit trail still open)
+### G5. A `running` task had no recovery path (reproduced; closed for the operator path, with automatic detection still open)
 
 **Closed for the operator path.** `aic task requeue <task-id> --reason "<text>"` moves a `running` task back to `ready` without failing its goal. The task then goes through `aic task start` and readiness like any other. The command requires a reason, refuses a task that is not `running`, and refuses a task whose parent goal is missing, completed, failed, or has an invalid status. See [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) (accepted, Option A) and [ROADMAP.md](../ROADMAP.md), Phase 2.5, Step 4. The rest of this entry records the original defect and what is still open.
 
@@ -122,7 +124,7 @@ Original defect: the transition table allowed `running → completed | failed` o
 Still open:
 
 - Nothing detects a dead process. A person has to decide that a `running` task is dead. If its process is in fact alive, requeueing and starting it again runs the task twice.
-- A requeue and its reason are now stored in the attempt record, but nothing reads them back yet: there is no `aic task history`.
+- A requeue and its reason are stored in the attempt record, and `aic task history <task-id>` shows them. Nothing acts on the recorded start time yet: no timeout or detector uses it.
 - `aic task complete` on a dead task is still accepted, so a false success can still be recorded.
 
 ### G6. The coordinator is unreachable from the CLI (reproduced)
@@ -145,6 +147,14 @@ The `pyproject.toml` description and the CLI help text both say "autonomous AI d
 
 `KNOWN_GOAL_STATUSES` is defined separately in `readiness/tasks.py` and `validation/goal_tasks.py`. The two currently match. A future status addition could update only one.
 
+### G11. An attempt left open for a finished task cannot be closed from the CLI (reproduced)
+
+When `aic task complete`, `aic task fail` or `aic task requeue` runs, the task moves first and its attempt record is closed afterwards. If the records file cannot be written at that moment, for example because it is unreadable, the command prints an error and exits with status 1 after the task has already moved. For `complete` and `fail` the task is then terminal and nothing starts it again, so nothing closes the attempt. `aic validate` reports the open record on every run, and `aic task history` flags it. Reproduced with the CLI by corrupting `executions.json` between `aic task start` and `aic task complete`.
+
+A task that is `ready` again after a crash does not have this problem. A failed close during `requeue`, or a crash between opening a record and moving the task, leaves a `ready` task, and the next `aic task start` closes the leftover record as `abandoned`.
+
+Until a fix is chosen, the record can be closed by hand: in `executions.json`, set the record's `ended_at` to a UTC time and its `ended_as` to `abandoned`. The likely fix is a small explicit command that does the same. It is not built, and it is a maintainer decision because it adds a write path outside the normal lifecycle.
+
 ## Invariants
 
 These are the architectural rules the project is converging on. The table shows which are actually enforced.
@@ -166,11 +176,15 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-13 | Validation reports every goal whose project is not registered when the validator is given a project registry; `aic validate` always gives it one. | Yes, in `GoalTaskValidator` | `test_goal_for_unregistered_project_is_reported`, `test_every_goal_with_an_unregistered_project_is_reported`, `test_main_validate_reports_goal_for_unregistered_project` |
 | INV-14 | Only a `running` task can be requeued, only while its parent goal is open, and requeueing never changes a goal to a closed status. | Yes, in `requeue_task`; the transition table keeps `completed` and `failed` terminal | `test_requeue_task_refuses_task_that_is_not_running`, `test_requeue_task_rejects_task_in_closed_goal`, `test_requeue_task_keeps_goal_in_progress`, `test_registry_still_rejects_failed_to_ready` |
 | INV-15 | In the CLI, `aic task ready` never moves a `running` task back to `ready`. Only `aic task requeue`, with a reason, does. The library call `TaskRegistry.update_task_status` does allow the edge, and no library code calls it. | Yes, in `mark_task_ready` and `requeue_task` | `test_mark_task_ready_refuses_running_task`, `test_requeue_task_requires_a_reason`, `test_task_requeue_requires_a_reason`, `test_stuck_running_task_can_be_requeued_and_finished` |
+| INV-16 | Every start opens an attempt record before the task moves to `running`, and every end closes it after the task moves, from the CLI and from the library. A crash between the two writes leaves an open record for a task that is not `running`, never a `running` task whose record says it ended. | Yes, in `ExecutionStarter.start`, `ExecutionOutcomeRecorder.record`, `start_task`, `_finish_task` and `requeue_task` | `test_failed_attempt_write_leaves_the_task_ready`, `test_failed_task_update_leaves_an_open_attempt`, `test_failed_record_write_leaves_an_open_attempt`, `test_start_task_failed_record_write_keeps_task_ready`, `test_start_task_crash_after_record_leaves_an_open_attempt`, `test_failed_close_leaves_the_task_moved_and_attempt_open`, `test_failed_requeue_close_leaves_the_task_ready_and_attempt_open` |
+| INV-17 | The CLI and the library record attempts with the same shape. Only `source` and `target` differ. | Only by tests | `test_cli_and_library_record_an_attempt_alike`, `test_only_the_route_and_target_differ_between_routes`, `test_cli_and_library_abandon_a_stale_attempt_alike` |
+| INV-18 | A rejected request or a refused command writes no attempt record. | Yes, because recording happens only after the checks pass | `test_rejected_start_writes_no_attempt_record`, `test_rejected_outcome_writes_no_record`, `test_coordinator_writes_no_record_for_an_unknown_target`, `test_start_task_refused_writes_no_record`, `test_refused_finish_writes_no_record`, `test_refused_requeue_of_a_ready_task_writes_no_record` |
+| INV-19 | `aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID, without writing any file. A `running` task with no record is accepted. | Yes, in `GoalTaskValidator` | `test_open_record_for_a_task_that_is_not_running_is_reported`, `test_two_open_records_for_a_task_are_reported`, `test_record_for_a_missing_task_is_reported`, `test_duplicate_execution_record_ids_are_reported`, `test_running_task_without_a_record_is_valid`, `test_validation_does_not_modify_the_records_file` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs and a stored audit trail are still open. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: execution records and the remainder of G4.
+G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records are built, and G11 is open. The remaining hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is file locking and a transition log.
 
-Recommended next: finish execution records from the accepted design in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). The registry and recording from the library and from the CLI are built, with parity tests so that the two routes cannot drift apart. Next come the validation checks and `aic task history`. File locking and a transition log remain separate decisions.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then take the file locking decision (G4). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
