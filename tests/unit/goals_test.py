@@ -3,8 +3,10 @@
 from datetime import datetime
 from uuid import UUID
 
+import aic_control_centre.goals.model as goal_model
 from aic_control_centre.goals.model import (
     GOAL_STATUS_PENDING,
+    KNOWN_GOAL_STATUSES,
     Goal,
 )
 
@@ -52,3 +54,22 @@ def test_goal_ids_are_unique() -> None:
     )
 
     assert first.id != second.id
+
+
+def test_known_goal_statuses_match_the_goal_status_constants() -> None:
+    """Every GOAL_STATUS_ constant is a known status, and the reverse."""
+    declared = {
+        value
+        for name, value in vars(goal_model).items()
+        if name.startswith("GOAL_STATUS_")
+    }
+
+    assert KNOWN_GOAL_STATUSES == declared
+    assert len(KNOWN_GOAL_STATUSES) == 4
+
+
+def test_new_goals_start_with_a_known_status() -> None:
+    """A newly created goal has a status the tool recognises."""
+    goal = Goal.create(description="Known status", project="TestProject")
+
+    assert goal.status in KNOWN_GOAL_STATUSES
