@@ -16,6 +16,7 @@ from aic_control_centre.goals.model import (
     Goal,
 )
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.commands import (
     complete_task,
     create_task,
@@ -23,6 +24,7 @@ from aic_control_centre.tasks.commands import (
     list_tasks,
     mark_task_ready,
     requeue_task,
+    show_task_history,
     show_task_status,
     start_task,
 )
@@ -1438,3 +1440,168 @@ def test_failed_requeue_close_leaves_the_task_ready_and_attempt_open(
 
     assert TaskRegistry(task_path).get_task(task.id).status == "ready"
     assert _records(task_path).get_open_attempt(task.id) is not None
+
+
+def test_task_history_reports_a_task_with_no_attempts(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task that never started has nothing to list."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert show_task_history(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert f"Task: {task.id}" in output
+    assert "Status: pending" in output
+    assert "No attempts recorded." in output
+
+
+def test_task_history_reports_an_unknown_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """An unknown task ID is an error."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert show_task_history("no-such-task") == 1
+
+    assert "Error: task not found: no-such-task" in capsys.readouterr().out
+
+
+def test_task_history_lists_attempts_oldest_first(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Each attempt is listed with its route, times, outcome, and reason."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    assert requeue_task(task.id, "worker process died") == 0
+    assert start_task(task.id) == 0
+    capsys.readouterr()
+
+    assert show_task_history(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert "Status: running" in output
+    assert "Attempts: 2" in output
+    assert output.index("Attempt 1") < output.index("Attempt 2")
+    assert "Route: cli" in output
+    assert "Outcome: requeued" in output
+    assert "Reason: worker process died" in output
+    assert "Ended: still open" in output
+    assert "Note:" not in output
+
+
+def test_task_history_shows_an_unknown_start_for_a_legacy_record(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """A task that was running before records existed says so."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert complete_task(task.id) == 0
+    capsys.readouterr()
+
+    assert show_task_history(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert "Started: unknown (before records existed)" in output
+    assert "Outcome: completed" in output
+
+
+def test_task_history_shows_the_target_of_a_library_attempt(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """An attempt made through the coordinator shows its target."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_running_task(task_path, goal.id)
+    _records(task_path).open_attempt(task.id, "coordinator", "test")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert show_task_history(task.id) == 0
+
+    assert "Route: coordinator (test)" in capsys.readouterr().out
+
+
+def test_task_history_marks_an_attempt_left_open(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """An open attempt for a task that is not running is flagged."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _records(task_path).open_attempt(task.id, EXECUTION_SOURCE_CLI)
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert show_task_history(task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert "Ended: still open" in output
+    assert "Note: the task is not running" in output
+
+
+def test_task_history_does_not_modify_any_file(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Showing history never writes."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    before = {
+        path.name: path.read_bytes() for path in tmp_path.iterdir()
+    }
+
+    assert show_task_history(task.id) == 0
+
+    after = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    assert after == before
+
+
+def test_task_history_stops_on_an_unreadable_records_file(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A corrupt records file is an error, not an empty history."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id)
+    _patch_registries(monkeypatch, goal_path, task_path)
+    (tmp_path / "executions.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(StateFileError):
+        show_task_history(task.id)
