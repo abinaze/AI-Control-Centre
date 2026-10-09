@@ -39,7 +39,7 @@ So the only ways to get unstuck are to claim a false success or to fail the goal
 - Pro: the smallest change that removes the dead end. No new status and no new stored field, and goal status is unaffected, because `running` and `ready` both leave a goal `in_progress`.
 - Pro: the task goes back through the normal gates, so INV-4 still holds.
 - Con: it relies on the person being right. If the process is in fact still alive, the task could run twice.
-- Con: the reason is printed but not stored until execution records exist.
+- Con: the reason was printed but not stored until execution records existed. It is now stored in the attempt record.
 
 **B. An `interrupted` status with automatic detection.** Add a status, record a start time and an owner or lease, and mark a task `interrupted` when its heartbeat or deadline lapses.
 
@@ -84,7 +84,7 @@ Two invariants were added to [STATUS.md](STATUS.md): INV-14 (only a `running` ta
 ## Risks
 
 - **Double execution.** If the earlier process is still running, requeueing and starting again runs the task twice. The command cannot prevent this. It makes the action deliberate (a required reason and a printed `Updated` time) and the documentation says so plainly. Real protection needs Option B.
-- **No audit trail yet.** Until execution records exist, the reason and the fact that a requeue happened are not stored.
+- **Audit trail.** Before execution records existed, the reason and the fact that a requeue happened were not stored. They are now stored in the attempt record.
 - **False success is still possible.** `aic task complete` on a dead task is still accepted. Requiring evidence for completion is separate work.
 
 ## Open questions for the maintainer
@@ -93,7 +93,7 @@ Two invariants were added to [STATUS.md](STATUS.md): INV-14 (only a `running` ta
 2. Should requeue be refused when the goal is closed? Recommendation: yes, as described above.
 3. Should there be a confirmation prompt? Recommendation: no. The tool is non-interactive, and a required reason is the deliberate step.
 
-Answered: the maintainer approved the recommendation on all three. The reason is not stored yet, a task in a closed goal is refused, and there is no confirmation prompt.
+Answered: the maintainer approved the recommendation on all three. The reason is not stored on the task itself (execution records store it), a task in a closed goal is refused, and there is no confirmation prompt.
 
 ## Found while implementing
 
