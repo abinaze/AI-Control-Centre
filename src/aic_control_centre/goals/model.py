@@ -12,6 +12,13 @@ GOAL_STATUS_IN_PROGRESS = "in_progress"
 GOAL_STATUS_COMPLETED = "completed"
 GOAL_STATUS_FAILED = "failed"
 
+KNOWN_GOAL_STATUSES = {
+    GOAL_STATUS_PENDING,
+    GOAL_STATUS_IN_PROGRESS,
+    GOAL_STATUS_COMPLETED,
+    GOAL_STATUS_FAILED,
+}
+
 
 def utc_now() -> str:
     """Return the current UTC time as an ISO-8601 string."""
