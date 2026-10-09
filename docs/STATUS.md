@@ -49,7 +49,7 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 | Task registry and lifecycle | Implemented | `pending → ready → running → completed \| failed`; a stuck `running` task returns to `ready` only through `aic task requeue` |
 | Goal/task validation | Implemented | `aic validate`; read-only |
 | Task readiness | Implemented | `aic task readiness` |
-| Task requeue | Implemented | `aic task requeue <task-id> --reason "<text>"`; the reason is printed, not stored |
+| Task requeue | Implemented | `aic task requeue <task-id> --reason "<text>"`; the reason is printed and stored in the attempt record |
 | Execution request/result contracts | Implemented | Library only |
 | Execution admission | Implemented | Library only |
 | Execution start | Implemented | Library only |
@@ -57,8 +57,8 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 | Execution adapter registry | Implemented | Library only |
 | Execution coordinator | Implemented | Library only; no CLI command invokes it |
 | Concrete execution adapters | Planned | None exist; only test doubles |
-| Execution record registry and library recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` opens an attempt record and `ExecutionOutcomeRecorder` closes it with the outcome and its reason |
-| Execution records from the CLI, validation, and history | Designed | Accepted in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). `aic task start`, `complete`, `fail` and `requeue` do not record yet, nothing validates the records, and there is no `aic task history` |
+| Execution records: registry, library recording, and CLI recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` and `aic task start` open an attempt record before the task moves to `running`. `ExecutionOutcomeRecorder`, `aic task complete`, `aic task fail` and `aic task requeue` close it after the task moves, with the outcome and its reason |
+| Execution record validation and history | Designed | Accepted in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). Nothing validates the records yet, so an attempt left open by a crash is not reported, and there is no `aic task history` |
 | Task dependencies | Planned | Tasks belong to a goal; no task-to-task links |
 | Event / workflow boundary | Planned | |
 | Evidence | Planned | |
@@ -122,7 +122,7 @@ Original defect: the transition table allowed `running → completed | failed` o
 Still open:
 
 - Nothing detects a dead process. A person has to decide that a `running` task is dead. If its process is in fact alive, requeueing and starting it again runs the task twice.
-- The reason is printed but not stored, and nothing records that a requeue happened. That needs execution records.
+- A requeue and its reason are now stored in the attempt record, but nothing reads them back yet: there is no `aic task history`.
 - `aic task complete` on a dead task is still accepted, so a false success can still be recorded.
 
 ### G6. The coordinator is unreachable from the CLI (reproduced)
@@ -173,4 +173,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs and a stored audit trail are still open. The open hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: execution records and the remainder of G4.
 
-Recommended next: finish execution records from the accepted design in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). The registry and recording from the library are built. Next come recording from the CLI, with parity tests so that the CLI and the library cannot drift apart, then the validation checks and `aic task history`. File locking and a transition log remain separate decisions.
+Recommended next: finish execution records from the accepted design in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md). The registry and recording from the library and from the CLI are built, with parity tests so that the two routes cannot drift apart. Next come the validation checks and `aic task history`. File locking and a transition log remain separate decisions.
