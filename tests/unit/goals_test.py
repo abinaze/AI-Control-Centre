@@ -4,6 +4,8 @@ from datetime import datetime
 from uuid import UUID
 
 import aic_control_centre.goals.model as goal_model
+import aic_control_centre.readiness.tasks as readiness_tasks
+import aic_control_centre.validation.goal_tasks as validation_tasks
 from aic_control_centre.goals.model import (
     GOAL_STATUS_PENDING,
     KNOWN_GOAL_STATUSES,
@@ -73,3 +75,9 @@ def test_new_goals_start_with_a_known_status() -> None:
     goal = Goal.create(description="Known status", project="TestProject")
 
     assert goal.status in KNOWN_GOAL_STATUSES
+
+
+def test_readiness_and_validation_use_the_shared_goal_statuses() -> None:
+    """Neither module keeps its own copy that could drift."""
+    assert readiness_tasks.KNOWN_GOAL_STATUSES is KNOWN_GOAL_STATUSES
+    assert validation_tasks.KNOWN_GOAL_STATUSES is KNOWN_GOAL_STATUSES
