@@ -43,7 +43,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-State files have no locking, and nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md).
+State files have no locking, and nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
 
 ## Quick Start
 
@@ -79,6 +79,7 @@ aic task start <task-id>                    ready -> running (must pass readines
 aic task complete <task-id>                 running -> completed
 aic task fail <task-id>                     running -> failed
 aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
+aic task history <task-id>                  Show the recorded execution attempts for a task
 ```
 
 A minimal walkthrough:
@@ -101,7 +102,7 @@ Configuration is read from environment variables. A `.env` file is **not** loade
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, and `tasks.json` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
+| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, `tasks.json`, and `executions.json` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
 | `AIC_DEFAULT_MODEL_PROVIDER` | Reserved. Read into configuration but not used yet | `local` |
 
 ## Design Principles
@@ -182,7 +183,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the system is structured today |
 | [docs/DESIGN_DIRECTIONS.md](docs/DESIGN_DIRECTIONS.md) | Research on future directions; not committed |
 | [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Design for recovering tasks left in `running`; Option A is implemented as `aic task requeue` |
-| [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Design for recording execution attempts; accepted and being built in stages |
+| [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Design for recording execution attempts; implemented |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
