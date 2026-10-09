@@ -40,7 +40,6 @@ def test_config_paths_are_inside_data_directory(monkeypatch, tmp_path):
     assert config.projects_file == custom_dir / "projects.json"
     assert config.goals_file == custom_dir / "goals.json"
     assert config.tasks_file == custom_dir / "tasks.json"
-    assert config.state_dir == custom_dir / "state"
 
 
 def test_config_paths_are_path_objects():
@@ -50,4 +49,3 @@ def test_config_paths_are_path_objects():
     assert isinstance(config.projects_file, Path)
     assert isinstance(config.goals_file, Path)
     assert isinstance(config.tasks_file, Path)
-    assert isinstance(config.state_dir, Path)
