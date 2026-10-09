@@ -24,6 +24,9 @@ All notable changes to AI Control Centre are documented here.
 - `aic task start` opens an attempt record before the task moves to `running`, and `aic task complete`, `fail` and `requeue` close it after the task moves. A requeue stores its reason in the record. A corrupt or newer-version `executions.json` stops `aic task start` before the task changes. The other three report it as an error after the task has already moved.
 - `aic validate` now checks the execution records. It reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID. A `running` task with no record is accepted, because tasks started before records existed have none. Checking is read-only.
 - Added `aic task history <task-id>`: the attempts for a task, oldest first, with route, start, end, outcome and reason. An open attempt for a task that is not running is flagged. The command is read-only.
+- `KNOWN_GOAL_STATUSES` is now defined once, in `goals/model.py`, and readiness and validation import it (G10).
+- `aic --version` reads the package version instead of repeating the string, and a test requires `pyproject.toml` and the package to agree (G7).
+- Removed the unused `AppConfig.state_dir`. `AppConfig.default_model_provider` is kept, because it is a documented reserved setting (G7).
 
 ### Documentation
 
