@@ -21,6 +21,7 @@ from aic_control_centre.tasks.commands import (
     list_tasks,
     mark_task_ready,
     requeue_task,
+    show_task_history,
     show_task_readiness,
     show_task_status,
     start_task,
@@ -210,6 +211,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Why the task is being requeued.",
     )
 
+    task_history_parser = task_subparsers.add_parser(
+        "history",
+        help="Show the recorded execution attempts for a task.",
+    )
+    task_history_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+
     return parser
 
 
@@ -309,6 +319,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
                 task_id=args.task_id,
                 reason=args.reason,
             )
+
+        if args.task_command == "history":
+            return show_task_history(args.task_id)
 
         parser.parse_args(["task", "--help"])
         return 0
