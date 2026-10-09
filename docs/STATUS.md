@@ -42,7 +42,7 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 
 After the execution records change the suite has 371 tests: the 274 above plus 97 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the 25 code and test commits in that change and again after the documentation commits; the final run at `5dc48c9` gave 371 passed.
 
-After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 new ones.
+After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the nine code and test commits in that change and again after the documentation commits; the final run at `ec8a162` gave 376 passed.
 
 ## Capability status
 
