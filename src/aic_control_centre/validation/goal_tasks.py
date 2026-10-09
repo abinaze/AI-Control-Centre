@@ -8,8 +8,7 @@ from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
-    GOAL_STATUS_IN_PROGRESS,
-    GOAL_STATUS_PENDING,
+    KNOWN_GOAL_STATUSES,
     Goal,
 )
 from aic_control_centre.goals.registry import GoalRegistry
@@ -25,13 +24,6 @@ from aic_control_centre.tasks.model import (
 )
 from aic_control_centre.tasks.registry import TaskRegistry
 
-
-KNOWN_GOAL_STATUSES = {
-    GOAL_STATUS_PENDING,
-    GOAL_STATUS_IN_PROGRESS,
-    GOAL_STATUS_COMPLETED,
-    GOAL_STATUS_FAILED,
-}
 
 KNOWN_TASK_STATUSES = {
     TASK_STATUS_PENDING,
