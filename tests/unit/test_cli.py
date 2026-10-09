@@ -300,3 +300,79 @@ def test_main_task_lifecycle_records_attempts(
     ]
     assert all(record.source == "cli" for record in records)
     assert all(record.started_at is not None for record in records)
+
+
+def _register_project(data_dir, name="Aircursor"):
+    """Register a project directory under the test data directory."""
+    project_path = data_dir / name
+    project_path.mkdir()
+    ProjectRegistry(data_dir / "projects.json").add_project(project_path)
+
+
+def test_main_validate_passes_for_a_recorded_lifecycle(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """Records made by the CLI agree with the task status."""
+    _register_project(tmp_path)
+    goal = Goal.create(description="Recorded goal", project="Aircursor")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+
+    for command in ("ready", "start"):
+        result = run_cli(monkeypatch, tmp_path, "task", command, task.id)
+        assert result == 0
+
+    assert run_cli(monkeypatch, tmp_path, "validate") == 0
+
+    assert run_cli(monkeypatch, tmp_path, "task", "complete", task.id) == 0
+    assert run_cli(monkeypatch, tmp_path, "validate") == 0
+
+    assert "Validation passed." in capsys.readouterr().out
+
+
+def test_main_validate_reports_an_attempt_left_open(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """An open record for a task that is not running is reported."""
+    _register_project(tmp_path)
+    goal = Goal.create(description="Recorded goal", project="Aircursor")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+    assert run_cli(monkeypatch, tmp_path, "task", "ready", task.id) == 0
+    record = ExecutionRecordRegistry(
+        tmp_path / "executions.json",
+    ).open_attempt(task.id, "cli")
+    capsys.readouterr()
+
+    result = run_cli(monkeypatch, tmp_path, "validate")
+
+    output = capsys.readouterr().out
+
+    assert result == 1
+    assert "Validation failed." in output
+    assert (
+        f"Execution record {record.id} is open but task {task.id} is ready"
+        in output
+    )
+
+
+def test_main_validate_reports_an_unreadable_records_file(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """A corrupt records file is reported as an error, not a traceback."""
+    (tmp_path / "executions.json").write_text("{not json", encoding="utf-8")
+
+    result = run_cli(monkeypatch, tmp_path, "validate")
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "executions.json" in captured.out + captured.err
