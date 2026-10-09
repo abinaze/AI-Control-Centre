@@ -42,6 +42,8 @@ After the task requeue change the suite has 274 tests: the 251 above plus 23 new
 
 After the execution records change the suite has 371 tests: the 274 above plus 97 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the 25 code and test commits in that change and again after the documentation commits; the final run at `5dc48c9` gave 371 passed.
 
+After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -131,9 +133,11 @@ Still open:
 
 `aic --help` exposes `doctor`, `validate`, `project`, `goal`, and `task` only. Nothing registers an adapter or invokes `ExecutionCoordinator`, and no concrete adapter exists. The execution pipeline is exercised only by tests.
 
-### G7. Unused configuration and scattered version string (source)
+### G7. Unused configuration and scattered version string (partly closed)
 
-`AppConfig.state_dir` and `AppConfig.default_model_provider` are defined and populated but no module reads them. The version `0.1.0` is written in three places: `pyproject.toml`, `aic_control_centre/__init__.py`, and the `--version` string in `cli.py`.
+`AppConfig.state_dir` was removed, because no module read it and nothing created the directory. `AppConfig.default_model_provider` stays on purpose: it is documented as a reserved setting (`AIC_DEFAULT_MODEL_PROVIDER` in the README and `.env.example`) for the later model layer, and no module reads it yet.
+
+The version `0.1.0` is now written in two places, `pyproject.toml` and `aic_control_centre/__init__.py`. The `--version` output reads the package value, and a test fails if the two disagree. Making `pyproject.toml` read the version from the package was not done, because it changes packaging.
 
 ### G8. Wording tension about autonomy (source)
 
@@ -143,9 +147,9 @@ The `pyproject.toml` description and the CLI help text both say "autonomous AI d
 
 `.env.example`, `CODE_OF_CONDUCT.md`, and `.github/pull_request_template.md` were zero bytes. `.env.example` and the pull request template are now filled in. `CODE_OF_CONDUCT.md` is still empty and needs a decision on which code of conduct to adopt.
 
-### G10. Duplicated constant (source)
+### G10. Duplicated constant (closed)
 
-`KNOWN_GOAL_STATUSES` is defined separately in `readiness/tasks.py` and `validation/goal_tasks.py`. The two currently match. A future status addition could update only one.
+`KNOWN_GOAL_STATUSES` is now defined once, in `goals/model.py`, and imported by `readiness/tasks.py` and `validation/goal_tasks.py`. A test requires both modules to use that same object, and another requires the set to match the `GOAL_STATUS_` constants, so a new status cannot be added to one place only.
 
 ### G11. An attempt left open for a finished task cannot be closed from the CLI (reproduced)
 
