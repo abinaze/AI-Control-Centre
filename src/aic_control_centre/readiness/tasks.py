@@ -7,20 +7,11 @@ from dataclasses import dataclass
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
-    GOAL_STATUS_IN_PROGRESS,
-    GOAL_STATUS_PENDING,
+    KNOWN_GOAL_STATUSES,
 )
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.tasks.model import TASK_STATUS_READY
 from aic_control_centre.tasks.registry import TaskRegistry
-
-
-KNOWN_GOAL_STATUSES = {
-    GOAL_STATUS_PENDING,
-    GOAL_STATUS_IN_PROGRESS,
-    GOAL_STATUS_COMPLETED,
-    GOAL_STATUS_FAILED,
-}
 
 
 @dataclass(frozen=True)
