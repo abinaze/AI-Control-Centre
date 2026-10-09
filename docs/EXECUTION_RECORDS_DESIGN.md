@@ -1,6 +1,6 @@
 # Design Note: Execution Records
 
-**Status: Accepted.** The maintainer approved the recommendation and all five answers below. It is being built in stages, and [STATUS.md](STATUS.md) says what is implemented. It follows [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) and addresses what is still open in gap G5, and the missing transition history in gap G4, in [STATUS.md](STATUS.md).
+**Status: Accepted and implemented.** The maintainer approved the recommendation and all five answers below, and it was built as described, with the gap recorded under "Found while implementing". The Problem and Facts sections describe the code as it was before the change. It follows [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md) and addresses what is still open in gap G5, and the missing transition history in gap G4, in [STATUS.md](STATUS.md).
 
 ## Problem
 
@@ -133,6 +133,13 @@ Tests it would need:
 
 Answered: the maintainer approved the recommendation on all five. A task already running gets a closed record with a `null` start when it ends. A stale open record is closed as `abandoned` when the task is next started. `--reason` for complete and fail is a later step. Rejected requests are not recorded. The file sits beside the task registry's file.
 
+## Found while implementing
+
+- **An attempt can stay open for good.** The note closes a stale open record when the task is next started. That works for a task that returns to `ready`. It does not work for a task that is `completed` or `failed`, which is never started again. If the records file cannot be written when `aic task complete` or `aic task fail` runs, the task moves, the command reports an error and exits with status 1, and the attempt stays open. `aic validate` then reports it on every run. This was reproduced with the CLI and is recorded as G11 in [STATUS.md](STATUS.md). No repair command was built, because it would be a new write path outside the normal lifecycle.
+- **The write order is covered by mutation tests.** Swapping the order in `ExecutionStarter.start`, `ExecutionOutcomeRecorder.record`, `start_task`, the finish commands and `requeue_task` makes the order tests fail, so the crash-safety rule is enforced by the tests and not only described here. It is still covered by simulated write failures, not by a real crash.
+- **An unreadable records file stops a start but not an end.** `aic task start` opens its record first, so an unreadable file stops the start with an error and leaves the task `ready`. `aic task complete`, `fail` and `requeue` move the task first, so for them the error appears after the task has moved.
+- **The registry has no default path.** `ExecutionRecordRegistry` takes its path explicitly, and `beside` derives it from the task registry's file. No existing test needed new patching, and nothing was added to `AppConfig`.
+
 ## After this decision
 
-The build goes in small steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applies: no step may leave a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking and a transition log remain separate decisions.
+The build went in these steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applied: no step left a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking and a transition log remain separate decisions.
