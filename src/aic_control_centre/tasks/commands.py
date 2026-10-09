@@ -322,3 +322,54 @@ def requeue_task(task_id: str, reason: str) -> int:
         print(f"Reason: {reason.strip()}")
 
     return result
+
+
+def show_task_history(task_id: str) -> int:
+    """Show the recorded execution attempts for a task, oldest first."""
+    task = TaskRegistry().get_task(task_id)
+
+    if task is None:
+        print(f"Error: task not found: {task_id}")
+        return 1
+
+    attempts = _record_registry().list_attempts(task.id)
+
+    print(f"Task: {task.id}")
+    print(f"Status: {task.status}")
+
+    if not attempts:
+        print("No attempts recorded.")
+        return 0
+
+    print(f"Attempts: {len(attempts)}")
+
+    for number, record in enumerate(attempts, start=1):
+        route = record.source
+
+        if record.target:
+            route = f"{route} ({record.target})"
+
+        print()
+        print(f"Attempt {number}")
+        print(f"  Route: {route}")
+        print(
+            "  Started: "
+            f"{record.started_at or 'unknown (before records existed)'}"
+        )
+
+        if record.is_open:
+            print("  Ended: still open")
+
+            if task.status != TASK_STATUS_RUNNING:
+                print(
+                    "  Note: the task is not running, "
+                    "so this attempt was left open"
+                )
+        else:
+            print(f"  Ended: {record.ended_at}")
+            print(f"  Outcome: {record.ended_as}")
+
+        if record.reason:
+            print(f"  Reason: {record.reason}")
+
+    return 0
