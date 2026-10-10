@@ -73,7 +73,7 @@ Original options: validate `--project` against the project registry at goal crea
 
 ### Step 3 — Crash-safe persistence (closes G4)
 
-Status: Implemented, except file locking. Atomic write-and-replace and an explicit schema version field are done for all three JSON registries. File locking is still open.
+Status: Implemented, except file locking. Atomic write-and-replace and an explicit schema version field are done for all three JSON registries. File locking is still open. A design is proposed in [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md).
 
 Scope: atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
 
