@@ -24,7 +24,7 @@ The current implementation provides:
 - Execution admission, start, and outcome recording (library level)
 - Execution target selection and adapter registration (library level)
 - Execution coordination (library level)
-- Deterministic local JSON persistence with atomic writes and a schema version
+- Deterministic local JSON persistence with atomic writes, a schema version, and a lock that keeps concurrent `aic` commands apart
 
 "Library level" means the component exists and is tested, but no CLI command invokes it yet.
 
@@ -43,7 +43,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-State files have no locking, and nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. These are tracked as G4 and G5 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
+Nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
 
 ## Quick Start
 
@@ -82,6 +82,8 @@ aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the g
 aic task history <task-id>                  Show the recorded execution attempts for a task
 ```
 
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness` and `history` commands) takes an exclusive lock on the data directory for as long as it runs. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+
 A minimal walkthrough:
 
 ```bash
@@ -102,7 +104,7 @@ Configuration is read from environment variables. A `.env` file is **not** loade
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, `tasks.json`, and `executions.json` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
+| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, `tasks.json`, `executions.json`, and the lock file `.aic.lock` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
 | `AIC_DEFAULT_MODEL_PROVIDER` | Reserved. Read into configuration but not used yet | `local` |
 
 ## Design Principles
@@ -184,7 +186,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/DESIGN_DIRECTIONS.md](docs/DESIGN_DIRECTIONS.md) | Research on future directions; not committed |
 | [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md) | Design for recovering tasks left in `running`; Option A is implemented as `aic task requeue` |
 | [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Design for recording execution attempts; implemented |
-| [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md) | Proposed design for locking the state files |
+| [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md) | Design for locking the state files; implemented |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
