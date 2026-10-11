@@ -44,6 +44,7 @@ src/aic_control_centre/
   config.py         data directory and state file locations
   doctor.py         environment checks (Python version, git on PATH)
   storage.py        atomic writes and versioned reads of state files
+  locking.py        the exclusive state lock held for one CLI command
   projects/         project registry and commands
   goals/            goal model, registry, and commands
   tasks/            task model (lifecycle table), registry, and commands
@@ -233,6 +234,7 @@ State is stored as JSON files in a local data directory.
 | `goals.json` | Goals |
 | `tasks.json` | Tasks |
 | `executions.json` | Execution attempt records, created when the first attempt is recorded |
+| `.aic.lock` | The state lock, created by the first command that locks. It is never deleted and holds no data |
 
 The data directory is resolved in this order:
 
@@ -248,9 +250,21 @@ Files written before versioning are a bare JSON list. They are read as schema ve
 
 Writes are atomic. Each registry writes through `write_text_atomic` in `storage.py`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact, and the temporary file is removed.
 
+### State locking
+
+Atomic writes protect against a crash. They do nothing for two processes that overlap, because each registry reads a whole file, changes it in memory and writes it back, so the later write wipes out the earlier one. The CLI therefore holds one exclusive lock for the whole of a command.
+
+`state_lock(data_dir)` in `locking.py` locks one byte of `.aic.lock` in the data directory with the operating system: `fcntl.flock` on Unix-like systems and `msvcrt.locking` on Windows. Other processes retry every 20 ms for 10 seconds and then fail with `StateLockError`, which `main` reports as `Error: another aic process is using the state files (waited 10s).` and exit status 1, having changed nothing. The operating system releases the lock when its holder ends, even if it was killed. A second acquisition in the same process raises `StateLockError`, because it would otherwise wait for itself.
+
+`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness` and `history`. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
+
+A read-only command sees one file at a time and each file is always complete, so it never reads a half-written file. On Windows such a reader can hold a state file open at the moment a writer replaces it, so `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`. Other errors are not retried.
+
+The lock must never be held while an adapter runs, once adapters exist. The coordinator CLI planned for Phase 3 takes it only around admission, start and outcome recording.
+
 Current limitations of persistence:
 
-- There is no file locking, so concurrent processes can still overwrite each other's changes.
+- The state lock is advisory. It keeps `aic` processes apart; it does not stop a person editing a state file by hand or a sync tool copying it, and it is not reliable on network file systems.
 - A hard kill during a write can leave a stale temporary file named `.<file>.<id>.tmp`. The registries ignore it.
 - Tasks store only `created_at` and `updated_at`. Execution attempts are recorded in `executions.json`, but there is no history of other status changes.
 
