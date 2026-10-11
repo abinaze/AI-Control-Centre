@@ -21,7 +21,7 @@ Status: In progress
 
 Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
-- Decide on file locking (the rest of G4)
+- Decide on a transition log (the rest of G4)
 
 ## Phase 2 — Readiness and Execution Boundaries
 
@@ -46,7 +46,7 @@ This phase establishes the execution control boundary without introducing unrest
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Steps 1 to 5 are implemented, apart from file locking and automatic detection of dead runs.
+Status: In progress. Steps 1 to 5 are implemented, apart from automatic detection of dead runs.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -73,7 +73,7 @@ Original options: validate `--project` against the project registry at goal crea
 
 ### Step 3 — Crash-safe persistence (closes G4)
 
-Status: Implemented, except file locking. Atomic write-and-replace and an explicit schema version field are done for all three JSON registries. File locking is still open. A design is proposed in [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md).
+Status: Implemented, except a transition log. Atomic write-and-replace and an explicit schema version field are done for all three JSON registries, and every CLI command that writes now runs under one exclusive lock on the data directory. The design is in [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md).
 
 Scope: atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
 
