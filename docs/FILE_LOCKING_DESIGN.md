@@ -1,6 +1,6 @@
 # Design Note: File Locking
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's approval, or changes, before any code is written. It addresses the file locking half of gap G4 in [STATUS.md](STATUS.md). The other half of G4, a history of status changes, is a separate decision.
+**Status: Accepted and implemented.** The maintainer accepted Option A and the recommendations below, and it is built. It addresses the file locking half of gap G4 in [STATUS.md](STATUS.md). The other half of G4, a history of status changes, is a separate decision. The sections below are the note as it was approved; what changed while building is at the end.
 
 ## Problem
 
@@ -117,4 +117,17 @@ Tests it would need:
 
 ## After this decision
 
-Once the note is approved, the build would go in small steps: the lock module and its tests, with subprocess tests; wiring it into `main` with the read-only list and its classification test; the end-to-end concurrent CLI tests; the retry in `write_text_atomic`; and the documentation, including an invariant that every writing command runs under the lock. The maintainer would run the concurrency tests on Windows and, once, a manual run of 12 parallel commands. The transition log, the other half of G4, remains a separate decision.
+The build went in these steps: the lock module and its tests, with subprocess tests; wiring it into `main` with the read-only list and its classification test; the end-to-end concurrent CLI test; the retry in `write_text_atomic`; and the documentation, including INV-20 in [STATUS.md](STATUS.md), which says every command except the read-only list runs under the lock. The transition log, the other half of G4, remains a separate decision.
+
+## Found while implementing
+
+Everything in this section was observed on Linux.
+
+- All 376 existing tests passed unchanged with the lock in place. Tests that call `main` with a temporary data directory now leave a `.aic.lock` file in it, which no existing test asserted against.
+- A command that only prints help, such as `aic task` with no subcommand, takes no lock. The design said every command locks except the read-only list; without this exception a bare `aic task` would create the data directory and a lock file just to print help. `aic` with no command is treated the same way.
+- The default timeout is read when the lock is taken, not when the module is imported, so a test can shorten it by patching `locking.DEFAULT_LOCK_TIMEOUT`.
+- Eight parallel `aic task create` subprocesses stored 8 of 8 tasks. With the lock disabled the same test failed on each of five runs. In the manual run, 12 parallel commands stored 12 tasks and 40 stored 40, in about 3 seconds for 40.
+- A killed holder released the lock at once, and the next process took it.
+- With the lock disabled in turn, or one rule changed at a time (the classification, the re-entry check, the reset after release, the timeout, the lock file name, the retry count, which errors are retried), the test written for that rule failed. The suite grew from 376 to 396 tests.
+- The write order for execution records (INV-16) is unchanged. The lock is taken before the first read of a command and released after the last write.
+- The Windows branch, `msvcrt.locking` on one byte after `seek(0)`, is written to the same interface and covered by the same tests when they run on Windows. If it misbehaves there, the fallback in the Risks section, Option D behind the same interface, still applies.
