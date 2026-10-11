@@ -44,6 +44,8 @@ After the execution records change the suite has 371 tests: the 274 above plus 9
 
 After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the nine code and test commits in that change and again after the documentation commits; the final run at `ec8a162` gave 376 passed.
 
+After the file locking change the suite has 396 tests: the 376 above plus 20 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -51,7 +53,8 @@ After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 
 | Project registry | Implemented | `aic project add`, `aic project list` |
 | Goal registry and lifecycle | Implemented | Goal status is derived from task status |
 | Task registry and lifecycle | Implemented | `pending → ready → running → completed \| failed`; a stuck `running` task returns to `ready` only through `aic task requeue` |
-| Goal/task validation | Implemented | `aic validate`; read-only |
+| Goal/task validation | Implemented | `aic validate`; does not write, and runs under the state lock |
+| State file locking | Implemented | One exclusive lock per CLI command, on `.aic.lock` in the data directory; advisory, local disks only. See [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md) |
 | Task readiness | Implemented | `aic task readiness` |
 | Task requeue | Implemented | `aic task requeue <task-id> --reason "<text>"`; the reason is printed and stored in the attempt record |
 | Execution request/result contracts | Implemented | Library only |
@@ -109,13 +112,15 @@ Original defect: `aic goal create "..." --project does-not-exist` succeeded with
 
 Goals created before this change that point at an unregistered project are not modified. `aic validate` reports them until the project is registered with `aic project add <path>`.
 
-### G4. Persistence has no locking or history (source; mostly closed)
+### G4. Persistence has no history (source; mostly closed)
 
 **Mostly closed.** All three registries now write through `write_text_atomic`: the text goes to a temporary file in the same directory, is flushed to disk, and then replaces the state file with `os.replace`. A crash or error during a write leaves the previous file intact. The rest of this entry records what is still open.
 
 **Schema version.** Each state file is now a JSON object with a `schema_version` number and its items under `projects`, `goals`, or `tasks`. Files written before versioning are a bare list and are read as version 1; they are rewritten in the versioned shape the next time the tool saves them, and reading never rewrites them. A file with a newer version than the tool supports, a file that is not valid JSON, and a file with an unusable shape are refused with an error and left untouched.
 
-Still open: there is no file locking, so two concurrent processes can overwrite each other's changes; and there is no transition history, only the history of execution attempts that `aic task history` shows. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore. On Windows the replace can fail if another process has the state file open; the previous file is then left intact. That failure is covered by a simulated error in the tests but has not been exercised with a real second process. This is acceptable for a single-user alpha but must be addressed before concurrency or durable execution. Lost updates were reproduced with real processes: 12 parallel `aic task create` commands all reported success, 10 of the tasks were lost, and `aic validate` still passed. A design is proposed in [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md).
+**File locking.** Every `aic` command except a short read-only list now runs under one exclusive lock on `.aic.lock` in the data directory, held for the whole command, so two `aic` processes no longer overwrite each other's changes. A process that cannot get the lock within 10 seconds changes nothing and exits 1 with `Error: another aic process is using the state files (waited 10s).` The operating system releases the lock when its holder dies, so a killed process does not leave the tool locked. `write_text_atomic` also retries `os.replace` a few times after a `PermissionError`, which is how Windows reports a file that another process has open. Lost updates were reproduced before this change with real processes: 12 parallel `aic task create` commands all reported success, 10 of the tasks were lost, and `aic validate` still passed. With the lock, the same 12 commands, and 40, stored every task in the Linux sandbox. The design and the evidence are in [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md).
+
+Still open: there is no transition history, only the history of execution attempts that `aic task history` shows. The lock is advisory: it keeps `aic` processes apart, and does nothing about a person editing a state file by hand or a sync tool that copies it. It is not reliable on network file systems. The execution coordinator, which is library code, takes no lock itself; the coordinator CLI planned for Phase 3 must take it around state operations only, never while an adapter runs. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore.
 
 ### G5. A `running` task had no recovery path (reproduced; closed for the operator path, with automatic detection still open)
 
@@ -184,11 +189,12 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-17 | The CLI and the library record attempts with the same shape. Only `source` and `target` differ. | Only by tests | `test_cli_and_library_record_an_attempt_alike`, `test_only_the_route_and_target_differ_between_routes`, `test_cli_and_library_abandon_a_stale_attempt_alike` |
 | INV-18 | A rejected request or a refused command writes no attempt record. | Yes, because recording happens only after the checks pass | `test_rejected_start_writes_no_attempt_record`, `test_rejected_outcome_writes_no_record`, `test_coordinator_writes_no_record_for_an_unknown_target`, `test_start_task_refused_writes_no_record`, `test_refused_finish_writes_no_record`, `test_refused_requeue_of_a_ready_task_writes_no_record` |
 | INV-19 | `aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID, without writing any file. A `running` task with no record is accepted. | Yes, in `GoalTaskValidator` | `test_open_record_for_a_task_that_is_not_running_is_reported`, `test_two_open_records_for_a_task_are_reported`, `test_record_for_a_missing_task_is_reported`, `test_duplicate_execution_record_ids_are_reported`, `test_running_task_without_a_record_is_valid`, `test_validation_does_not_modify_the_records_file` |
+| INV-20 | Every CLI command except the read-only list (`doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness` and `history`) runs under the state lock, and `aic validate` does too. A command that cannot get the lock within the timeout changes nothing and exits 1. A command added later locks until it is classified. | Yes, in `main`, through `_needs_state_lock` | `test_every_parser_command_is_classified`, `test_only_read_only_commands_skip_the_lock`, `test_writing_command_fails_cleanly_while_the_lock_is_held`, `test_validate_waits_for_the_lock`, `test_read_only_command_runs_while_the_lock_is_held`, `test_concurrent_commands_lose_no_tasks` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
 ## Recommended next milestone
 
-G1, G3 and G5 are closed, and G4 is mostly closed: only file locking and transition history remain. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records are built, and G11 is open. The remaining hardening steps are in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is file locking and a transition log.
+G1, G3 and G5 are closed, and G4 is mostly closed: only the transition history remains. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records and file locking are built, and G11 is open. The remaining hardening step is in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is a transition log.
 
-Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then approve or change the file locking design in [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md) (status: proposed), which is the rest of G4. Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then decide whether a transition log is wanted, which is the rest of G4. Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
