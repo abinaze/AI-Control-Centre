@@ -1,6 +1,8 @@
 """Tests for the state lock around CLI commands."""
 
 import argparse
+import os
+import subprocess
 import sys
 import time
 
@@ -8,6 +10,10 @@ import pytest
 
 from aic_control_centre import cli, locking
 from aic_control_centre.cli import build_parser, main
+from aic_control_centre.goals.model import Goal
+from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.projects.registry import ProjectRegistry
+from aic_control_centre.tasks.registry import TaskRegistry
 
 LOCK_FILE = ".aic.lock"
 
@@ -206,3 +212,49 @@ def test_read_only_command_runs_while_the_lock_is_held(
 
     assert run_cli(monkeypatch, tmp_path, "goal", "list") == 0
     assert "Error" not in capsys.readouterr().out
+
+
+def test_concurrent_commands_lose_no_tasks(tmp_path) -> None:
+    """Many aic processes creating tasks at once store every task.
+
+    Without the lock the processes overwrite each other's task file and
+    most of the tasks are lost, while every command still exits 0.
+    """
+    project = tmp_path / "project"
+    project.mkdir()
+    ProjectRegistry(tmp_path / "projects.json").add_project(project)
+    goal = Goal.create(description="Concurrent goal", project="project")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    environment = {**os.environ, "AIC_DATA_DIR": str(tmp_path)}
+    count = 8
+
+    processes = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "aic_control_centre.cli",
+                "task",
+                "create",
+                "--goal",
+                goal.id,
+                f"task {number}",
+            ],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for number in range(count)
+    ]
+    outputs = [process.communicate(timeout=120) for process in processes]
+
+    assert [process.returncode for process in processes] == [0] * count, [
+        output for output in outputs if output[1]
+    ]
+
+    stored = TaskRegistry(tmp_path / "tasks.json").list_tasks()
+
+    assert sorted(task.title for task in stored) == sorted(
+        f"task {number}" for number in range(count)
+    )
