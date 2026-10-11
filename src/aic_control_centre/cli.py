@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from aic_control_centre import __version__
+from aic_control_centre.config import load_config
 from aic_control_centre.doctor import run_doctor
 from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.commands import (
@@ -12,6 +13,7 @@ from aic_control_centre.goals.commands import (
     list_goals,
     show_goal_status,
 )
+from aic_control_centre.locking import StateLockError, state_lock
 from aic_control_centre.projects.commands import add_project, list_projects
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.storage import StateFileError
@@ -29,6 +31,21 @@ from aic_control_centre.tasks.commands import (
 )
 from aic_control_centre.tasks.registry import TaskRegistry
 from aic_control_centre.validation.goal_tasks import GoalTaskValidator
+
+# Commands that never write state, and so do not take the state lock.
+# Every other command locks, including any command added later, until
+# someone decides that it only reads and lists it here.
+READ_ONLY_COMMANDS = frozenset(
+    {
+        "doctor",
+        "project list",
+        "goal list",
+        "task list",
+        "task status",
+        "task readiness",
+        "task history",
+    }
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -224,14 +241,53 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _command_key(args: argparse.Namespace) -> str | None:
+    """Return the command name as READ_ONLY_COMMANDS spells it.
+
+    A command with subcommands is named "group subcommand", such as
+    "task start". None means no command was chosen, or a group was
+    given without a subcommand; both only print help.
+    """
+    if args.command is None:
+        return None
+
+    attribute = f"{args.command}_command"
+
+    if not hasattr(args, attribute):
+        return args.command
+
+    subcommand = getattr(args, attribute)
+
+    if subcommand is None:
+        return None
+
+    return f"{args.command} {subcommand}"
+
+
+def _needs_state_lock(args: argparse.Namespace) -> bool:
+    """Return whether a command must run under the state lock.
+
+    Commands lock unless they are listed in READ_ONLY_COMMANDS, so a
+    command that nobody has classified is protected. A command that
+    only prints help touches no state and takes no lock.
+    """
+    key = _command_key(args)
+
+    return key is not None and key not in READ_ONLY_COMMANDS
+
+
 def main() -> int:
     """Run the AI-Control-Centre command-line interface."""
     parser = build_parser()
     args = parser.parse_args()
 
     try:
+        if _needs_state_lock(args):
+            with state_lock(load_config().data_dir):
+                return _run(parser, args)
+
         return _run(parser, args)
-    except StateFileError as exc:
+    except (StateFileError, StateLockError) as exc:
         print(f"Error: {exc}")
         return 1
 
