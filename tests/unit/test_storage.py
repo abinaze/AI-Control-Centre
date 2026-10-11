@@ -1,10 +1,13 @@
 """Tests for atomic state file writing."""
 
 import json
+import os
 
 import pytest
 
+from aic_control_centre import storage
 from aic_control_centre.storage import (
+    REPLACE_ATTEMPTS,
     SCHEMA_VERSION,
     StateFileError,
     UnsupportedSchemaVersionError,
@@ -205,3 +208,76 @@ def test_read_state_items_rejects_undecodable_bytes(tmp_path) -> None:
 
     with pytest.raises(StateFileError):
         read_state_items(path, "tasks")
+
+
+def test_replace_is_retried_after_a_permission_error(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A brief permission error does not stop the write."""
+    target = tmp_path / "state.json"
+    target.write_text("original", encoding="utf-8")
+    real_replace = os.replace
+    calls = []
+
+    def flaky_replace(source, destination):
+        calls.append(source)
+
+        if len(calls) <= 2:
+            raise PermissionError("file is in use")
+
+        real_replace(source, destination)
+
+    monkeypatch.setattr(storage, "REPLACE_RETRY_DELAY", 0)
+    monkeypatch.setattr(storage.os, "replace", flaky_replace)
+
+    write_text_atomic(target, "replacement")
+
+    assert len(calls) == 3
+    assert target.read_text(encoding="utf-8") == "replacement"
+    assert [path.name for path in tmp_path.iterdir()] == ["state.json"]
+
+
+def test_replace_gives_up_after_the_last_attempt(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A lasting permission error is raised and the original is kept."""
+    target = tmp_path / "state.json"
+    target.write_text("original", encoding="utf-8")
+    calls = []
+
+    def locked_replace(source, destination):
+        calls.append(source)
+        raise PermissionError("file is in use")
+
+    monkeypatch.setattr(storage, "REPLACE_RETRY_DELAY", 0)
+    monkeypatch.setattr(storage.os, "replace", locked_replace)
+
+    with pytest.raises(PermissionError, match="file is in use"):
+        write_text_atomic(target, "replacement")
+
+    assert len(calls) == REPLACE_ATTEMPTS
+    assert target.read_text(encoding="utf-8") == "original"
+    assert [path.name for path in tmp_path.iterdir()] == ["state.json"]
+
+
+def test_replace_does_not_retry_other_errors(tmp_path, monkeypatch) -> None:
+    """Only a permission error is worth retrying."""
+    target = tmp_path / "state.json"
+    target.write_text("original", encoding="utf-8")
+    calls = []
+
+    def broken_replace(source, destination):
+        calls.append(source)
+        raise OSError("simulated failure")
+
+    monkeypatch.setattr(storage, "REPLACE_RETRY_DELAY", 0)
+    monkeypatch.setattr(storage.os, "replace", broken_replace)
+
+    with pytest.raises(OSError, match="simulated failure"):
+        write_text_atomic(target, "replacement")
+
+    assert len(calls) == 1
+    assert target.read_text(encoding="utf-8") == "original"
+    assert [path.name for path in tmp_path.iterdir()] == ["state.json"]
