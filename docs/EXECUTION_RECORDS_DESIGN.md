@@ -19,7 +19,7 @@ Each item was checked by reading the code.
 - The library has two routes that change a task into or out of `running`: `ExecutionStarter.start` (`ready` to `running`) and `ExecutionOutcomeRecorder.record` (`running` to `completed` or `failed`).
 - The CLI lifecycle commands, including `aic task ready`, `start`, `complete`, `fail` and `requeue`, all go through one function, `transition_task_status`. It receives only a task ID and a new status, so it cannot tell `ready` from `requeue`.
 - A rejected execution request changes nothing (INV-1), and tests assert that the task file is untouched.
-- `write_text_atomic` protects one file at a time. Two state files cannot be written together, and there is no file locking (G4).
+- `write_text_atomic` protects one file at a time. Two state files cannot be written together, and there was no file locking when this note was written (G4; see [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md)).
 - `aic validate` is read-only (INV-7).
 - `AppConfig` knows three state files: projects, goals and tasks.
 - No existing test builds `ExecutionStarter`, `ExecutionOutcomeRecorder` or `ExecutionCoordinator` with default registries. Every test passes explicit registries under `tmp_path`.
@@ -118,7 +118,7 @@ Tests it would need:
 
 - **Two files, one crash window.** The write order above makes the failure harmless and detectable, but, as with atomic writes, it is covered only by simulated write failures, not by a real crash.
 - **A route that forgets to record.** A future way to start a task that skips the recorder would leave a `running` task with no record, and validation is deliberately silent about that. Protection is the parity tests and review, not enforcement.
-- **No locking.** Two processes can still overwrite each other (G4). If two start the same task at the same moment, each opens a record and the later one closes the earlier as `abandoned`. That shows the G4 race in the history. It does not prevent it.
+- **No locking.** Two processes can still overwrite each other (G4). If two start the same task at the same moment, each opens a record and the later one closes the earlier as `abandoned`. That shows the G4 race in the history. It does not prevent it. Update: the CLI now holds the state lock for every command that writes (see [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md)), so two `aic` processes can no longer do this. Library code used directly takes no lock.
 - **Reasons are free text, stored as given.** That includes exception messages from adapters, which can contain sensitive details. The file is local and unencrypted. This should be stated in [SECURITY.md](../SECURITY.md) when it is built.
 - **File growth.** Each attempt adds a record, and each change rewrites the whole file, as the other registries do. That is fine at current scale and belongs with the locking and append-only discussion later.
 - **Downgrade.** An older version of the tool ignores the file and can change task status without writing records. Nothing is corrupted. The records for those attempts are missing or stale.
@@ -142,4 +142,4 @@ Answered: the maintainer approved the recommendation on all five. A task already
 
 ## After this decision
 
-The build went in these steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applied: no step left a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking and a transition log remain separate decisions.
+The build went in these steps: the record registry and its tests; recording from the library; recording from the CLI, with the parity tests; validation; `aic task history`; and the documentation. The same care as the requeue change applied: no step left a route to `running` or out of it unrecorded. Execution timeouts and automatic detection come after that, as a separate design, using `started_at`. File locking was a separate decision and is now built; a transition log remains one.
