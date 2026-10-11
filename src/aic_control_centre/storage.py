@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 SCHEMA_VERSION = 1
+
+# On Windows, replacing a file fails with a permission error while another
+# process has it open. A short, bounded retry rides out a brief overlap.
+REPLACE_ATTEMPTS = 5
+REPLACE_RETRY_DELAY = 0.05
 
 
 class StateFileError(ValueError):
@@ -71,6 +77,23 @@ def serialize_state_items(collection: str, items: list[Any]) -> str:
     )
 
 
+def _replace_with_retry(source: Path, target: Path) -> None:
+    """Move source over target, retrying after a permission error.
+
+    Only PermissionError is retried, up to REPLACE_ATTEMPTS times. Any
+    other error, and the last permission error, is raised.
+    """
+    for attempt in range(1, REPLACE_ATTEMPTS + 1):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS:
+                raise
+
+            time.sleep(REPLACE_RETRY_DELAY)
+
+
 def write_text_atomic(
     path: Path,
     text: str,
@@ -84,7 +107,8 @@ def write_text_atomic(
     removed. The parent directory must already exist.
 
     This protects against a crash or error during a write. It is not a
-    lock: concurrent writers can still overwrite each other's changes.
+    lock. Concurrent aic processes are kept apart by the state lock
+    that the command-line interface holds for each command.
     """
     temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
 
@@ -94,7 +118,7 @@ def write_text_atomic(
             handle.flush()
             os.fsync(handle.fileno())
 
-        os.replace(temp_path, path)
+        _replace_with_retry(temp_path, path)
     except BaseException:
         temp_path.unlink(missing_ok=True)
         raise
