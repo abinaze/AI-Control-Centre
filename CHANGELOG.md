@@ -27,6 +27,9 @@ All notable changes to AI Control Centre are documented here.
 - `KNOWN_GOAL_STATUSES` is now defined once, in `goals/model.py`, and readiness and validation import it (G10).
 - `aic --version` reads the package version instead of repeating the string, and a test requires `pyproject.toml` and the package to agree (G7).
 - Removed the unused `AppConfig.state_dir`. `AppConfig.default_model_provider` is kept, because it is a documented reserved setting (G7).
+- Added `aic_control_centre.locking.state_lock`, an exclusive operating system lock on `.aic.lock` in the data directory. `main` holds it for the whole of every command except `doctor` and the `list`, `status`, `readiness` and `history` commands, so two `aic` processes no longer overwrite each other's state files. A command that cannot get the lock within 10 seconds changes nothing and exits 1 with `Error: another aic process is using the state files (waited 10s).` A command that only prints help takes no lock. The lock is released by the operating system when its holder dies. New commands lock until they are added to `READ_ONLY_COMMANDS`.
+- Upgrade note: the first command that locks creates `.aic.lock` in the data directory. The file holds no data and can be ignored. Do not delete it while an `aic` command is running.
+- `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`, which is how Windows reports a file that another process has open. Other errors are not retried.
 
 ### Documentation
 
@@ -41,11 +44,12 @@ All notable changes to AI Control Centre are documented here.
 - Filled in `.env.example` and the pull request template, which were empty.
 - Added `docs/RECOVERY_DESIGN.md`: a design for recovering tasks left in `running` (G5), with options and a recommendation. Its Option A is now implemented as `aic task requeue`.
 - Added `docs/EXECUTION_RECORDS_DESIGN.md`: a design for recording execution attempts (start time, outcome and reason), with options and a recommendation. It was accepted and is now implemented.
-- Added `docs/FILE_LOCKING_DESIGN.md`: a proposed design for locking the state files, with the reproduced lost-update evidence, options and a recommendation. Nothing is implemented yet.
+- Added `docs/FILE_LOCKING_DESIGN.md`: a design for locking the state files, with the reproduced lost-update evidence, options and a recommendation. It was accepted and is now implemented.
 
 ### Known issues (documented, not fixed)
 
-- JSON persistence has no file locking.
+- The state lock is advisory and works only between `aic` processes. It does not protect against hand edits or sync tools, and is not reliable on network file systems.
+- There is no history of status changes other than execution attempts (the rest of G4).
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone.
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
 
