@@ -1,5 +1,8 @@
 """Tests for the coordinator's state guard."""
 
+import os
+import subprocess
+import sys
 from contextlib import contextmanager
 
 import pytest
@@ -12,6 +15,7 @@ from aic_control_centre.execution.outcome import (
     ExecutionOutcome,
     ExecutionOutcomeRecorder,
 )
+from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.execution.start import ExecutionStarter
 from aic_control_centre.goals.model import Goal
@@ -190,3 +194,87 @@ def test_state_lock_is_free_while_the_adapter_runs(tmp_path) -> None:
 
     assert probe.took_the_lock
     assert result.status == "completed"
+
+
+_DRIVER = """
+import sys
+
+from aic_control_centre.config import load_config
+from aic_control_centre.execution.contract import ExecutionRequest
+from aic_control_centre.execution.coordinator import ExecutionCoordinator
+from aic_control_centre.execution.outcome import ExecutionOutcome
+from aic_control_centre.execution.registry import ExecutionAdapterRegistry
+from aic_control_centre.locking import state_lock
+
+
+class Instant:
+    def execute(self, request):
+        return ExecutionOutcome(
+            task_id=request.task_id,
+            outcome="completed",
+            reason="done",
+        )
+
+
+adapters = ExecutionAdapterRegistry()
+adapters.register("instant", Instant())
+data_dir = load_config().data_dir
+coordinator = ExecutionCoordinator(
+    adapter_registry=adapters,
+    state_guard=lambda: state_lock(data_dir),
+)
+result = coordinator.coordinate(
+    ExecutionRequest(task_id=sys.argv[1], target="instant"),
+)
+print(result.status)
+"""
+
+
+def test_concurrent_coordinators_lose_no_updates(tmp_path) -> None:
+    """Coordinators that share the state lock keep every update.
+
+    Without it, processes that overlap overwrite each other's task and
+    record files: several report completed and only one task is.
+    """
+    goal_registry = GoalRegistry(tmp_path / "goals.json")
+    task_registry = TaskRegistry(tmp_path / "tasks.json")
+    goal = Goal.create(description="Concurrent goal", project="TestProject")
+    goal_registry.add_goal(goal)
+    task_ids = []
+    count = 8
+
+    for number in range(count):
+        task = Task.create(goal_id=goal.id, title=f"task {number}")
+        task_registry.add_task(task)
+        task_registry.update_task_status(task.id, "ready")
+        task_ids.append(task.id)
+
+    environment = {**os.environ, "AIC_DATA_DIR": str(tmp_path)}
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", _DRIVER, task_id],
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for task_id in task_ids
+    ]
+    outputs = [process.communicate(timeout=120) for process in processes]
+
+    assert [process.returncode for process in processes] == [0] * count, [
+        output for output in outputs if output[1]
+    ]
+    assert [out.strip() for out, _ in outputs] == ["completed"] * count
+
+    statuses = [
+        task.status
+        for task in TaskRegistry(tmp_path / "tasks.json").list_tasks()
+    ]
+    records = ExecutionRecordRegistry.beside(
+        tmp_path / "tasks.json",
+    ).list_records()
+
+    assert statuses == ["completed"] * count
+    assert len(records) == count
+    assert not any(record.is_open for record in records)
