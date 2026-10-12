@@ -30,6 +30,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `aic_control_centre.locking.state_lock`, an exclusive operating system lock on `.aic.lock` in the data directory. `main` holds it for the whole of every command except `doctor` and the `list`, `status`, `readiness` and `history` commands, so two `aic` processes no longer overwrite each other's state files. A command that cannot get the lock within 10 seconds changes nothing and exits 1 with `Error: another aic process is using the state files (waited 10s).` A command that only prints help takes no lock. The lock is released by the operating system when its holder dies. New commands lock until they are added to `READ_ONLY_COMMANDS`.
 - Upgrade note: the first command that locks creates `.aic.lock` in the data directory. The file holds no data and can be ignored. Do not delete it while an `aic` command is running.
 - `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`, which is how Windows reports a file that another process has open. Other errors are not retried.
+- The CLI help text and the `pyproject.toml` description now read "Local-first deterministic control platform for AI work." They said "autonomous AI development and control platform", which no part of the project does (G8). The `autonomous-agents` keyword became `deterministic`.
 
 ### Documentation
 
