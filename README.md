@@ -76,8 +76,8 @@ aic task status <task-id>
 aic task readiness <task-id>                Check whether a task is ready for execution
 aic task ready <task-id>                    pending -> ready (parent goal must be open)
 aic task start <task-id>                    ready -> running (must pass readiness)
-aic task complete <task-id>                 running -> completed
-aic task fail <task-id>                     running -> failed
+aic task complete <task-id> [--reason "<text>"]   running -> completed
+aic task fail <task-id> [--reason "<text>"]       running -> failed
 aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
 aic task history <task-id>                  Show the recorded execution attempts for a task
 ```
