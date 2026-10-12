@@ -177,3 +177,41 @@ def test_cli_and_library_abandon_a_stale_attempt_alike(
     ]
     assert cli_records[0].reason == ABANDONED_REASON
     assert cli_records[1].is_open and library_records[1].is_open
+
+
+@pytest.mark.parametrize(
+    ("cli_finish", "outcome"),
+    [
+        (complete_task, EXECUTION_OUTCOME_COMPLETED),
+        (fail_task, EXECUTION_OUTCOME_FAILED),
+    ],
+)
+def test_cli_and_library_keep_a_finishing_reason_alike(
+    tmp_path,
+    monkeypatch,
+    cli_finish,
+    outcome,
+) -> None:
+    """A reason given on either route is stored the same way."""
+    cli_task, library_task, starter, recorder, records = _setup(
+        tmp_path,
+        monkeypatch,
+    )
+
+    assert start_task(cli_task.id) == 0
+    starter.start(ExecutionRequest(task_id=library_task.id, target="test"))
+
+    assert cli_finish(cli_task.id, reason="  disk was full  ") == 0
+    recorder.record(
+        ExecutionOutcome(
+            task_id=library_task.id,
+            outcome=outcome,
+            reason="  disk was full  ",
+        ),
+    )
+
+    closed_cli = records.list_attempts(cli_task.id)[0]
+    closed_library = records.list_attempts(library_task.id)[0]
+
+    assert _shape(closed_cli) == _shape(closed_library)
+    assert closed_cli.reason == closed_library.reason == "disk was full"
