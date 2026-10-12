@@ -174,6 +174,8 @@ Outcome recording is responsible for persisting the resulting task state and rec
 
 The outcome recorder only accepts execution outcomes for tasks that are currently running.
 
+An outcome can also name the attempt it belongs to. The coordinator does, using the attempt ID that the start result returns. The recorder then refuses the outcome, and changes nothing, unless that attempt is still the task's open attempt. This stops a run that was superseded while its adapter ran, for example by `aic task requeue` and a restart, from closing the newer attempt. Outcomes that name no attempt, such as those recorded by the CLI, are accepted as before.
+
 ### Execution Coordination
 
 The execution coordinator connects the execution boundaries in a deterministic sequence:
