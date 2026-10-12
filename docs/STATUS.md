@@ -46,6 +46,8 @@ After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 
 
 After the file locking change the suite has 396 tests: the 376 above plus 20 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the seven code and test commits in that change and again after the documentation commits; the final run at `2aa560a` gave 396 passed. On the same machine, a standalone check of the Windows lock (`msvcrt.locking`) passed under Python 3.14.3: a second process could not take a held lock, the lock was free after its holder was killed, and eight processes making 100 locked increments each reached 800 of 800 (3 of 800 without the lock). 12 parallel `aic task create` commands stored all 12 tasks. A writing command that could not get the lock stopped after about 10 seconds with exit status 1 and wrote nothing, while a read-only command ran at once.
 
+After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -144,9 +146,9 @@ Still open:
 
 The version `0.1.0` is now written in two places, `pyproject.toml` and `aic_control_centre/__init__.py`. The `--version` output reads the package value, and a test fails if the two disagree. Making `pyproject.toml` read the version from the package was not done, because it changes packaging.
 
-### G8. Wording tension about autonomy (source)
+### G8. Wording tension about autonomy (closed)
 
-The `pyproject.toml` description and the CLI help text both say "autonomous AI development and control platform". The README, SECURITY, and ARCHITECTURE documents state that no autonomous behavior exists. These strings were left unchanged in the documentation pass because they live in code and metadata.
+The `pyproject.toml` description and the CLI help text both said "autonomous AI development and control platform", while the README, SECURITY, and ARCHITECTURE documents state that no autonomous behavior exists. Both now read "Local-first deterministic control platform for AI work.", and the `autonomous-agents` keyword in `pyproject.toml` became `deterministic`. `test_pyproject_description_matches_the_cli_description` keeps the two descriptions identical, and `test_metadata_makes_no_claim_of_autonomy` fails if the word returns to the description or the keywords.
 
 ### G9. Empty files in the repository (source)
 
