@@ -22,7 +22,7 @@ def test_parser_description():
     parser = build_parser()
 
     assert parser.description == (
-        "Local-first autonomous AI development and control platform."
+        "Local-first deterministic control platform for AI work."
     )
 
 

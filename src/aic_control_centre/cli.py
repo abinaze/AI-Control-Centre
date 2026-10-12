@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the top-level command-line argument parser."""
     parser = argparse.ArgumentParser(
         prog="aic",
-        description="Local-first autonomous AI development and control platform.",
+        description="Local-first deterministic control platform for AI work.",
     )
 
     parser.add_argument(
