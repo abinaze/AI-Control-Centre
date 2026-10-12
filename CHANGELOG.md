@@ -48,6 +48,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/FILE_LOCKING_DESIGN.md`: a design for locking the state files, with the reproduced lost-update evidence, options and a recommendation. It was accepted and is now implemented.
 - Filled in `CODE_OF_CONDUCT.md`, which was empty, with the Contributor Covenant 2.1 (G9).
 - Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
+- Added `docs/TRANSITION_LOG_DESIGN.md`: a proposed design note on status history, with options and a recommendation. Nothing is implemented.
 
 ### Known issues (documented, not fixed)
 
