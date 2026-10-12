@@ -1,6 +1,6 @@
 # Design Note: Coordinator CLI
 
-**Status: Proposed; stage 1 is built.** Stage 1 (Decision 2A, tying each outcome to its attempt) is built, and what happened is at the end of this note. Nothing else in this note is implemented. The other decisions need the maintainer's acceptance before any code is written. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
+**Status: Proposed; stages 1 and 2 are built.** Stage 1 (Decision 2A, tying each outcome to its attempt) and stage 2 (the state guard of Decision 1B) are built, and what happened is at the end of this note. The CLI, the `noop` adapter and the rest are not implemented, and the decisions behind them need the maintainer's acceptance before any code is written. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
 
 ## Problem
 
@@ -124,6 +124,18 @@ Everything in this section was observed on Linux.
 - The suite grew from 413 to 425 tests. Ten changes made one at a time were each caught by a test: the start result dropping the ID, the recorder ignoring it, the recorder checking only that some attempt is open, a refused outcome reporting `completed`, the refusal hiding what the adapter reported, a blank ID allowed, and the coordinator leaving the ID out of each of its four paths.
 - A superseded run's work is still not recorded. The result is returned to the caller in the refusal reason, which is the cost of not blocking recovery.
 
+## Stage 2: built
+
+Everything in this section was observed on Linux.
+
+- `ExecutionCoordinator` takes an optional `state_guard`, a function that returns a context manager. It defaults to a context that does nothing, so existing callers and all 425 earlier tests are unchanged.
+- The coordinator enters the guard around the start and, through one helper, around each of the four outcome recordings: the adapter's own, and the failed outcomes it builds for an exception, an invalid result and a result for another task. A journal test shows the order: enter, exit, adapter, enter, exit. A refused start enters once, and an unknown target never enters.
+- With the real state lock as the guard, an adapter can take the lock itself while it runs, so the coordinator does not hold it then.
+- The earlier experiment was run again with the guard, three times: eight coordinators on eight tasks all reported `completed`, all eight tasks ended `completed`, all eight records were closed, and `aic validate` passed. Before, 3, 4 and 4 reported `completed` and exactly one task was. The new subprocess test failed on each of five runs with the guard ignored.
+- Recovery stays possible. While a six-second adapter ran under the guard, `aic project add` and `aic task requeue` each finished in under a tenth of a second. The adapter's late outcome was then refused with `task status is ready`.
+- The suite grew from 425 to 433 tests. Eight changes made one at a time were each caught by a test: the start unguarded, all outcome recordings unguarded, each of the four recording paths bypassing the guard on its own, the adapter run while the guard is held, and the guard argument ignored.
+- Nothing passes a guard yet, because nothing in the CLI reaches the coordinator. A coordinator built without one still takes no lock.
+
 ## After this decision
 
-Stage 2, the state guard, is next. It touches only the library and needs no new command. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
+Stage 3, the CLI, is next: `aic task run`, `aic task targets`, the `noop` adapter and the third command class (Decisions 1B, 3A and 4A), with the classification test and INV-20 updated. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
