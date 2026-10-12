@@ -106,7 +106,7 @@ Potential future work:
 
 Phase 3 depends on Phase 2.5 Steps 1 and 5.
 
-The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt (G12), the command, and the first adapter.
+The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt (G12, built as stage 1), the command, and the first adapter.
 
 ## Phase 4 — Validation and Recovery
 
