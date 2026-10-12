@@ -31,6 +31,7 @@ All notable changes to AI Control Centre are documented here.
 - Upgrade note: the first command that locks creates `.aic.lock` in the data directory. The file holds no data and can be ignored. Do not delete it while an `aic` command is running.
 - `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`, which is how Windows reports a file that another process has open. Other errors are not retried.
 - The CLI help text and the `pyproject.toml` description now read "Local-first deterministic control platform for AI work." They said "autonomous AI development and control platform", which no part of the project does (G8). The `autonomous-agents` keyword became `deterministic`.
+- `aic task complete` and `aic task fail` take an optional `--reason "<text>"`. The reason is stored in the attempt record, printed, and shown by `aic task history`. A blank reason is refused before anything changes. Without `--reason` nothing changes, and the record's reason stays empty.
 
 ### Documentation
 
@@ -48,7 +49,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/FILE_LOCKING_DESIGN.md`: a design for locking the state files, with the reproduced lost-update evidence, options and a recommendation. It was accepted and is now implemented.
 - Filled in `CODE_OF_CONDUCT.md`, which was empty, with the Contributor Covenant 2.1 (G9).
 - Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
-- Added `docs/TRANSITION_LOG_DESIGN.md`: a proposed design note on status history, with options and a recommendation. Nothing is implemented.
+- Added `docs/TRANSITION_LOG_DESIGN.md`: a design note on status history, with options and a recommendation. Option A was accepted and is implemented; a full transition log is deferred to the Phase 3 design.
 
 ### Known issues (documented, not fixed)
 
