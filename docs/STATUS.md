@@ -46,7 +46,7 @@ After the cleanups for G7 and G10 the suite has 376 tests: the 371 above plus 5 
 
 After the file locking change the suite has 396 tests: the 376 above plus 20 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the seven code and test commits in that change and again after the documentation commits; the final run at `2aa560a` gave 396 passed. On the same machine, a standalone check of the Windows lock (`msvcrt.locking`) passed under Python 3.14.3: a second process could not take a held lock, the lock was free after its holder was killed, and eight processes making 100 locked increments each reached 800 of 800 (3 of 800 without the lock). 12 parallel `aic task create` commands stored all 12 tasks. A writing command that could not get the lock stopped after about 10 seconds with exit status 1 and wrote nothing, while a read-only command ran at once.
 
-After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones.
+After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the three code and test commits in that change and again after the documentation commits; the final run at `aec67f7` gave 398 passed.
 
 ## Capability status
 
