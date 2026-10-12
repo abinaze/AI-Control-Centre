@@ -27,7 +27,11 @@ These are current, verified limitations of the security boundary. Details and re
 
 ## Reporting Security Issues
 
-If a security issue is discovered, provide enough information to reproduce and understand the issue without exposing sensitive credentials, tokens, personal information, or other private data.
+Please report a security issue privately. Use the "Report a vulnerability" button on the Security tab of the repository, at https://github.com/abinaze/AI-Control-Centre/security. Do not open a public issue or pull request that describes the problem. If the button is not shown, open a public issue that asks for a private way to reach the maintainer and says nothing about the problem itself.
+
+This is a single-maintainer project, so there is no promised response time.
+
+Provide enough information to reproduce and understand the issue without exposing sensitive credentials, tokens, personal information, or other private data.
 
 Security reports should include:
 
