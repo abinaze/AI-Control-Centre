@@ -196,7 +196,7 @@ The coordinator is a library component. No CLI command invokes it today.
 
 An execution record describes one attempt to run a task. Records are stored in `executions.json`, next to the task file, through `ExecutionRecordRegistry` in `execution/records.py`. The registry takes its file path explicitly, and `ExecutionRecordRegistry.beside` places the file next to a task registry's file, which keeps tests that use temporary registries isolated from real user data.
 
-A record has an `id`, a `task_id`, a `source` (`cli` or `coordinator`), an optional `target`, a `started_at`, an `ended_at`, an `ended_as` (`completed`, `failed`, `requeued` or `abandoned`) and a `reason`. An attempt is open until it ends. Ending a task that has no open record, which is the case for a task that was already running before records existed, writes a closed record with no start time.
+A record has an `id`, a `task_id`, a `source` (`cli` or `coordinator`), an optional `target`, a `started_at`, an `ended_at`, an `ended_as` (`completed`, `failed`, `requeued` or `abandoned`) and a `reason`. An attempt is open until it ends. Ending a task that has no open record, which is the case for a task that was already running before records existed, writes a closed record with no start time. The reason comes from `aic task requeue`, from `--reason` on `aic task complete` or `aic task fail`, or from the outcome that the coordinator records. It is empty when none was given.
 
 Task status stays the authority, and the two files are written one after the other. Starting writes the open record first and then moves the task to `running`. Ending moves the task first and then closes the record. A crash between the two writes can therefore leave only one shape, an open record for a task that is not `running`, and never a `running` task whose record says it ended. When a task is next started, an open record left for it is closed as `abandoned`, in the same write that opens the new record.
 
@@ -215,7 +215,7 @@ A task can reach the `running` state through the execution boundary or through t
 | `ExecutionCoordinator` / `ExecutionStarter` (library) | Readiness and admission; an attempt record is opened before the task moves to `running` |
 | `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open; an attempt record is opened before the task moves to `running` |
 | `aic task ready` (CLI) | The parent goal must be open; a `running` task is refused |
-| `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running`; the attempt record is closed after the task moves |
+| `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running`; the attempt record is closed after the task moves, and an optional `--reason` is stored in it |
 | `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required; the attempt record is closed with the reason after the task moves |
 
 The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them. `aic task requeue` is the only CLI path from `running` back to `ready`. It does not start the task: the task must still pass readiness through `aic task start`.
