@@ -21,7 +21,7 @@ Status: In progress
 
 Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
-- Decide on a transition log (the rest of G4); the options are in [docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md)
+- Design a transition log as part of Phase 3 (the rest of G4). The decision to defer it, and the options, are in [docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md)
 
 ## Phase 2 — Readiness and Execution Boundaries
 
@@ -73,7 +73,7 @@ Original options: validate `--project` against the project registry at goal crea
 
 ### Step 3 — Crash-safe persistence (closes G4)
 
-Status: Implemented, except a transition log. Atomic write-and-replace and an explicit schema version field are done for all three JSON registries, and every CLI command that writes now runs under one exclusive lock on the data directory. The design is in [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md).
+Status: Implemented. A full transition log is deferred to the Phase 3 design ([docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md)). Atomic write-and-replace and an explicit schema version field are done for all three JSON registries, and every CLI command that writes now runs under one exclusive lock on the data directory. The design is in [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md).
 
 Scope: atomic write-and-replace for the JSON registries and an explicit schema version field, without changing the on-disk shape otherwise.
 
