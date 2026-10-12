@@ -46,6 +46,8 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/RECOVERY_DESIGN.md`: a design for recovering tasks left in `running` (G5), with options and a recommendation. Its Option A is now implemented as `aic task requeue`.
 - Added `docs/EXECUTION_RECORDS_DESIGN.md`: a design for recording execution attempts (start time, outcome and reason), with options and a recommendation. It was accepted and is now implemented.
 - Added `docs/FILE_LOCKING_DESIGN.md`: a design for locking the state files, with the reproduced lost-update evidence, options and a recommendation. It was accepted and is now implemented.
+- Filled in `CODE_OF_CONDUCT.md`, which was empty, with the Contributor Covenant 2.1 (G9).
+- Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
 
 ### Known issues (documented, not fixed)
 
