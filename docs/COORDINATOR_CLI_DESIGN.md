@@ -1,6 +1,6 @@
 # Design Note: Coordinator CLI
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's decisions before any code is written. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
+**Status: Proposed; stage 1 is built.** Stage 1 (Decision 2A, tying each outcome to its attempt) is built, and what happened is at the end of this note. Nothing else in this note is implemented. The other decisions need the maintainer's acceptance before any code is written. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
 
 ## Problem
 
@@ -18,7 +18,7 @@ Before designing that, the real coordinator was run with a slow fake adapter, on
 
 - `coordinate` resolves the adapter, calls `ExecutionStarter.start` (admission, open the attempt record, move the task to `running`), calls `adapter.execute`, and calls `ExecutionOutcomeRecorder.record` (check that the task is `running`, move it, close the attempt, reconcile the goal).
 - `ExecutionAdapter` is a protocol with one method, `execute(request) -> ExecutionOutcome`. `ExecutionAdapterRegistry` maps target names to adapters. Nothing registers an adapter outside tests.
-- The recorder checks only that the task is `running`, and `close_attempt` closes whichever attempt is open for the task. The start result does not carry the attempt's ID, so an outcome cannot say which attempt it belongs to.
+- The recorder checks only that the task is `running`, and `close_attempt` closes whichever attempt is open for the task. The start result does not carry the attempt's ID, so an outcome cannot say which attempt it belongs to. (Stage 1 changed this; see the end of this note.)
 - The adapter call is synchronous and in the same process. It has no timeout and no cancellation. An exception, an invalid result or a result for another task becomes a `failed` outcome (INV-6).
 - `main` holds the state lock for every command that is not read-only (INV-20). A new command would hold it for the whole adapter run unless it is classified differently.
 - Every attempt records `started_at`. Nothing reads it.
@@ -112,6 +112,18 @@ Tests for each stage:
 5. Give permissions, timeouts and limits their own notes, and require out-of-process adapters before any adapter with side effects? Recommendation: yes.
 6. Add a read-only listing of stale `running` tasks after that, with no automatic recovery? Recommendation: yes.
 
+## Stage 1: built
+
+Everything in this section was observed on Linux.
+
+- `ExecutionStartResult` gained an optional `attempt_id`, set from the record that `open_attempt` returns. A request that is not admitted names none.
+- `ExecutionOutcome` gained an optional `attempt_id`, and a blank one is refused. `ExecutionOutcomeRecorder.record` checks it after the task-status check and before anything is written. If the task's open attempt is not that attempt, or there is none, the outcome is refused as `attempt was superseded; the adapter reported <outcome>: <reason>` and nothing changes (INV-21).
+- The coordinator passes the attempt it started with every outcome it records: the adapter's own, and the failed outcomes it builds for an exception, an invalid result and a result for another task.
+- An outcome with no `attempt_id` behaves as before, so the CLI's operator path is unaffected. All 413 earlier tests passed unchanged.
+- The original scenario was run again with the real CLI. The adapter's late result was reported as `rejected | attempt was superseded; the adapter reported completed: adapter finished`. The person's second attempt stayed open, the task stayed `running`, and `aic validate` passed. The requeue-only case still reports `task status is ready`, and a run with no interference still completes and closes its own attempt.
+- The suite grew from 413 to 425 tests. Ten changes made one at a time were each caught by a test: the start result dropping the ID, the recorder ignoring it, the recorder checking only that some attempt is open, a refused outcome reporting `completed`, the refusal hiding what the adapter reported, a blank ID allowed, and the coordinator leaving the ID out of each of its four paths.
+- A superseded run's work is still not recorded. The result is returned to the caller in the refusal reason, which is the cost of not blocking recovery.
+
 ## After this decision
 
-Stage 1 is the first change. It touches only the library and needs no new command. If a different option is chosen anywhere above, this note is revised and approved again before any code.
+Stage 2, the state guard, is next. It touches only the library and needs no new command. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
