@@ -34,6 +34,7 @@ class ExecutionOutcome:
     task_id: str
     outcome: str
     reason: str = ""
+    attempt_id: str | None = None
 
     def __post_init__(self) -> None:
         """Reject incomplete execution outcomes."""
@@ -44,6 +45,9 @@ class ExecutionOutcome:
             raise ValueError(
                 f"unknown execution outcome: {self.outcome}"
             )
+
+        if self.attempt_id is not None and not self.attempt_id.strip():
+            raise ValueError("attempt ID cannot be blank")
 
 
 @dataclass(frozen=True)
@@ -120,6 +124,29 @@ class ExecutionOutcomeRecorder:
                 outcome=outcome.outcome,
                 reason=f"task status is {task.status}",
             )
+
+        if outcome.attempt_id is not None:
+            open_attempt = self.record_registry.get_open_attempt(
+                outcome.task_id,
+            )
+
+            if open_attempt is None or open_attempt.id != outcome.attempt_id:
+                detail = outcome.reason.strip()
+                reported = (
+                    f"{outcome.outcome}: {detail}"
+                    if detail
+                    else outcome.outcome
+                )
+
+                return ExecutionOutcomeResult(
+                    task_id=outcome.task_id,
+                    completed=False,
+                    outcome=outcome.outcome,
+                    reason=(
+                        "attempt was superseded; the adapter reported "
+                        f"{reported}"
+                    ),
+                )
 
         self.task_registry.update_task_status(
             task_id=outcome.task_id,
