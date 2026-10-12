@@ -48,6 +48,8 @@ After the file locking change the suite has 396 tests: the 376 above plus 20 new
 
 After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the three code and test commits in that change and again after the documentation commits; the final run at `aec67f7` gave 398 passed.
 
+After the finishing reason change the suite has 413 tests: the 398 above plus 15 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -66,7 +68,7 @@ After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones.
 | Execution adapter registry | Implemented | Library only |
 | Execution coordinator | Implemented | Library only; no CLI command invokes it |
 | Concrete execution adapters | Planned | None exist; only test doubles |
-| Execution records: registry, library recording, and CLI recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` and `aic task start` open an attempt record before the task moves to `running`. `ExecutionOutcomeRecorder`, `aic task complete`, `aic task fail` and `aic task requeue` close it after the task moves, with the outcome and its reason |
+| Execution records: registry, library recording, and CLI recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` and `aic task start` open an attempt record before the task moves to `running`. `ExecutionOutcomeRecorder`, `aic task complete`, `aic task fail` and `aic task requeue` close it after the task moves, with the outcome and its reason. `aic task complete` and `aic task fail` take an optional `--reason "<text>"`; a blank one is refused before anything changes |
 | Execution record validation and history | Implemented | `aic validate` checks the records and stays read-only. `aic task history <task-id>` lists a task's attempts, oldest first. The design is in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md) |
 | Task dependencies | Planned | Tasks belong to a goal; no task-to-task links |
 | Event / workflow boundary | Planned | |
@@ -122,7 +124,7 @@ Goals created before this change that point at an unregistered project are not m
 
 **File locking.** Every `aic` command except a short read-only list now runs under one exclusive lock on `.aic.lock` in the data directory, held for the whole command, so two `aic` processes no longer overwrite each other's changes. A process that cannot get the lock within 10 seconds changes nothing and exits 1 with `Error: another aic process is using the state files (waited 10s).` The operating system releases the lock when its holder dies, so a killed process does not leave the tool locked. `write_text_atomic` also retries `os.replace` a few times after a `PermissionError`, which is how Windows reports a file that another process has open. Lost updates were reproduced before this change with real processes: 12 parallel `aic task create` commands all reported success, 10 of the tasks were lost, and `aic validate` still passed. With the lock, the same 12 commands, and 40, stored every task in the Linux sandbox. The design and the evidence are in [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md).
 
-Still open: there is no transition history, only the history of execution attempts that `aic task history` shows. A design note with options is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md) (status: proposed). The lock is advisory: it keeps `aic` processes apart, and does nothing about a person editing a state file by hand or a sync tool that copies it. It is not reliable on network file systems. The execution coordinator, which is library code, takes no lock itself; the coordinator CLI planned for Phase 3 must take it around state operations only, never while an adapter runs. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore.
+Still open: there is no transition history, only the history of execution attempts that `aic task history` shows. An attempt can carry the reason given to `aic task complete --reason` or `aic task fail --reason`. The maintainer accepted keeping the attempt history and deferring a full transition log to the Phase 3 design; the options and the decision are in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). Still unrecorded: when a task became ready, and a goal's earlier statuses. The lock is advisory: it keeps `aic` processes apart, and does nothing about a person editing a state file by hand or a sync tool that copies it. It is not reliable on network file systems. The execution coordinator, which is library code, takes no lock itself; the coordinator CLI planned for Phase 3 must take it around state operations only, never while an adapter runs. A hard kill during a write can leave a stale `.<file>.<id>.tmp` file, which the registries ignore.
 
 ### G5. A `running` task had no recovery path (reproduced; closed for the operator path, with automatic detection still open)
 
@@ -199,4 +201,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only the transition history remains. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records and file locking are built, and G11 is open. The remaining hardening step is in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is a transition log.
 
-Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then decide the transition log question, which is the rest of G4, using the options in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md) (status: proposed). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
