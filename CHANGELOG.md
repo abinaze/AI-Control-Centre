@@ -50,6 +50,8 @@ All notable changes to AI Control Centre are documented here.
 - Filled in `CODE_OF_CONDUCT.md`, which was empty, with the Contributor Covenant 2.1 (G9).
 - Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
 - Added `docs/TRANSITION_LOG_DESIGN.md`: a design note on status history, with options and a recommendation. Option A was accepted and is implemented; a full transition log is deferred to the Phase 3 design.
+- Added `docs/COORDINATOR_CLI_DESIGN.md`: a proposed design note for reaching the coordinator from the CLI, with options and a recommendation. Nothing is implemented.
+- Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reaches the coordinator.
 
 ### Known issues (documented, not fixed)
 
