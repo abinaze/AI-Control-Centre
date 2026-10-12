@@ -21,6 +21,7 @@ class ExecutionStartResult:
     task_id: str
     started: bool
     reason: str
+    attempt_id: str | None = None
 
     def __post_init__(self) -> None:
         """Reject incomplete execution start results."""
@@ -66,7 +67,7 @@ class ExecutionStarter:
                 reason=admission_result.reason,
             )
 
-        self.record_registry.open_attempt(
+        attempt = self.record_registry.open_attempt(
             task_id=request.task_id,
             source=EXECUTION_SOURCE_COORDINATOR,
             target=request.target,
@@ -81,4 +82,5 @@ class ExecutionStarter:
             task_id=request.task_id,
             started=True,
             reason="task execution started",
+            attempt_id=attempt.id,
         )
