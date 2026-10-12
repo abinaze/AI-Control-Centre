@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 
 from aic_control_centre.execution.contract import ExecutionRequest
@@ -15,6 +17,11 @@ from aic_control_centre.execution.outcome import (
 from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.execution.start import ExecutionStarter
 
+
+# Returns a context manager that holds the state lock. The coordinator
+# enters it around the start and around recording the outcome, and never
+# around the adapter.
+StateGuard = Callable[[], AbstractContextManager[None]]
 
 EXECUTION_COORDINATION_REJECTED = "rejected"
 EXECUTION_COORDINATION_COMPLETED = "completed"
@@ -53,17 +60,26 @@ class ExecutionCoordinateResult:
 
 
 class ExecutionCoordinator:
-    """Coordinate admission, start, adapter execution, and outcome recording."""
+    """Coordinate admission, start, adapter execution, and outcome recording.
+
+    A state guard, if given, is entered around the start and around each
+    outcome recording, so another process cannot change the state files at
+    the same time. It is never held while an adapter runs, so a person can
+    still requeue a task during a long run. Without one the coordinator
+    takes no lock, as before.
+    """
 
     def __init__(
         self,
         adapter_registry: ExecutionAdapterRegistry | None = None,
         starter: ExecutionStarter | None = None,
         outcome_recorder: ExecutionOutcomeRecorder | None = None,
+        state_guard: StateGuard | None = None,
     ) -> None:
         self.adapter_registry = adapter_registry or ExecutionAdapterRegistry()
         self.starter = starter or ExecutionStarter()
         self.outcome_recorder = outcome_recorder or ExecutionOutcomeRecorder()
+        self.state_guard = state_guard or nullcontext
 
     def coordinate(
         self,
@@ -80,7 +96,8 @@ class ExecutionCoordinator:
                 reason=str(exc).strip("'"),
             )
 
-        start_result = self.starter.start(request)
+        with self.state_guard():
+            start_result = self.starter.start(request)
 
         if not start_result.started:
             return ExecutionCoordinateResult(
@@ -93,7 +110,7 @@ class ExecutionCoordinator:
         try:
             outcome = adapter.execute(request)
         except Exception as exc:
-            recorded = self.outcome_recorder.record(
+            recorded = self._record(
                 ExecutionOutcome(
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
@@ -104,7 +121,7 @@ class ExecutionCoordinator:
             return self._from_recorded_outcome(recorded)
 
         if not isinstance(outcome, ExecutionOutcome):
-            recorded = self.outcome_recorder.record(
+            recorded = self._record(
                 ExecutionOutcome(
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
@@ -115,7 +132,7 @@ class ExecutionCoordinator:
             return self._from_recorded_outcome(recorded)
 
         if outcome.task_id != request.task_id:
-            recorded = self.outcome_recorder.record(
+            recorded = self._record(
                 ExecutionOutcome(
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
@@ -125,7 +142,7 @@ class ExecutionCoordinator:
             )
             return self._from_recorded_outcome(recorded)
 
-        recorded = self.outcome_recorder.record(
+        recorded = self._record(
             ExecutionOutcome(
                 task_id=outcome.task_id,
                 outcome=outcome.outcome,
@@ -135,6 +152,11 @@ class ExecutionCoordinator:
         )
 
         return self._from_recorded_outcome(recorded)
+
+    def _record(self, outcome: ExecutionOutcome) -> ExecutionOutcomeResult:
+        """Record an outcome while holding the state guard."""
+        with self.state_guard():
+            return self.outcome_recorder.record(outcome)
 
     @staticmethod
     def _from_recorded_outcome(
