@@ -267,3 +267,26 @@ def test_failed_task_update_leaves_an_open_attempt(tmp_path, monkeypatch):
 
     assert task_registry.get_task(task.id).status == TASK_STATUS_READY
     assert starter.record_registry.get_open_attempt(task.id) is not None
+
+
+def test_start_result_names_the_attempt_it_opened(tmp_path):
+    """A started task's result carries the ID of its open attempt."""
+    starter, _, task = create_ready_task(tmp_path)
+
+    result = starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    opened = starter.record_registry.get_open_attempt(task.id)
+
+    assert result.started is True
+    assert result.attempt_id == opened.id
+
+
+def test_rejected_start_result_names_no_attempt(tmp_path):
+    """A request that is not admitted opens nothing to name."""
+    starter, task_registry, task = create_ready_task(tmp_path)
+    task_registry.update_task_status(task.id, TASK_STATUS_RUNNING)
+
+    result = starter.start(ExecutionRequest(task_id=task.id, target="test"))
+
+    assert result.started is False
+    assert result.attempt_id is None
