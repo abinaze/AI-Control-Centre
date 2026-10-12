@@ -21,7 +21,7 @@ Status: In progress
 
 Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
-- Decide on a transition log (the rest of G4)
+- Decide on a transition log (the rest of G4); the options are in [docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md)
 
 ## Phase 2 — Readiness and Execution Boundaries
 
