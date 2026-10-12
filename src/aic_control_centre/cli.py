@@ -205,6 +205,10 @@ def build_parser() -> argparse.ArgumentParser:
         "task_id",
         help="Task ID.",
     )
+    task_complete_parser.add_argument(
+        "--reason",
+        help="Why the task is being completed. Kept in its attempt record.",
+    )
 
     task_fail_parser = task_subparsers.add_parser(
         "fail",
@@ -213,6 +217,10 @@ def build_parser() -> argparse.ArgumentParser:
     task_fail_parser.add_argument(
         "task_id",
         help="Task ID.",
+    )
+    task_fail_parser.add_argument(
+        "--reason",
+        help="Why the task failed. Kept in its attempt record.",
     )
 
     task_requeue_parser = task_subparsers.add_parser(
@@ -366,10 +374,16 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
             return start_task(args.task_id)
 
         if args.task_command == "complete":
-            return complete_task(args.task_id)
+            return complete_task(
+                task_id=args.task_id,
+                reason=args.reason,
+            )
 
         if args.task_command == "fail":
-            return fail_task(args.task_id)
+            return fail_task(
+                task_id=args.task_id,
+                reason=args.reason,
+            )
 
         if args.task_command == "requeue":
             return requeue_task(

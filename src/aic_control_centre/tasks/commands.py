@@ -244,33 +244,59 @@ def start_task(task_id: str) -> int:
     )
 
 
-def _finish_task(task_id: str, new_status: str, ended_as: str) -> int:
+def _finish_task(
+    task_id: str,
+    new_status: str,
+    ended_as: str,
+    reason: str | None = None,
+) -> int:
     """Move a running task to a final status and close its attempt.
 
     The task moves first and the attempt record is closed after it. A
     crash in between leaves an open record for a task that is no longer
     running, which is detectable.
+
+    A reason is optional. If one is given it is stored in the attempt
+    record and printed. A blank reason is refused before anything changes.
     """
+    if reason is not None and not reason.strip():
+        print("Error: a reason cannot be blank.")
+        return 1
+
     result = transition_task_status(task_id=task_id, new_status=new_status)
 
     if result == 0:
         _record_registry().close_attempt(
             task_id=task_id.strip(),
             ended_as=ended_as,
+            reason=reason or "",
             source=EXECUTION_SOURCE_CLI,
         )
+
+        if reason is not None:
+            print(f"Reason: {reason.strip()}")
 
     return result
 
 
-def complete_task(task_id: str) -> int:
+def complete_task(task_id: str, reason: str | None = None) -> int:
     """Move a running task to the completed state and close its attempt."""
-    return _finish_task(task_id, TASK_STATUS_COMPLETED, ENDED_AS_COMPLETED)
+    return _finish_task(
+        task_id,
+        TASK_STATUS_COMPLETED,
+        ENDED_AS_COMPLETED,
+        reason,
+    )
 
 
-def fail_task(task_id: str) -> int:
+def fail_task(task_id: str, reason: str | None = None) -> int:
     """Move a running task to the failed state and close its attempt."""
-    return _finish_task(task_id, TASK_STATUS_FAILED, ENDED_AS_FAILED)
+    return _finish_task(
+        task_id,
+        TASK_STATUS_FAILED,
+        ENDED_AS_FAILED,
+        reason,
+    )
 
 
 def requeue_task(task_id: str, reason: str) -> int:
