@@ -1605,3 +1605,101 @@ def test_task_history_stops_on_an_unreadable_records_file(
 
     with pytest.raises(StateFileError):
         show_task_history(task.id)
+
+
+@pytest.mark.parametrize(
+    ("finish", "ended_as"),
+    [(complete_task, "completed"), (fail_task, "failed")],
+)
+def test_finishing_a_task_with_a_reason_stores_it(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    finish,
+    ended_as,
+) -> None:
+    """The reason given when finishing a task is kept in its attempt."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    opened = _records(task_path).get_open_attempt(task.id)
+    capsys.readouterr()
+
+    assert finish(task.id, reason="  disk was full  ") == 0
+
+    records = _records(task_path).list_attempts(task.id)
+
+    assert len(records) == 1
+    assert records[0].id == opened.id
+    assert records[0].ended_as == ended_as
+    assert records[0].reason == "disk was full"
+    assert records[0].source == EXECUTION_SOURCE_CLI
+    assert "Reason: disk was full" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("finish", [complete_task, fail_task])
+def test_finishing_a_task_without_a_reason_prints_no_reason(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    finish,
+) -> None:
+    """Leaving the reason out changes nothing about the output."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    capsys.readouterr()
+
+    assert finish(task.id) == 0
+
+    assert "Reason" not in capsys.readouterr().out
+    assert _records(task_path).list_attempts(task.id)[0].reason == ""
+
+
+@pytest.mark.parametrize("finish", [complete_task, fail_task])
+def test_finishing_a_task_with_a_blank_reason_changes_nothing(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    finish,
+) -> None:
+    """A blank reason is refused, as a blank requeue reason is."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+    assert start_task(task.id) == 0
+    before = _records(task_path).list_records()
+    capsys.readouterr()
+
+    assert finish(task.id, reason="   ") == 1
+
+    assert "reason cannot be blank" in capsys.readouterr().out
+    assert _records(task_path).list_records() == before
+    assert TaskRegistry(task_path).get_task(task.id).status == "running"
+
+
+@pytest.mark.parametrize("finish", [complete_task, fail_task])
+def test_refused_finish_with_a_reason_writes_no_record(
+    tmp_path,
+    monkeypatch,
+    finish,
+) -> None:
+    """Only a running task can finish, and a refusal records nothing."""
+    goal_path = tmp_path / "goals.json"
+    task_path = tmp_path / "tasks.json"
+    goal = _add_goal(goal_path, GOAL_STATUS_IN_PROGRESS)
+    task = _add_task(task_path, goal.id, status="ready")
+    _patch_registries(monkeypatch, goal_path, task_path)
+
+    assert finish(task.id, reason="not running") == 1
+
+    assert not (tmp_path / "executions.json").exists()
+    assert TaskRegistry(task_path).get_task(task.id).status == "ready"
