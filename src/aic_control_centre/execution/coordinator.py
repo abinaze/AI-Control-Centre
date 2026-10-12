@@ -98,6 +98,7 @@ class ExecutionCoordinator:
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
                     reason=f"execution adapter failed: {exc}",
+                    attempt_id=start_result.attempt_id,
                 )
             )
             return self._from_recorded_outcome(recorded)
@@ -108,6 +109,7 @@ class ExecutionCoordinator:
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
                     reason="execution adapter returned invalid outcome",
+                    attempt_id=start_result.attempt_id,
                 )
             )
             return self._from_recorded_outcome(recorded)
@@ -118,6 +120,7 @@ class ExecutionCoordinator:
                     task_id=request.task_id,
                     outcome=EXECUTION_OUTCOME_FAILED,
                     reason="execution adapter returned outcome for unexpected task",
+                    attempt_id=start_result.attempt_id,
                 )
             )
             return self._from_recorded_outcome(recorded)
@@ -127,6 +130,7 @@ class ExecutionCoordinator:
                 task_id=outcome.task_id,
                 outcome=outcome.outcome,
                 reason=outcome.reason,
+                attempt_id=start_result.attempt_id,
             )
         )
 
