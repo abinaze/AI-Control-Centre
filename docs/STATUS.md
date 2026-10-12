@@ -140,7 +140,7 @@ Still open:
 
 ### G6. The coordinator is unreachable from the CLI (reproduced)
 
-`aic --help` exposes `doctor`, `validate`, `project`, `goal`, and `task` only. Nothing registers an adapter or invokes `ExecutionCoordinator`, and no concrete adapter exists. The execution pipeline is exercised only by tests.
+`aic --help` exposes `doctor`, `validate`, `project`, `goal`, and `task` only. Nothing registers an adapter or invokes `ExecutionCoordinator`, and no concrete adapter exists. The execution pipeline is exercised only by tests. Running the real coordinator also showed G12. A design note with options for a coordinator CLI is in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed).
 
 ### G7. Unused configuration and scattered version string (partly closed)
 
@@ -167,6 +167,16 @@ When `aic task complete`, `aic task fail` or `aic task requeue` runs, the task m
 A task that is `ready` again after a crash does not have this problem. A failed close during `requeue`, or a crash between opening a record and moving the task, leaves a `ready` task, and the next `aic task start` closes the leftover record as `abandoned`.
 
 Until a fix is chosen, the record can be closed by hand: in `executions.json`, set the record's `ended_at` to a UTC time and its `ended_as` to `abandoned`. The likely fix is a small explicit command that does the same. It is not built, and it is a maintainer decision because it adds a write path outside the normal lifecycle.
+
+### G12. Coordinator outcomes are matched to a task, not to an attempt, and the library takes no state lock (reproduced, library only)
+
+Nothing in the CLI reaches the coordinator (G6), so these affect only code that calls the library directly, and the coordinator CLI that Phase 3 would add. Both were reproduced by running the real `ExecutionCoordinator` with a slow fake adapter.
+
+Superseded runs: while the adapter was running, a person ran `aic task requeue` and then `aic task start` on the same task. When the adapter finished, the recorder accepted its result because the task was `running` again, and it closed the person's second attempt as `completed` with the adapter's reason. The coordinator reported `completed`. Without the second start, the recorder refused the outcome with `task status is ready` and the adapter's result was dropped.
+
+No lock: only `main` takes the state lock, not the library. Eight coordinators run at once on eight different tasks lost updates. In three runs, 3, 4 and 4 coordinators reported `completed`, but exactly one task ended `completed` each time, five to seven stayed `ready`, and `aic validate` reported open records whose task was `ready`.
+
+Options and a recommendation are in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed).
 
 ## Invariants
 
@@ -201,4 +211,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only the transition history remains. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records and file locking are built, and G11 is open. The remaining hardening step is in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is a transition log.
 
-Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). The next design decision is the Phase 3 coordinator CLI, which first needs the library fix for G12; the options are in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
