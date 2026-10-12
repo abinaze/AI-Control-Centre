@@ -7,7 +7,7 @@
 Two things the tool needs are not stored anywhere.
 
 - **When an attempt started.** A task stores `created_at` and `updated_at`, and `updated_at` moves on every status change. Nothing says how long a task has been `running`, so nothing can tell a slow run from a dead one. A later timeout or detector would have no start time to compare against.
-- **Why an attempt ended.** `ExecutionOutcome.reason` and the coordinator's failure reasons, such as "execution adapter failed: ...", are returned to the caller and then dropped, because the outcome recorder writes only the new status. The reason given to `aic task requeue` is printed and then lost. `aic task complete` and `aic task fail` take no reason at all.
+- **Why an attempt ended.** `ExecutionOutcome.reason` and the coordinator's failure reasons, such as "execution adapter failed: ...", are returned to the caller and then dropped, because the outcome recorder writes only the new status. The reason given to `aic task requeue` is printed and then lost. `aic task complete` and `aic task fail` take no reason at all. (Update: both now take an optional `--reason`; see [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md).)
 
 There is also no attempt count. A task that was started, requeued and started again looks the same as one started once, and nothing shows that a requeue ever happened.
 
@@ -131,7 +131,7 @@ Tests it would need:
 4. Should rejected requests be recorded? Recommendation: no, for the INV-1 reason above.
 5. Should the default file location sit beside the task registry's file, as proposed, or should `AppConfig` gain an `executions_file`? Recommendation: beside the task file, because it keeps every existing test isolated without new patching.
 
-Answered: the maintainer approved the recommendation on all five. A task already running gets a closed record with a `null` start when it ends. A stale open record is closed as `abandoned` when the task is next started. `--reason` for complete and fail is a later step. Rejected requests are not recorded. The file sits beside the task registry's file.
+Answered: the maintainer approved the recommendation on all five. A task already running gets a closed record with a `null` start when it ends. A stale open record is closed as `abandoned` when the task is next started. `--reason` for complete and fail was a later step, and it is now built (see [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md)). Rejected requests are not recorded. The file sits beside the task registry's file.
 
 ## Found while implementing
 
