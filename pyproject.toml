@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-control-centre"
 version = "0.1.0"
-description = "A local-first autonomous AI development and control platform."
+description = "Local-first deterministic control platform for AI work."
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ keywords = [
     "developer-tools",
     "local-ai",
     "orchestration",
-    "autonomous-agents"
+    "deterministic"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
