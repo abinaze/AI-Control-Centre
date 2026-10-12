@@ -33,6 +33,7 @@ All notable changes to AI Control Centre are documented here.
 - The CLI help text and the `pyproject.toml` description now read "Local-first deterministic control platform for AI work." They said "autonomous AI development and control platform", which no part of the project does (G8). The `autonomous-agents` keyword became `deterministic`.
 - `aic task complete` and `aic task fail` take an optional `--reason "<text>"`. The reason is stored in the attempt record, printed, and shown by `aic task history`. A blank reason is refused before anything changes. Without `--reason` nothing changes, and the record's reason stays empty.
 - The execution start result names the attempt it opened (`attempt_id`), and an `ExecutionOutcome` can carry one. The coordinator passes the attempt it started with every outcome. The recorder refuses an outcome whose attempt is no longer the task's open attempt, changes nothing, and gives the reason `attempt was superseded; the adapter reported <outcome>`. Before this, a run superseded by a requeue and a restart could close the newer attempt. Outcomes without an attempt ID behave as before.
+- `ExecutionCoordinator` accepts an optional `state_guard`, a function that returns a context manager holding the state lock. The coordinator enters it around the start and around each outcome recording, and never while an adapter runs. Without a guard it behaves as before. Before this, eight coordinators run at once lost updates: several reported `completed` while one task was.
 
 ### Documentation
 
@@ -58,7 +59,7 @@ All notable changes to AI Control Centre are documented here.
 
 - The state lock is advisory and works only between `aic` processes. It does not protect against hand edits or sync tools, and is not reliable on network file systems.
 - There is no history of status changes other than execution attempts (the rest of G4).
-- The execution library takes no state lock; only `main` does (G12). Nothing in the CLI reaches the coordinator, so this affects only code that calls the library directly.
+- The execution coordinator takes no state lock unless it is given a `state_guard` (G12). Nothing in the CLI reaches the coordinator yet, so this affects only code that calls the library directly. The coordinator CLI will pass one.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone.
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
 
