@@ -50,6 +50,8 @@ After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones.
 
 After the finishing reason change the suite has 413 tests: the 398 above plus 15 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the four code and test commits in that change and again after the documentation commits; the final run at `622a424` gave 413 passed.
 
+After the attempt identity change the suite has 425 tests: the 413 above plus 12 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -168,15 +170,15 @@ A task that is `ready` again after a crash does not have this problem. A failed 
 
 Until a fix is chosen, the record can be closed by hand: in `executions.json`, set the record's `ended_at` to a UTC time and its `ended_as` to `abandoned`. The likely fix is a small explicit command that does the same. It is not built, and it is a maintainer decision because it adds a write path outside the normal lifecycle.
 
-### G12. Coordinator outcomes are matched to a task, not to an attempt, and the library takes no state lock (reproduced, library only)
+### G12. The coordinator library takes no state lock (partly closed; reproduced, library only)
 
 Nothing in the CLI reaches the coordinator (G6), so these affect only code that calls the library directly, and the coordinator CLI that Phase 3 would add. Both were reproduced by running the real `ExecutionCoordinator` with a slow fake adapter.
 
-Superseded runs: while the adapter was running, a person ran `aic task requeue` and then `aic task start` on the same task. When the adapter finished, the recorder accepted its result because the task was `running` again, and it closed the person's second attempt as `completed` with the adapter's reason. The coordinator reported `completed`. Without the second start, the recorder refused the outcome with `task status is ready` and the adapter's result was dropped.
+Superseded runs (closed): while the adapter was running, a person ran `aic task requeue` and then `aic task start` on the same task. When the adapter finished, the recorder accepted its result because the task was `running` again, and it closed the person's second attempt as `completed` with the adapter's reason. The coordinator reported `completed`. Now the start result names the attempt it opened, the coordinator passes that ID with every outcome, and the recorder refuses an outcome whose attempt is no longer the task's open attempt (INV-21). The refusal changes nothing, and the coordinator reports `rejected` with what the adapter reported. Running the same scenario again against the real CLI, the person's attempt stayed open, the task stayed `running`, and `aic validate` passed.
 
 No lock: only `main` takes the state lock, not the library. Eight coordinators run at once on eight different tasks lost updates. In three runs, 3, 4 and 4 coordinators reported `completed`, but exactly one task ended `completed` each time, five to seven stayed `ready`, and `aic validate` reported open records whose task was `ready`.
 
-Options and a recommendation are in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed).
+Still open: the lock. The state guard is the next stage in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed; stage 1 is built).
 
 ## Invariants
 
@@ -204,6 +206,7 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-18 | A rejected request or a refused command writes no attempt record. | Yes, because recording happens only after the checks pass | `test_rejected_start_writes_no_attempt_record`, `test_rejected_outcome_writes_no_record`, `test_coordinator_writes_no_record_for_an_unknown_target`, `test_start_task_refused_writes_no_record`, `test_refused_finish_writes_no_record`, `test_refused_requeue_of_a_ready_task_writes_no_record` |
 | INV-19 | `aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID, without writing any file. A `running` task with no record is accepted. | Yes, in `GoalTaskValidator` | `test_open_record_for_a_task_that_is_not_running_is_reported`, `test_two_open_records_for_a_task_are_reported`, `test_record_for_a_missing_task_is_reported`, `test_duplicate_execution_record_ids_are_reported`, `test_running_task_without_a_record_is_valid`, `test_validation_does_not_modify_the_records_file` |
 | INV-20 | Every CLI command except the read-only list (`doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness` and `history`) runs under the state lock, and `aic validate` does too. A command that cannot get the lock within the timeout changes nothing and exits 1. A command added later locks until it is classified. | Yes, in `main`, through `_needs_state_lock` | `test_every_parser_command_is_classified`, `test_only_read_only_commands_skip_the_lock`, `test_writing_command_fails_cleanly_while_the_lock_is_held`, `test_validate_waits_for_the_lock`, `test_read_only_command_runs_while_the_lock_is_held`, `test_concurrent_commands_lose_no_tasks` |
+| INV-21 | An outcome that names an attempt is applied only if that attempt is still the task's open attempt. Otherwise nothing changes and the outcome is refused as superseded. The coordinator names the attempt it started with every outcome, including the outcomes it builds for adapter errors. | Yes, in `ExecutionOutcomeRecorder.record` | `test_outcome_naming_the_open_attempt_is_recorded`, `test_outcome_for_a_superseded_attempt_is_refused`, `test_outcome_naming_an_attempt_needs_an_open_attempt`, `test_start_result_names_the_attempt_it_opened`, `test_late_outcome_does_not_change_a_newer_attempt` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
@@ -211,4 +214,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only the transition history remains. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records and file locking are built, and G11 is open. The remaining hardening step is in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is a transition log.
 
-Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). The next design decision is the Phase 3 coordinator CLI, which first needs the library fix for G12; the options are in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed). Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). The attempt identity fix for G12 is built. The next steps are in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) (status: proposed; stage 1 is built): the state guard, then the coordinator CLI. Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
