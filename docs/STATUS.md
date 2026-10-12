@@ -48,7 +48,7 @@ After the file locking change the suite has 396 tests: the 376 above plus 20 new
 
 After the G8 wording fix the suite has 398 tests: the 396 above plus 2 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the three code and test commits in that change and again after the documentation commits; the final run at `aec67f7` gave 398 passed.
 
-After the finishing reason change the suite has 413 tests: the 398 above plus 15 new ones.
+After the finishing reason change the suite has 413 tests: the 398 above plus 15 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the four code and test commits in that change and again after the documentation commits; the final run at `622a424` gave 413 passed.
 
 ## Capability status
 
