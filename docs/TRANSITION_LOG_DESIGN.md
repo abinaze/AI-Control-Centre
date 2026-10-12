@@ -1,6 +1,6 @@
 # Design Note: Transition Log
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's decision before any code is written. It addresses the second half of gap G4 in [STATUS.md](STATUS.md). The first half, file locking, is built; see [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md).
+**Status: Option A accepted and implemented.** The maintainer accepted the recommendation and its answers to the four questions at the end of this note. A full transition log is deferred to the Phase 3 design. The sections below are the note as it was approved; what happened while building is at the end. It addresses the second half of gap G4 in [STATUS.md](STATUS.md). The first half, file locking, is built; see [FILE_LOCKING_DESIGN.md](FILE_LOCKING_DESIGN.md).
 
 ## Problem
 
@@ -28,7 +28,7 @@ Each item was checked by reading the code or by running it.
 - Goal status is derived from task statuses by `GoalTaskOrchestrator.reconcile_goal`, which runs after each task change and in `aic goal status` (G2). A goal's history therefore follows from its tasks' history.
 - Attempt records cover `ready` to `running` (the record opens) and the four ways an attempt ends: `completed`, `failed`, `requeued` and `abandoned`. They do not cover creation, which has `created_at`, or `pending` to `ready`.
 - `ExecutionRecordRegistry.close_attempt` already accepts a reason. `aic task requeue` supplies one, and so does the coordinator's outcome path, which keeps adapter failure reasons. `aic task complete` and `aic task fail` supply none.
-- The execution records note answered its open question about `--reason` for `complete` and `fail`: yes, as a separate small step after records exist. That step was not built.
+- The execution records note answered its open question about `--reason` for `complete` and `fail`: yes, as a separate small step after records exist. That step was not built when this note was written. It is built now; see the end of this note.
 - Every command that writes already runs under the state lock (INV-20), writes files atomically, and keeps attempt records in the order INV-16 requires.
 - A second history file would be a fourth file written by one command, next to `executions.json`, `tasks.json` and `goals.json`. Files are written one at a time, so a crash between two writes is possible.
 
@@ -117,6 +117,18 @@ The write order does not change. The task moves first, then the record is closed
 3. Should `aic task ready` accept a reason too? Recommendation: no. There is no record to attach it to.
 4. If you want Option B anyway: should it cover tasks only, or goals too? Recommendation: tasks only, since goal status is derived. It should write the log after the state change, so a missing last record is the one detectable crash shape.
 
-## After this decision
+## Decision
 
-If Option A is accepted, the build is small: `--reason` for `complete` and `fail` and its tests, then the documents. If another option is chosen, this note is revised and approved again before any code.
+The maintainer accepted all four recommendations: Option A, `--reason` optional on `fail`, no reason for `aic task ready`, and, if Option B is wanted later, tasks only with the log written after the state change. G4 stays listed in [STATUS.md](STATUS.md), with its remaining part described.
+
+## Found while implementing
+
+Everything in this section was observed on Linux.
+
+- A blank reason is refused before the task moves, with `Error: a reason cannot be blank.` and exit status 1. This was checked for both commands, and nothing changed: the task stayed `running` and the records file was untouched.
+- A reason is trimmed, stored in the attempt, and printed as `Reason: <text>` after the status lines. `aic task history` shows it.
+- Without `--reason`, nothing changed: no `Reason` line is printed and the record's reason stays empty.
+- `complete` takes a reason as well as `fail`. The CLI history test runs both.
+- The library already stored a reason for both outcomes. A parity test now requires the CLI and the library to store the same trimmed text for `complete` and for `fail`.
+- The write order (INV-16) is unchanged, and so are the file shapes. There is no new file and no schema change.
+- The suite grew from 398 to 413 tests. Nine changes made one at a time were each caught by the test written for that rule: the reason not stored, a blank reason accepted, the blank check moved after the task moves, a `Reason` line printed without one, the printed reason not trimmed, the CLI dropping the reason for `complete`, the CLI dropping it for `fail`, `fail` ignoring it, and the option made required.
