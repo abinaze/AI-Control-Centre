@@ -150,9 +150,9 @@ The version `0.1.0` is now written in two places, `pyproject.toml` and `aic_cont
 
 The `pyproject.toml` description and the CLI help text both said "autonomous AI development and control platform", while the README, SECURITY, and ARCHITECTURE documents state that no autonomous behavior exists. Both now read "Local-first deterministic control platform for AI work.", and the `autonomous-agents` keyword in `pyproject.toml` became `deterministic`. `test_pyproject_description_matches_the_cli_description` keeps the two descriptions identical, and `test_metadata_makes_no_claim_of_autonomy` fails if the word returns to the description or the keywords.
 
-### G9. Empty files in the repository (source)
+### G9. Empty files in the repository (closed)
 
-`.env.example`, `CODE_OF_CONDUCT.md`, and `.github/pull_request_template.md` were zero bytes. `.env.example` and the pull request template are now filled in. `CODE_OF_CONDUCT.md` is still empty and needs a decision on which code of conduct to adopt.
+`.env.example`, `CODE_OF_CONDUCT.md`, and `.github/pull_request_template.md` were zero bytes and are now filled in. `CODE_OF_CONDUCT.md` is the Contributor Covenant, version 2.1. Reports go to the maintainer through the contact options on their GitHub profile.
 
 ### G10. Duplicated constant (closed)
 
