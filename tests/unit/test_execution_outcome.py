@@ -466,3 +466,88 @@ def test_failed_record_write_leaves_an_open_attempt(tmp_path, monkeypatch):
 
     assert task_registry.get_task(task.id).status == TASK_STATUS_COMPLETED
     assert recorder.record_registry.get_open_attempt(task.id) is not None
+
+
+def test_outcome_naming_the_open_attempt_is_recorded(tmp_path):
+    """An outcome that names the task's open attempt is applied."""
+    recorder, _, task_registry, task, _ = create_running_task(tmp_path)
+    opened = recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+
+    result = recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            attempt_id=opened.id,
+        ),
+    )
+
+    record = recorder.record_registry.list_attempts(task.id)[0]
+
+    assert result.completed is True
+    assert record.id == opened.id
+    assert record.ended_as == "completed"
+    assert task_registry.get_task(task.id).status == TASK_STATUS_COMPLETED
+
+
+def test_outcome_for_a_superseded_attempt_is_refused(tmp_path):
+    """An outcome for an attempt that is no longer open changes nothing."""
+    recorder, _, task_registry, task, _ = create_running_task(tmp_path)
+    superseded = recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+    current = recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+    before = recorder.record_registry.list_records()
+
+    result = recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_COMPLETED,
+            reason="all done",
+            attempt_id=superseded.id,
+        ),
+    )
+
+    assert result.completed is False
+    assert "superseded" in result.reason
+    assert "completed: all done" in result.reason
+    assert recorder.record_registry.list_records() == before
+    assert recorder.record_registry.get_open_attempt(task.id).id == current.id
+    assert task_registry.get_task(task.id).status == TASK_STATUS_RUNNING
+
+
+def test_outcome_naming_an_attempt_needs_an_open_attempt(tmp_path):
+    """With no open attempt, an outcome that names one is refused."""
+    recorder, _, task_registry, task, _ = create_running_task(tmp_path)
+
+    result = recorder.record(
+        ExecutionOutcome(
+            task_id=task.id,
+            outcome=EXECUTION_OUTCOME_FAILED,
+            attempt_id="no-such-attempt",
+        ),
+    )
+
+    assert result.completed is False
+    assert "superseded" in result.reason
+    assert not (tmp_path / "executions.json").exists()
+    assert task_registry.get_task(task.id).status == TASK_STATUS_RUNNING
+
+
+def test_attempt_id_cannot_be_blank():
+    """A blank attempt ID is a mistake, not a way to skip the check."""
+    with pytest.raises(ValueError, match="attempt ID cannot be blank"):
+        ExecutionOutcome(
+            task_id="task-1",
+            outcome=EXECUTION_OUTCOME_FAILED,
+            attempt_id="   ",
+        )
