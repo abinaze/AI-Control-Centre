@@ -166,6 +166,8 @@ The current architecture defines this as a protocol boundary. No concrete adapte
 
 Adapter failures are handled by the coordinator and converted into a failed execution outcome.
 
+The coordinator can be given a state guard: a function that returns a context manager holding the state lock. It enters the guard around the start and around each outcome recording, and never while an adapter runs, so a person can still run `aic task requeue` during a long run. A coordinator without a guard takes no lock, so a caller of the library that runs more than one process must pass one.
+
 ### Execution Outcome
 
 An execution outcome identifies the task and declares a completed or failed result.
