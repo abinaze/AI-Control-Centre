@@ -446,3 +446,92 @@ def test_main_task_history_reports_an_unreadable_records_file(
 
     assert result == 1
     assert "executions.json" in captured.out + captured.err
+
+
+@pytest.mark.parametrize("command", ["complete", "fail"])
+def test_task_finish_commands_take_an_optional_reason(command):
+    """complete and fail accept --reason, and it can be left out."""
+    parser = build_parser()
+
+    with_reason = parser.parse_args(
+        ["task", command, "task-123", "--reason", "disk was full"],
+    )
+    without_reason = parser.parse_args(["task", command, "task-123"])
+
+    assert with_reason.reason == "disk was full"
+    assert without_reason.reason is None
+
+
+@pytest.mark.parametrize(
+    ("finish_command", "outcome"),
+    [("complete", "completed"), ("fail", "failed")],
+)
+def test_main_task_history_shows_the_reason_for_a_finished_task(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    finish_command,
+    outcome,
+):
+    """A reason given to complete or fail is printed and kept."""
+    goal = Goal.create(description="Recorded goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    TaskRegistry(tmp_path / "tasks.json").add_task(task)
+
+    for command in ("ready", "start"):
+        assert run_cli(monkeypatch, tmp_path, "task", command, task.id) == 0
+
+    capsys.readouterr()
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        finish_command,
+        task.id,
+        "--reason",
+        "disk was full",
+    )
+
+    assert result == 0
+    assert "Reason: disk was full" in capsys.readouterr().out
+
+    assert run_cli(monkeypatch, tmp_path, "task", "history", task.id) == 0
+
+    output = capsys.readouterr().out
+
+    assert f"Outcome: {outcome}" in output
+    assert "Reason: disk was full" in output
+
+
+def test_main_task_complete_refuses_a_blank_reason(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    """A blank reason stops the command before the task moves."""
+    goal = Goal.create(description="Recorded goal", project="TestProject")
+    GoalRegistry(tmp_path / "goals.json").add_goal(goal)
+    task = Task.create(goal_id=goal.id, title="Recorded task")
+    registry = TaskRegistry(tmp_path / "tasks.json")
+    registry.add_task(task)
+
+    for command in ("ready", "start"):
+        assert run_cli(monkeypatch, tmp_path, "task", command, task.id) == 0
+
+    capsys.readouterr()
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        "complete",
+        task.id,
+        "--reason",
+        "   ",
+    )
+
+    assert result == 1
+    assert "reason cannot be blank" in capsys.readouterr().out
+    assert registry.get_task(task.id).status == "running"
