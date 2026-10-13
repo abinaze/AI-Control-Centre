@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from aic_control_centre.config import load_config
+from aic_control_centre.execution.adapters import build_adapter_registry
+from aic_control_centre.execution.contract import ExecutionRequest
+from aic_control_centre.execution.coordinator import (
+    EXECUTION_COORDINATION_COMPLETED,
+    ExecutionCoordinator,
+)
 from aic_control_centre.execution.records import (
     ENDED_AS_COMPLETED,
     ENDED_AS_FAILED,
@@ -10,6 +17,7 @@ from aic_control_centre.execution.records import (
     ExecutionRecordRegistry,
 )
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.locking import StateLockError, state_lock
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 from aic_control_centre.tasks.model import (
@@ -397,5 +405,86 @@ def show_task_history(task_id: str) -> int:
 
         if record.reason:
             print(f"  Reason: {record.reason}")
+
+    return 0
+
+
+def run_task(task_id: str, target: str) -> int:
+    """Run a ready task through the execution adapter for a target.
+
+    The task is started, the adapter runs, and its outcome is recorded.
+    The state lock is held only while state is read or written, never
+    while the adapter runs, so other commands, including requeue, still
+    work during a long run.
+
+    If the lock cannot be taken to record the outcome, the adapter has
+    already run. The task is then left running with its attempt open,
+    which is the same shape a crash leaves and which requeue recovers.
+    """
+    if not task_id.strip():
+        print("Error: task ID cannot be empty.")
+        return 1
+
+    if not target.strip():
+        print("Error: execution target cannot be empty.")
+        return 1
+
+    data_dir = load_config().data_dir
+    guard_calls = []
+
+    def guard():
+        guard_calls.append(1)
+        return state_lock(data_dir)
+
+    coordinator = ExecutionCoordinator(
+        adapter_registry=build_adapter_registry(),
+        state_guard=guard,
+    )
+
+    try:
+        result = coordinator.coordinate(
+            ExecutionRequest(task_id=task_id.strip(), target=target.strip()),
+        )
+    except StateLockError as exc:
+        if len(guard_calls) < 2:
+            raise
+
+        print(f"Error: {exc}")
+        print("The adapter has run, but its outcome was not recorded.")
+        print(
+            "The task is still running. "
+            "Use aic task complete, fail, or requeue."
+        )
+        return 1
+
+    print(f"Task: {result.task_id}")
+    print(f"Target: {target.strip()}")
+    print(f"Result: {result.status}")
+    print(f"Reason: {result.reason}")
+
+    if result.status == EXECUTION_COORDINATION_COMPLETED:
+        return 0
+
+    return 1
+
+
+def list_targets() -> int:
+    """List the execution targets that aic task run can use."""
+    registry = build_adapter_registry()
+    targets = registry.list_targets()
+
+    if not targets:
+        print("No execution targets registered.")
+        return 0
+
+    print(f"Execution targets: {len(targets)}")
+
+    for target in targets:
+        description = getattr(registry.resolve(target), "description", "")
+
+        if description:
+            print(f"{target}: {description}")
+        else:
+            print(target)
 
     return 0
