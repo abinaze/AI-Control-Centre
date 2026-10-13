@@ -108,6 +108,8 @@ Phase 3 depends on Phase 2.5 Steps 1 and 5.
 
 The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. Real adapters, permissions, limits and timeouts are not.
 
+The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
