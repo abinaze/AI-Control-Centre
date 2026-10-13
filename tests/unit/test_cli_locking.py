@@ -38,7 +38,10 @@ READ_ONLY = {
     "task status",
     "task readiness",
     "task history",
+    "task targets",
 }
+
+SELF_LOCKING = {"task run"}
 
 
 def run_cli(monkeypatch, data_dir, *arguments):
@@ -89,9 +92,12 @@ def test_every_parser_command_is_classified() -> None:
     """A command cannot be added without deciding whether it locks."""
     known = _parser_commands(build_parser())
 
-    assert known == LOCKING_COMMANDS | READ_ONLY
+    assert known == LOCKING_COMMANDS | READ_ONLY | SELF_LOCKING
     assert LOCKING_COMMANDS.isdisjoint(READ_ONLY)
+    assert LOCKING_COMMANDS.isdisjoint(SELF_LOCKING)
+    assert READ_ONLY.isdisjoint(SELF_LOCKING)
     assert cli.READ_ONLY_COMMANDS == READ_ONLY
+    assert cli.SELF_LOCKING_COMMANDS == SELF_LOCKING
 
 
 def test_only_read_only_commands_skip_the_lock() -> None:
@@ -99,7 +105,7 @@ def test_only_read_only_commands_skip_the_lock() -> None:
     for command in LOCKING_COMMANDS:
         assert cli._needs_state_lock(_namespace(command)), command
 
-    for command in READ_ONLY:
+    for command in READ_ONLY | SELF_LOCKING:
         assert not cli._needs_state_lock(_namespace(command)), command
 
     assert cli._needs_state_lock(_namespace("not-a-command"))

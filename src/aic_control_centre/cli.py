@@ -21,9 +21,11 @@ from aic_control_centre.tasks.commands import (
     complete_task,
     create_task,
     fail_task,
+    list_targets,
     list_tasks,
     mark_task_ready,
     requeue_task,
+    run_task,
     show_task_history,
     show_task_readiness,
     show_task_status,
@@ -33,8 +35,8 @@ from aic_control_centre.tasks.registry import TaskRegistry
 from aic_control_centre.validation.goal_tasks import GoalTaskValidator
 
 # Commands that never write state, and so do not take the state lock.
-# Every other command locks, including any command added later, until
-# someone decides that it only reads and lists it here.
+# Every other command locks for its whole run, including any command added
+# later, until someone decides that it only reads and lists it here.
 READ_ONLY_COMMANDS = frozenset(
     {
         "doctor",
@@ -44,8 +46,15 @@ READ_ONLY_COMMANDS = frozenset(
         "task status",
         "task readiness",
         "task history",
+        "task targets",
     }
 )
+
+# Commands that take the state lock themselves, around each state
+# operation, because they run something slow in between. main does not
+# lock them, and a command listed here must never hold the lock while that
+# work runs.
+SELF_LOCKING_COMMANDS = frozenset({"task run"})
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -246,6 +255,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Task ID.",
     )
 
+    task_run_parser = task_subparsers.add_parser(
+        "run",
+        help="Run a ready task through an execution target.",
+    )
+    task_run_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+    task_run_parser.add_argument(
+        "--target",
+        required=True,
+        help="Execution target to run the task on. See aic task targets.",
+    )
+
+    task_subparsers.add_parser(
+        "targets",
+        help="List the execution targets that aic task run can use.",
+    )
+
     return parser
 
 
@@ -273,15 +301,19 @@ def _command_key(args: argparse.Namespace) -> str | None:
 
 
 def _needs_state_lock(args: argparse.Namespace) -> bool:
-    """Return whether a command must run under the state lock.
+    """Return whether main must hold the state lock for the whole command.
 
-    Commands lock unless they are listed in READ_ONLY_COMMANDS, so a
-    command that nobody has classified is protected. A command that
-    only prints help touches no state and takes no lock.
+    Commands lock unless they are listed in READ_ONLY_COMMANDS or
+    SELF_LOCKING_COMMANDS, so a command that nobody has classified is
+    protected. A command that only prints help touches no state and takes
+    no lock.
     """
     key = _command_key(args)
 
-    return key is not None and key not in READ_ONLY_COMMANDS
+    if key is None:
+        return False
+
+    return key not in READ_ONLY_COMMANDS | SELF_LOCKING_COMMANDS
 
 
 def main() -> int:
@@ -393,6 +425,12 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.task_command == "history":
             return show_task_history(args.task_id)
+
+        if args.task_command == "run":
+            return run_task(task_id=args.task_id, target=args.target)
+
+        if args.task_command == "targets":
+            return list_targets()
 
         parser.parse_args(["task", "--help"])
         return 0
