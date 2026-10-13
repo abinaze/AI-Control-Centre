@@ -51,7 +51,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
-  execution/        contract, admission, start, outcome, records, registry, coordinator
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters
 ```
 
 ## Core Lifecycle Model
@@ -162,7 +162,7 @@ Unknown targets are rejected before the task is started so that target resolutio
 
 An execution adapter receives an execution request and returns an execution outcome.
 
-The current architecture defines this as a protocol boundary. No concrete adapter exists yet; the tests use test doubles.
+The current architecture defines this as a protocol boundary. The only concrete adapter is `noop`, in `execution/adapters.py`, which completes a task without doing any work. `build_adapter_registry` registers adapters in code; nothing is loaded by name from configuration. The tests use test doubles for everything else.
 
 Adapter failures are handled by the coordinator and converted into a failed execution outcome.
 
@@ -194,7 +194,7 @@ The coordination result has a status of `rejected`, `completed`, or `failed`. A 
 
 Adapter exceptions, invalid adapter results, and task identity mismatches are converted into controlled failure outcomes rather than being allowed to bypass outcome recording.
 
-The coordinator is a library component. No CLI command invokes it today.
+`aic task run <task-id> --target <name>` runs a ready task through the coordinator. It prints the task, the target, a result (`completed`, `failed` or `rejected`) and a reason, and it exits 0 only for `completed`. `aic task targets` lists the registered targets. The command passes a state guard, described under State locking, so the lock is held only while state is read or written.
 
 ### Execution Records
 
@@ -221,6 +221,7 @@ A task can reach the `running` state through the execution boundary or through t
 | `aic task ready` (CLI) | The parent goal must be open; a `running` task is refused |
 | `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running`; the attempt record is closed after the task moves, and an optional `--reason` is stored in it |
 | `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required; the attempt record is closed with the reason after the task moves |
+| `aic task run` (CLI) | The same admission as the library path: the task must be `ready` and its parent goal open, and the target must be registered. The task moves to `running`, the adapter runs, and the outcome is recorded against the attempt that was started |
 
 The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them. `aic task requeue` is the only CLI path from `running` back to `ready`. It does not start the task: the task must still pass readiness through `aic task start`.
 
@@ -260,11 +261,11 @@ Atomic writes protect against a crash. They do nothing for two processes that ov
 
 `state_lock(data_dir)` in `locking.py` locks one byte of `.aic.lock` in the data directory with the operating system: `fcntl.flock` on Unix-like systems and `msvcrt.locking` on Windows. Other processes retry every 20 ms for 10 seconds and then fail with `StateLockError`, which `main` reports as `Error: another aic process is using the state files (waited 10s).` and exit status 1, having changed nothing. The operating system releases the lock when its holder ends, even if it was killed. A second acquisition in the same process raises `StateLockError`, because it would otherwise wait for itself.
 
-`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness` and `history`. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
+`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks for its whole run except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness`, `history` and `targets`; and those in `SELF_LOCKING_COMMANDS`: `task run`. A self-locking command takes the lock itself, around each state operation, because it runs something slow in between. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
 
 A read-only command sees one file at a time and each file is always complete, so it never reads a half-written file. On Windows such a reader can hold a state file open at the moment a writer replaces it, so `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`. Other errors are not retried.
 
-The lock must never be held while an adapter runs, once adapters exist. The coordinator CLI planned for Phase 3 takes it only around admission, start and outcome recording.
+The lock is never held while an adapter runs. `aic task run` takes it for the start and again for recording the outcome. If the lock cannot be taken to record the outcome, the adapter has already run. The command says so, and the task is left `running` with its attempt open, the same shape a crash leaves, which `aic task requeue`, `complete` or `fail` recovers.
 
 Current limitations of persistence:
 
