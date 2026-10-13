@@ -188,7 +188,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/EXECUTION_RECORDS_DESIGN.md](docs/EXECUTION_RECORDS_DESIGN.md) | Design for recording execution attempts; implemented |
 | [docs/FILE_LOCKING_DESIGN.md](docs/FILE_LOCKING_DESIGN.md) | Design for locking the state files; implemented |
 | [docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md) | Design note on status history and a transition log; Option A implemented |
-| [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md) | Design note on reaching the execution coordinator from the CLI; proposed |
+| [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md) | Design note on reaching the execution coordinator from the CLI; implemented |
+| [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md) | Design note on out-of-process adapters, timeouts and limits; proposed |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
