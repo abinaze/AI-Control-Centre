@@ -1,6 +1,6 @@
 # Design Note: Coordinator CLI
 
-**Status: Proposed; stages 1 and 2 are built.** Stage 1 (Decision 2A, tying each outcome to its attempt) and stage 2 (the state guard of Decision 1B) are built, and what happened is at the end of this note. The CLI, the `noop` adapter and the rest are not implemented, and the decisions behind them need the maintainer's acceptance before any code is written. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
+**Status: Stages 1 to 3 are built; the rest is proposed.** Stage 1 (Decision 2A, tying each outcome to its attempt), stage 2 (the state guard of Decision 1B) and stage 3 (the CLI and the `noop` adapter, Decisions 3A and 4A) are built, and what happened is at the end of this note. Permissions, timeouts and limits, and the listing of stale runs are not built and need their own notes. It addresses G6 in [STATUS.md](STATUS.md) (the coordinator cannot be reached from the CLI) and G12 (found while preparing this note). It is the first design note of Phase 3 in [ROADMAP.md](../ROADMAP.md) and covers the path from a CLI command to an adapter and back. Permissions, limits, timeouts and the detection of dead runs get only their hook points here. Each needs its own note.
 
 ## Problem
 
@@ -136,6 +136,20 @@ Everything in this section was observed on Linux.
 - The suite grew from 425 to 433 tests. Eight changes made one at a time were each caught by a test: the start unguarded, all outcome recordings unguarded, each of the four recording paths bypassing the guard on its own, the adapter run while the guard is held, and the guard argument ignored.
 - Nothing passes a guard yet, because nothing in the CLI reaches the coordinator. A coordinator built without one still takes no lock.
 
+## Stage 3: built
+
+Everything in this section was observed on Linux.
+
+- `aic task run <task-id> --target <name>` goes through admission, start, the adapter and the outcome. `--target` is required. It prints `Task`, `Target`, `Result` and `Reason`, and it exits 0 only for `completed`. A `failed` or `rejected` result exits 1.
+- `aic task targets` is read-only. It prints `Execution targets: 1` and `noop: completes the task at once; no work is done`.
+- `execution/adapters.py` holds `NoopAdapter` and `build_adapter_registry`, which registers `noop` in code and nothing else. Nothing is loaded from configuration. The noop adapter's reason is `noop adapter: no work was done`.
+- The CLI has a third command class. `SELF_LOCKING_COMMANDS` holds `task run`, and `_needs_state_lock` is false for it, so `main` does not hold the lock for the whole run. The classification test checks all three classes.
+- `run_task` passes a guard that takes the state lock. If the start cannot get the lock, the command exits 1 with the usual lock error and nothing has changed. If the outcome cannot be recorded because the lock is held, the command says `The adapter has run, but its outcome was not recorded.` The task stays `running` with its attempt open, and `aic task requeue` then recovers it. Both cases are tested with a real lock holder in another process.
+- `aic task requeue` works while an adapter runs. The test calls it from inside the adapter, and it succeeds. The adapter's late outcome is then refused with `task status is ready`.
+- On the real CLI, a `noop` run completed the task, and `aic task history` showed the route `coordinator (noop)`. A pending task was rejected with `task status is pending`, and an unknown target with `unknown execution target`. Running the same task again was rejected with `parent goal is completed`, because a goal closes when its only task completes. Eight `aic task run` processes at once all exited 0, all eight printed `Result: completed`, all eight tasks ended `completed`, all eight records were closed, and `aic validate` passed.
+- The suite grew from 433 to 448 tests. Twelve changes made one at a time were each caught by a test: `main` also locking `task run`, `task run` left unclassified, `task targets` treated as locking, `run_task` passing no guard, failed runs exiting 0, a lock failure after the adapter ran not being explained, a lock failure before it claiming the adapter ran, `--target` made optional, descriptions hidden from `targets`, the noop reason no longer admitting no work, a second adapter registered, and a changed result line.
+- Not built: any adapter that does real work, permissions, limits and timeouts. The adapter runs in the CLI process, so a hang would hang the command.
+
 ## After this decision
 
-Stage 3, the CLI, is next: `aic task run`, `aic task targets`, the `noop` adapter and the third command class (Decisions 1B, 3A and 4A), with the classification test and INV-20 updated. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
+The next designs are separate notes: a permissions model, out-of-process adapters with timeouts and limits (a prerequisite for any adapter with side effects), and a read-only listing of stale `running` tasks built on the recorded start time. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
