@@ -21,12 +21,10 @@ The current implementation provides:
 - Goal lifecycle reconciliation
 - Validation of persisted goal and task state
 - Task readiness evaluation
-- Execution admission, start, and outcome recording (library level)
-- Execution target selection and adapter registration (library level)
-- Execution coordination (library level)
+- Execution admission, start, and outcome recording, reached through `aic task run`
+- Execution target selection and adapter registration; the only adapter is `noop`, which does no work
+- Execution coordination, through `aic task run`
 - Deterministic local JSON persistence with atomic writes, a schema version, and a lock that keeps concurrent `aic` commands apart
-
-"Library level" means the component exists and is tested, but no CLI command invokes it yet.
 
 The current implementation does **not** provide:
 
@@ -80,9 +78,11 @@ aic task complete <task-id> [--reason "<text>"]   running -> completed
 aic task fail <task-id> [--reason "<text>"]       running -> failed
 aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
 aic task history <task-id>                  Show the recorded execution attempts for a task
+aic task run <task-id> --target <name>      Run a ready task through an execution target
+aic task targets                            List the execution targets (only noop exists)
 ```
 
-Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness` and `history` commands) takes an exclusive lock on the data directory for as long as it runs. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history` and `targets` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its only target, `noop`, marks a task completed without doing any work, so it proves the path and nothing else. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
 
 A minimal walkthrough:
 
