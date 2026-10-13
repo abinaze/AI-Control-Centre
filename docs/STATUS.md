@@ -52,7 +52,7 @@ After the finishing reason change the suite has 413 tests: the 398 above plus 15
 
 After the attempt identity change the suite has 425 tests: the 413 above plus 12 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the six code and test commits in that change and again after the documentation commits; the final run at `56ca375` gave 425 passed.
 
-After the coordinator state guard change the suite has 433 tests: the 425 above plus 8 new ones.
+After the coordinator state guard change the suite has 433 tests: the 425 above plus 8 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the three code and test commits in that change and again after the documentation commits; the final run at `a5e6068` gave 433 passed.
 
 ## Capability status
 
