@@ -54,7 +54,7 @@ After the attempt identity change the suite has 425 tests: the 413 above plus 12
 
 After the coordinator state guard change the suite has 433 tests: the 425 above plus 8 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the three code and test commits in that change and again after the documentation commits; the final run at `a5e6068` gave 433 passed.
 
-After the coordinator CLI the suite has 448 tests: the 433 above plus 15 new ones.
+After the coordinator CLI the suite has 448 tests: the 433 above plus 15 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `181a322` gave 448 passed.
 
 ## Capability status
 
