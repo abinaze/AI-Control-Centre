@@ -25,7 +25,7 @@ Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
 ## Phase 2 — Readiness and Execution Boundaries
 
-Status: Implemented at the library level
+Status: Implemented; the coordinator is reached from the CLI by `aic task run`, with one adapter that does no work
 
 - Task readiness evaluation
 - Explicit readiness reasons
@@ -42,7 +42,7 @@ Status: Implemented at the library level
 
 This phase establishes the execution control boundary without introducing unrestricted execution capabilities.
 
-"Implemented at the library level" is deliberate. The boundaries and the coordinator exist and are tested, but no CLI command invokes the coordinator (G6 in [docs/STATUS.md](docs/STATUS.md)). The manual lifecycle commands `aic task ready` and `aic task start` are gated by readiness; see Phase 2.5, Step 1.
+The boundaries and the coordinator were first built and tested at the library level, with no CLI command invoking the coordinator (G6 in [docs/STATUS.md](docs/STATUS.md)). `aic task run` now does, with a single `noop` adapter that does no work. The manual lifecycle commands `aic task ready` and `aic task start` are gated by readiness; see Phase 2.5, Step 1.
 
 ## Phase 2.5 — Boundary Hardening
 
@@ -91,7 +91,7 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: Planned
+Status: In progress. The coordinator CLI and a `noop` adapter are built. Real adapters, permissions, limits and timeouts are planned.
 
 Potential future work:
 
@@ -106,7 +106,7 @@ Potential future work:
 
 Phase 3 depends on Phase 2.5 Steps 1 and 5.
 
-The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. The first two are built (G12, stages 1 and 2). The command and the adapter are not.
+The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. Real adapters, permissions, limits and timeouts are not.
 
 ## Phase 4 — Validation and Recovery
 
