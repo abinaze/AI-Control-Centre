@@ -54,7 +54,8 @@ All notable changes to AI Control Centre are documented here.
 - Filled in `CODE_OF_CONDUCT.md`, which was empty, with the Contributor Covenant 2.1 (G9).
 - Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
 - Added `docs/TRANSITION_LOG_DESIGN.md`: a design note on status history, with options and a recommendation. Option A was accepted and is implemented; a full transition log is deferred to the Phase 3 design.
-- Added `docs/COORDINATOR_CLI_DESIGN.md`: a proposed design note for reaching the coordinator from the CLI, with options and a recommendation. Nothing is implemented.
+- Added `docs/COORDINATOR_CLI_DESIGN.md`: a design note for reaching the coordinator from the CLI, with options and a recommendation. Its three stages are built.
+- Added `docs/PROCESS_ADAPTERS_DESIGN.md`: a proposed design note for running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree, based on what happens today when an in-process adapter hangs or is interrupted. Nothing is implemented, and one decision waits for a check on Windows.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
