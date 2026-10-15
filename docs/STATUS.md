@@ -56,7 +56,7 @@ After the coordinator state guard change the suite has 433 tests: the 425 above 
 
 After the coordinator CLI the suite has 448 tests: the 433 above plus 15 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `181a322` gave 448 passed.
 
-After the process adapter change the suite has 480 tests: the 448 above plus 32 new ones.
+After the process adapter change the suite has 480 tests: the 448 above plus 32 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `9151a5e` gave 479 passed and 1 skipped. The skipped test is the one that applies only to Linux. The process adapter's own tests ran on Windows, including the ones that stop a real process tree with `taskkill /F /T`. A separate check, `check_kill.py`, passed on the same machine under Python 3.14.3, and its results are in [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md).
 
 ## Capability status
 
