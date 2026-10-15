@@ -190,6 +190,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/TRANSITION_LOG_DESIGN.md](docs/TRANSITION_LOG_DESIGN.md) | Design note on status history and a transition log; Option A implemented |
 | [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md) | Design note on reaching the execution coordinator from the CLI; implemented |
 | [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md) | Design note on out-of-process adapters, timeouts and limits; stages 1 and 2 built |
+| [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md) | Design note on which projects may use which execution targets; proposed |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
