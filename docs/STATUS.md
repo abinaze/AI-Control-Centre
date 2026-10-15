@@ -56,6 +56,8 @@ After the coordinator state guard change the suite has 433 tests: the 425 above 
 
 After the coordinator CLI the suite has 448 tests: the 433 above plus 15 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `181a322` gave 448 passed.
 
+After the process adapter change the suite has 480 tests: the 448 above plus 32 new ones.
+
 ## Capability status
 
 | Area | Status | Notes |
@@ -73,7 +75,8 @@ After the coordinator CLI the suite has 448 tests: the 433 above plus 15 new one
 | Execution outcome recording | Implemented | Used by `aic task run` |
 | Execution adapter registry | Implemented | Used by `aic task run` and `aic task targets`; adapters are registered in code |
 | Execution coordinator | Implemented | Reached from the CLI by `aic task run`, with the state lock held only around state operations |
-| Execution adapters | Implemented | One adapter, `noop`, which completes a task without doing any work. No adapter does real work, and there are no permissions, limits or timeouts |
+| Execution adapters | Implemented | One registered adapter, `noop`, which completes a task without doing any work. No adapter does real work, and there are no permissions |
+| Process adapter | Implemented (library) | `ProcessAdapter` runs a fixed command in a child process with a timeout, an output cap, a minimal environment, and the whole process tree stopped on a timeout or an interrupt. Nothing registers one yet. See G13 for its limits |
 | Concrete execution adapters | Planned | None exist; only test doubles |
 | Execution records: registry, library recording, and CLI recording | Implemented | `ExecutionRecordRegistry` in `executions.json`, next to the task file. `ExecutionStarter` and `aic task start` open an attempt record before the task moves to `running`. `ExecutionOutcomeRecorder`, `aic task complete`, `aic task fail` and `aic task requeue` close it after the task moves, with the outcome and its reason. `aic task complete` and `aic task fail` take an optional `--reason "<text>"`; a blank one is refused before anything changes |
 | Execution record validation and history | Implemented | `aic validate` checks the records and stays read-only. `aic task history <task-id>` lists a task's attempts, oldest first. The design is in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md) |
@@ -147,7 +150,7 @@ Still open:
 
 ### G6. The coordinator is unreachable from the CLI (closed; only a noop adapter exists)
 
-`aic --help` used to expose `doctor`, `validate`, `project`, `goal`, and `task` only. Nothing registered an adapter or invoked `ExecutionCoordinator`, and no concrete adapter existed. Now `aic task run <task-id> --target <name>` runs a ready task through the coordinator, and `aic task targets` lists the targets. The only target is `noop`, which completes the task without doing any work, so no real work can be run from the CLI yet. Permissions, limits and timeouts are not built, and the adapter runs inside the CLI process. The design, with the options that were weighed, is in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md). Options for running adapters out of process, with timeouts and output limits, are in [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md) (status: proposed).
+`aic --help` used to expose `doctor`, `validate`, `project`, `goal`, and `task` only. Nothing registered an adapter or invoked `ExecutionCoordinator`, and no concrete adapter existed. Now `aic task run <task-id> --target <name>` runs a ready task through the coordinator, and `aic task targets` lists the targets. The only target is `noop`, which completes the task without doing any work, so no real work can be run from the CLI yet. Permissions are not built, and the only registered adapter runs inside the CLI process. The design, with the options that were weighed, is in [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md). A process adapter, which runs an adapter out of process with a timeout and an output cap, is built and described in [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md); nothing registers one yet.
 
 ### G7. Unused configuration and scattered version string (partly closed)
 
@@ -189,6 +192,16 @@ Closed in the library: `ExecutionCoordinator` takes an optional `state_guard`, a
 
 Still open: a coordinator built without a guard still takes no lock, so any other caller of the library that runs more than one process must pass one.
 
+### G13. A process adapter cannot stop everything in some cases (documented limits)
+
+The process adapter stops the child and the processes it started when a run times out, writes too much output, or is interrupted. It has known limits. Nothing registers a process adapter yet, so none of them affects the CLI today.
+
+- If AIC itself is killed hard, the child and its tree keep running until they end. The task is left `running` with its attempt open, which is the safe crash shape. A Windows job object with kill-on-close would stop them. It was not built, because a child can start its own children before it is assigned to the job.
+- After a normal exit, processes that the child left behind are stopped on Linux, where the child's process group outlives it. On Windows nothing is done after a normal exit, because the tree is stopped only while the child is alive.
+- A process left behind that holds the output pipe open does not hang the adapter. It is left running.
+- `taskkill /F /T` stops the tree as it exists when it runs, so a process started at that moment could escape.
+- CPU and memory limits are not enforced. The defaults, 60 seconds, 1 MiB of output and 64 KiB of error output, are guesses and are set per target in code.
+
 ## Invariants
 
 These are the architectural rules the project is converging on. The table shows which are actually enforced.
@@ -218,6 +231,8 @@ These are the architectural rules the project is converging on. The table shows 
 | INV-21 | An outcome that names an attempt is applied only if that attempt is still the task's open attempt. Otherwise nothing changes and the outcome is refused as superseded. The coordinator names the attempt it started with every outcome, including the outcomes it builds for adapter errors. | Yes, in `ExecutionOutcomeRecorder.record` | `test_outcome_naming_the_open_attempt_is_recorded`, `test_outcome_for_a_superseded_attempt_is_refused`, `test_outcome_naming_an_attempt_needs_an_open_attempt`, `test_start_result_names_the_attempt_it_opened`, `test_late_outcome_does_not_change_a_newer_attempt` |
 | INV-22 | A coordinator that has a state guard enters it around the start and around each outcome recording, and never while an adapter runs. A coordinator without a guard takes no lock. | Yes, in `ExecutionCoordinator` | `test_guard_covers_the_start_and_the_outcome_but_not_the_adapter`, `test_guard_covers_a_refused_start`, `test_guard_is_not_entered_for_an_unknown_target`, `test_state_lock_is_free_while_the_adapter_runs`, `test_concurrent_coordinators_lose_no_updates` |
 | INV-23 | A self-locking command takes the state lock around each state operation and never while it runs something slow. `aic task run` holds it for the start and again for recording the outcome, and not while the adapter runs. If the lock cannot be taken to record the outcome, the task is left `running` with its attempt open, which is the shape a crash leaves, and the command says so. | Yes, in `run_task`, through the coordinator's state guard | `test_requeue_works_while_the_adapter_runs`, `test_run_fails_cleanly_while_the_lock_is_held`, `test_run_keeps_the_task_running_if_the_outcome_cannot_be_recorded`, `test_concurrent_runs_complete_every_task` |
+| INV-24 | A process adapter runs a fixed command in a child process and stops that child and the processes it started when the run takes too long, writes too much, or is interrupted. A timeout or too much output is a failed outcome with a reason. | Yes, in `ProcessAdapter` | `test_a_child_that_runs_too_long_is_stopped_and_fails`, `test_timeout_stops_the_whole_process_tree`, `test_output_over_the_limit_is_stopped_and_fails`, `test_an_interrupt_stops_the_process_tree`, `test_a_process_left_holding_the_output_does_not_hang_the_adapter`, `test_a_timed_out_run_fails_the_task_and_records_why` |
+| INV-25 | Nothing from a task reaches a child's command line or environment. The command is fixed in code, the request travels as JSON on standard input, and the child inherits only a short list of environment variables. | Yes, in `ProcessAdapter` and `child_environment` | `test_the_child_gets_only_the_allowed_environment`, `test_child_environment_keeps_only_listed_names`, `test_valid_outcome_is_returned_and_the_request_reaches_the_child` |
 
 Two invariants proposed in the research notes have nothing to enforce yet because the subsystems do not exist: "unauthorized tools cannot execute" (no tools or permissions) and "unverified cognitive knowledge cannot override policy" (no cognitive layer).
 
@@ -225,4 +240,4 @@ Two invariants proposed in the research notes have nothing to enforce yet becaus
 
 G1, G3 and G5 are closed, and G4 is mostly closed: only the transition history remains. G5 is closed for the operator path only; automatic detection of dead runs is still open. Execution records and file locking are built, and G11 is open. The remaining hardening step is in [ROADMAP.md](../ROADMAP.md), Phase 2.5: the rest of G4, which is a transition log.
 
-Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). The coordinator CLI is built as stage 3 of [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md), with a `noop` adapter only. The next designs, each its own note, are out-of-process adapters with timeouts and limits, which is [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md) (status: proposed), then permissions, and a read-only listing of stale `running` tasks. Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
+Recommended next: decide what to do about G11, either a small explicit command that closes an attempt left open for a finished task or accepting the manual edit, and then design a transition log as part of Phase 3, which is the rest of G4; the decision to defer it is in [TRANSITION_LOG_DESIGN.md](TRANSITION_LOG_DESIGN.md). The coordinator CLI is built as stage 3 of [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md), with a `noop` adapter only. The process adapter is built as stages 1 and 2 of [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md), and nothing registers one yet. The next designs, each its own note, are permissions, and a read-only listing of stale `running` tasks. No real adapter should be built before the permissions note. Timeouts and automatic detection of dead runs use the recorded start time and belong with the adapter and limits work in Phase 3, as a separate design.
