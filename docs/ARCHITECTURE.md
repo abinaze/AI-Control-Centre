@@ -51,7 +51,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process
 ```
 
 ## Core Lifecycle Model
@@ -167,6 +167,14 @@ The current architecture defines this as a protocol boundary. The only concrete 
 Adapter failures are handled by the coordinator and converted into a failed execution outcome.
 
 The coordinator can be given a state guard: a function that returns a context manager holding the state lock. It enters the guard around the start and around each outcome recording, and never while an adapter runs, so a person can still run `aic task requeue` during a long run. A coordinator without a guard takes no lock, so a caller of the library that runs more than one process must pass one.
+
+### Process adapters
+
+An adapter that runs inside the CLI process cannot be stopped if it hangs. `ProcessAdapter`, in `execution/process.py`, is an ordinary adapter that runs a fixed command in a child process instead, so the coordinator needs no change. The command is a list written in code. Nothing from a task is placed in it or in the child's environment. The request goes to the child as one JSON object on standard input, and the child answers with one JSON object on standard output and exit status 0.
+
+AIC stops the child, and the processes it started, when the run takes longer than its timeout, when standard output or standard error passes its cap, or when the command is interrupted. A timeout or too much output is a failed outcome with a reason, recorded like any other outcome. A non-zero exit, output that is not that object, and an unknown outcome are failed outcomes too. The child inherits only a short list of environment variables and runs in a new empty temporary directory that is removed afterwards.
+
+On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). Nothing registers a process adapter yet, and no real adapter should be built before permissions exist.
 
 ### Execution Outcome
 
