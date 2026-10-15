@@ -1,6 +1,6 @@
 # Design Note: Out-of-Process Adapters, Timeouts and Limits
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's decisions before any code is written, and Decision 3 stays open until a check has been run on Windows (see below). It is the second design note of Phase 3 in [ROADMAP.md](../ROADMAP.md), after [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md). It covers how the CLI can run an adapter that does real work without trusting that adapter to stop. Permissions are a separate note and are only given a hook here.
+**Status: Stages 1 and 2 are built.** The Windows check settled Decision 3, and the recommendations below were followed. What was built, and what was found while building it, is at the end of this note. It is the second design note of Phase 3 in [ROADMAP.md](../ROADMAP.md), after [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md). It covers how the CLI can run an adapter that does real work without trusting that adapter to stop. Permissions are a separate note and are only given a hook here.
 
 ## Problem
 
@@ -21,7 +21,7 @@ Moving the adapter into a child process makes a timeout possible, and a second s
 - **Output must be read in chunks.** `communicate()` kept all 20,000,000 bytes of a finite output in memory. A child that printed forever was stopped after 102,400 bytes with a cap of 100,000, by reading 4 KiB at a time.
 - **A JSON request and outcome with non-ASCII text round-tripped through stdin and stdout** as UTF-8 bytes.
 
-The same script has a Windows path for each step: `taskkill /F /T` and a job object with kill-on-close. Those have not been run, and Decision 3 depends on them.
+The same script was run on Windows (Python 3.14.3). `Popen.kill()` left the child's own child running there as well. `taskkill /F /T` stopped the child and its own child, and so did a job object with kill-on-close. `communicate(timeout=1)` timed out after 1.01 seconds and the child was reaped after the kill. A child that never stopped printing was stopped after 102,400 bytes with a cap of 100,000. The JSON request and outcome with non-ASCII text round-tripped as UTF-8 bytes.
 
 ## Facts about the current code
 
@@ -65,7 +65,7 @@ The same script has a Windows path for each step: `taskkill /F /T` and a job obj
 
 **Recommendation: 2A.**
 
-### Decision 3: Stopping the whole tree (open until the Windows check is run)
+### Decision 3: Stopping the whole tree
 
 **Option 3A: `taskkill /F /T` on Windows, and a new session with `killpg` elsewhere.** Standard library only. `taskkill` stops the tree as it exists when it runs, so a process started during the kill could escape. Nothing stops the tree if AIC itself is killed.
 
@@ -73,7 +73,7 @@ The same script has a Windows path for each step: `taskkill /F /T` and a job obj
 
 **Option 3C: `Popen.kill()` only.** It left the child's own child running in the Linux check. Rejected.
 
-**Recommendation: decide after `check_kill.py` has been run on Windows.** If `taskkill /F /T` passes, start with 3A and add a job object only if limits need it. If it fails and the job object passes, choose 3B. If both fail, this note is revised before any code.
+**Recommendation: 3A, and a job object only if limits need it.** Both `taskkill /F /T` and a job object worked on Windows. With both working, 3A is simpler: it needs only the standard library, and a job object has a start-up race, because a child can start its own children before it is assigned to the job. The cost of 3A is that nothing stops the tree if AIC itself is killed.
 
 ### Decision 4: Limits
 
@@ -117,7 +117,7 @@ Tests, using child scripts in the tests:
 
 ## Risks
 
-- **Windows is unverified.** Decision 3 cannot be settled without the check.
+- **Windows behaviour rests on one check.** `check_kill.py` passed on one machine. The adapter's own tests run on Windows when the maintainer runs the suite there.
 - **AIC being killed can leave an orphan.** On Linux, the child and its tree keep running if AIC is killed with SIGKILL. On Windows only a job object prevents this. The state is still the safe crash shape, and the orphan runs on until it ends.
 - **The default limits are guesses.** They are set per target, so a real adapter can change them.
 - **A cap can fail a legitimate run.** The contract keeps the result small, so a large output is more likely a mistake than a result.
@@ -128,12 +128,26 @@ Tests, using child scripts in the tests:
 
 1. Build the timeout in a `ProcessAdapter` wrapper (Option 1A)? Recommendation: yes.
 2. Use JSON over stdin and stdout with a fixed command in code (Option 2A)? Recommendation: yes.
-3. Run `check_kill.py` on Windows and paste the output, so Decision 3 can be made. Recommendation: yes, before any code.
+3. Run `check_kill.py` on Windows and paste the output, so Decision 3 can be made. Done: it passed, and Decision 3 follows the recommendation.
 4. Are the defaults acceptable: 60 seconds, 1 MiB of stdout and 64 KiB of stderr, per target in code? Recommendation: yes.
 5. Defer CPU and memory limits until a real adapter needs them? Recommendation: yes.
 6. Stop the tree on an interrupt and print a message, without recording an outcome? Recommendation: yes.
 7. Ship no real process adapter until the permissions note exists? Recommendation: yes.
 
+## Stages 1 and 2: built
+
+Everything in this section was observed on Linux, except what is said about Windows.
+
+- `execution/process.py` holds `ProcessAdapter(command, description=, timeout_seconds=60, stdout_limit=1 MiB, stderr_limit=64 KiB)`. The command is a fixed list in code. The request goes to the child as one JSON object on standard input, and the child answers with one JSON object on standard output and exit status 0.
+- Anything else is a failed outcome with a reason: `adapter timed out after N seconds`, `adapter output exceeded N bytes`, `adapter error output exceeded N bytes`, `adapter exited with status N`, `adapter output was not valid UTF-8`, `adapter output was not valid JSON`, `adapter output was not a JSON object`, `adapter reported an unknown outcome`, or `adapter reason was not text`. A failure includes up to 300 characters of the child's standard error. A reason is shortened to 1000 characters.
+- The child inherits only `PATH`, `SYSTEMROOT`, `TEMP`, `TMP`, `LANG` and `LC_ALL`, and runs in a new empty temporary directory that is removed afterwards.
+- On Linux the child starts in its own session and the whole group is stopped, also after a normal exit, so a process the child left behind is stopped too. On Windows the tree is stopped with `taskkill /F /T` while the child is alive, and nothing is done after a normal exit.
+- On an interrupt the tree is stopped in a `finally` block. `aic task run` catches `KeyboardInterrupt`, prints `Interrupted.` and a line saying how to recover, and exits 130. No outcome is recorded, so the task stays `running` with its attempt open, which `aic task requeue`, `complete` or `fail` recovers.
+- Nothing registers a process adapter, so the real CLI cannot reach one yet. It was run through a small harness that registers one. A child that sleeps was stopped after 2 seconds: `Result: failed`, `Reason: adapter timed out after 2 seconds`, exit status 1, the attempt closed as `failed` with the same reason, and `aic validate` passed. Ctrl-C with a live child and grandchild ended with exit status 130 and the message, the task `running`, the attempt open, `aic validate` passing, and both processes gone. Ten timeout and interrupt runs left no process behind.
+- A bug was found by a mutation test. With the group stop removed, a process left behind held the output pipe open, and the adapter then closed a pipe that a reader thread was still blocked on, which waits forever. On Windows, where nothing is stopped after a normal exit, this could have hung the adapter. It now closes only the pipes whose reader has finished, and a test pins it with the group stop disabled.
+- The suite grew from 448 to 480 tests. Changes made one at a time were each caught by a test: no group stop, pipes closed unconditionally, the whole environment inherited, the current directory used, a non-zero exit ignored, an unknown outcome accepted, a long reason not shortened, stderr left out of a failure, the request not sent, the interrupt not caught, and the interrupt exiting 1. Two other changes, leaving out the stop call in the cleanup path, can only be seen on Windows, because on Linux the group is stopped in two places.
+- Not built: a process adapter that does real work, permissions, a job object, and CPU and memory limits.
+
 ## After this decision
 
-The Windows check comes first. Then the `ProcessAdapter`, as stage 1. If a different option is chosen anywhere above, this note is revised and approved again before any code.
+No real process adapter is built until the permissions note exists. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
