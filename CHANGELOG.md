@@ -36,6 +36,8 @@ All notable changes to AI Control Centre are documented here.
 - `ExecutionCoordinator` accepts an optional `state_guard`, a function that returns a context manager holding the state lock. The coordinator enters it around the start and around each outcome recording, and never while an adapter runs. Without a guard it behaves as before. Before this, eight coordinators run at once lost updates: several reported `completed` while one task was.
 - Added `aic task run <task-id> --target <name>`, which runs a ready task through the execution coordinator and prints the task, the target, a result (`completed`, `failed` or `rejected`) and a reason. It exits 0 only for `completed`. `--target` is required. Added `aic task targets`, which lists the registered targets. The only target is `noop`, a new adapter in `execution/adapters.py` that completes the task without doing any work and says so in its reason. Adapters are registered in code, never loaded from configuration.
 - `aic task run` is the first self-locking command. `main` does not hold the state lock for its whole run. The command takes it for the start and again for recording the outcome, and never while the adapter runs, so `aic task requeue` and every other command still work during a run. If the lock cannot be taken to record the outcome, the command says that the adapter has run, and the task is left `running` with its attempt open, the shape a crash leaves. `SELF_LOCKING_COMMANDS` in `cli.py` lists such commands, and the classification test checks all three classes.
+- Added `ProcessAdapter` in `execution/process.py`, an adapter that runs a fixed command in a child process. AIC writes the request as one JSON object to the child's standard input and reads one JSON object from its standard output. A timeout, too much output, a non-zero exit, output that is not that object and an unknown outcome are failed outcomes with a reason. The child gets a short list of environment variables and runs in a new empty temporary directory. When a run times out, writes too much, or is interrupted, the child and the processes it started are stopped. Nothing registers a process adapter yet.
+- `aic task run` now catches Ctrl-C. It prints `Interrupted.` and how to recover, and exits 130, instead of printing a traceback. No outcome is recorded, and the task stays `running` with its attempt open.
 
 ### Documentation
 
@@ -55,7 +57,7 @@ All notable changes to AI Control Centre are documented here.
 - Added a private reporting channel to `SECURITY.md`: the "Report a vulnerability" button on the repository's Security tab.
 - Added `docs/TRANSITION_LOG_DESIGN.md`: a design note on status history, with options and a recommendation. Option A was accepted and is implemented; a full transition log is deferred to the Phase 3 design.
 - Added `docs/COORDINATOR_CLI_DESIGN.md`: a design note for reaching the coordinator from the CLI, with options and a recommendation. Its three stages are built.
-- Added `docs/PROCESS_ADAPTERS_DESIGN.md`: a proposed design note for running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree, based on what happens today when an in-process adapter hangs or is interrupted. Nothing is implemented, and one decision waits for a check on Windows.
+- Added `docs/PROCESS_ADAPTERS_DESIGN.md`: a design note for running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree, based on what happens today when an in-process adapter hangs or is interrupted. Its first two stages are built, after a check on Windows settled how to stop a process tree.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
@@ -63,7 +65,7 @@ All notable changes to AI Control Centre are documented here.
 - The state lock is advisory and works only between `aic` processes. It does not protect against hand edits or sync tools, and is not reliable on network file systems.
 - There is no history of status changes other than execution attempts (the rest of G4).
 - The execution coordinator takes no state lock unless it is given a `state_guard` (G12). `aic task run` passes one. Other code that calls the library directly must pass its own.
-- `noop` is the only adapter. It can mark a task `completed` when no work was done, and its reason says so. There are no permissions, limits or timeouts, and the adapter runs in the CLI process.
+- `noop` is the only registered adapter. It can mark a task `completed` when no work was done, and its reason says so. There are no permissions, and it runs in the CLI process. A `ProcessAdapter` with a timeout and an output cap exists, but nothing registers one. Its limits are listed as G13 in `docs/STATUS.md`.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone.
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
 
