@@ -58,6 +58,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/TRANSITION_LOG_DESIGN.md`: a design note on status history, with options and a recommendation. Option A was accepted and is implemented; a full transition log is deferred to the Phase 3 design.
 - Added `docs/COORDINATOR_CLI_DESIGN.md`: a design note for reaching the coordinator from the CLI, with options and a recommendation. Its three stages are built.
 - Added `docs/PROCESS_ADAPTERS_DESIGN.md`: a design note for running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree, based on what happens today when an in-process adapter hangs or is interrupted. Its first two stages are built, after a check on Windows settled how to stop a process tree.
+- Added `docs/PERMISSIONS_DESIGN.md`: a proposed design note on which projects may use which execution targets, where that is enforced, and what it cannot protect against. Nothing is implemented.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
