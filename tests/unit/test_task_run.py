@@ -434,3 +434,37 @@ def test_concurrent_runs_complete_every_task(tmp_path, monkeypatch) -> None:
     assert all(record.target == "noop" for record in records)
     assert not any(record.is_open for record in records)
     assert run_cli(monkeypatch, tmp_path, "validate") == 0
+
+
+def test_run_prints_a_message_when_interrupted(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """Ctrl-C ends the command with a message, not a traceback."""
+    task = _make_task(tmp_path)
+
+    def interrupt():
+        raise KeyboardInterrupt
+
+    _use_adapter(monkeypatch, Scripted(during=interrupt))
+
+    result = run_cli(
+        monkeypatch,
+        tmp_path,
+        "task",
+        "run",
+        task.id,
+        "--target",
+        "scripted",
+    )
+
+    output = capsys.readouterr().out
+    attempts = _attempts(tmp_path, task.id)
+
+    assert result == 130
+    assert "Interrupted." in output
+    assert "aic task complete, fail, or requeue" in output
+    assert _status(tmp_path, task.id) == "running"
+    assert len(attempts) == 1
+    assert attempts[0].is_open
