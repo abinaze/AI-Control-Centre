@@ -91,7 +91,7 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI and a `noop` adapter are built. Real adapters, permissions, limits and timeouts are planned.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Real adapters and permissions are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
@@ -106,9 +106,9 @@ Potential future work:
 
 Phase 3 depends on Phase 2.5 Steps 1 and 5.
 
-The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. Real adapters, permissions, limits and timeouts are not.
+The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. Real adapters and permissions are not built.
 
-The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree.
+The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree. Its first two stages are built. Nothing registers a process adapter yet.
 
 ## Phase 4 — Validation and Recovery
 
