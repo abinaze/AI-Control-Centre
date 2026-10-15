@@ -110,6 +110,8 @@ The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_D
 
 The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree. Its first two stages are built. Nothing registers a process adapter yet.
 
+The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
