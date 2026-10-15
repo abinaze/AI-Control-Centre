@@ -1,0 +1,125 @@
+# Design Note: Permissions
+
+**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's decisions before any code is written. It is the third design note of Phase 3 in [ROADMAP.md](../ROADMAP.md), after [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) and [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. No real adapter should be built before this is settled.
+
+## Problem
+
+The only registered target is `noop`, which does nothing. The next adapter will do something, and a ready task can then start it. Today nothing says which tasks may use which target.
+
+This was checked on the current code (Linux sandbox). Two projects were registered, each with a goal and a ready task. `aic task run --target noop` completed both. Admission, `ExecutionAdmission.evaluate`, looks at whether the task is ready and at nothing else. It never looks at the target or the project. With an adapter that does real work, any ready task in any project could run it.
+
+The control principle is that AI proposes and AIC controls. A task can come from anyone, so what automation may run has to be decided by a person, before the run, and recorded.
+
+There is a limit that the note has to state plainly. The CLI cannot tell who is typing. A confirmation prompt was tested: a program that pipes the answer to the prompt confirms it, and only a program with no standard input at all is refused (`EOFError`). A check that a terminal is attached would stop a careless script but not a deliberate one, and it may not work in Git Bash, where Python can see a pipe instead of a terminal. So permissions here are a policy for what automation runs, and a record of who allowed it. They are not a defence against a hostile process that runs as the same operating system user and can run `aic` itself.
+
+## Facts about the current code
+
+- A goal names its project, a project is found by name (`ProjectRegistry.get_project`), and a task belongs to a goal. A task's project is therefore reachable. `aic goal create` refuses an unregistered project, and `aic validate` reports a goal that points at one.
+- The coordinator resolves the adapter for a target before it starts anything, and an unknown target is refused without touching state.
+- `ExecutionStarter.start` runs admission and then writes, inside one entry of the state guard. A check made in admission therefore sees the same state that the start then changes.
+- `ExecutionRequest` is a frozen record with a task ID and a target.
+- An adapter is any object with `execute`. It can carry other attributes, as `noop` carries a description.
+- State is held in versioned JSON files under the state lock: projects, goals, tasks and executions. A refused request or command changes nothing (INV-1, INV-18).
+
+## Requirements
+
+1. A target that does real work cannot run for a project until a person has allowed it. Absence of a grant means no.
+2. The check happens before an attempt opens, in the same critical section as the start, so a refusal writes nothing and a grant cannot change between the check and the start.
+3. A grant is recorded with when it was made and why, and keeps its history when it is revoked.
+4. The check cannot be skipped by a caller that builds a request itself. The safe default is to require a grant.
+5. `aic validate` can find a grant that refers to something that no longer exists.
+6. The notes and the documents do not claim more than this gives. They say it is a policy, not a defence against a process with the same operating system rights.
+7. Standard library only, Windows and Linux.
+
+## Decisions
+
+### Decision 1: What is permitted
+
+**Option 1A: a grant per project and target.** "Project `alpha` may use target `shell`." Nothing is allowed until granted. A target can declare that it needs no grant, which `noop` does, because it does nothing.
+
+**Option 1B: an approval per task.** A person approves every run. The strongest control and the heaviest. It makes automation a series of confirmations. It can be added later on top of 1A.
+
+**Option 1C: a switch per target, for all projects.** Simple, and too coarse. Allowing a target for one project would allow it everywhere.
+
+**Option 1D: each adapter decides for itself.** A check that every adapter has to remember to make. Rejected: a new adapter would be unsafe by default.
+
+**Recommendation: 1A.**
+
+### Decision 2: Where grants are kept
+
+**Option 2A: a state file, `permissions.json`.** Versioned like the others, written under the state lock, shown by commands, and checked by `aic validate`. It is the fifth state file, and it needs a schema version, a registry, validation and tests.
+
+**Option 2B: a fixed policy in code.** A grant is a commit. Nothing to validate, and a person has to change the code to allow anything. Too rigid for a local tool.
+
+**Option 2C: environment variables or a settings file.** Easy to change and easy to get wrong silently. Rejected.
+
+**Recommendation: 2A.**
+
+### Decision 3: Where the check is made
+
+In admission, which already runs inside the start. The coordinator reads whether the resolved adapter needs a grant, from an attribute on the adapter that defaults to "yes", and sets it on the request. `ExecutionRequest` gains a field, `requires_grant`, which also defaults to "yes", so a caller that builds a request by hand is checked. Admission then finds the task's goal and project and asks whether an active grant exists. A task whose project is not registered is refused.
+
+The refusal reads `target X is not granted for project Y`, changes nothing, and is reported as `rejected` by `aic task run`.
+
+**Recommendation: as described.**
+
+### Decision 4: Who may grant
+
+**Option 4A: plain commands with a required reason.** `aic permission grant <project> --target <name> --reason "<text>"`, `revoke` and `list`. The grant records when it was made and why. The documents say what this does not protect against.
+
+**Option 4B: a confirmation prompt.** Friction only, as tested above. It can annoy a person and it does not stop a program, so it would suggest a protection that is not there. Rejected.
+
+**Option 4C: separation by the operating system.** Keep the state files where only another account can write them. This is the only real separation and it is outside what AIC does.
+
+**Recommendation: 4A.** Any later integration that lets an AI propose tasks must not expose the `permission` commands to it. That belongs to that integration's design.
+
+### Decision 5: The record
+
+Each grant has an `id`, a `project`, a `target`, `granted_at`, a `reason` and `revoked_at`. A grant is active while `revoked_at` is empty. Revoking sets it and deletes nothing, so the history stays. Granting something that is already active is refused. Granting needs a registered project and a registered target, so a typo is caught when it is made. `aic validate` reports a grant for a project that is not registered, a repeated ID, and an active duplicate. A grant for a target that the code no longer registers is reported too.
+
+**Recommendation: as described.**
+
+### Decision 6: What a grant does not cover
+
+A grant says that a target may run for a project. It does not say what the adapter may touch. How an adapter learns a project path, which directory it runs in, and what it may reach are decisions for the note on the first real adapter. A revoke stops later runs and does not stop a run that has already started. Limits stay set per target in code.
+
+## Recommended order
+
+1. **The request field and the check**, library only: `requires_grant` on `ExecutionRequest`, the adapter attribute, and admission asking a grant source. A grant source that holds grants in memory is enough for the tests.
+2. **The registry**: `permissions.json`, its schema version, its model and registry, and `aic validate`.
+3. **The CLI**: `aic permission grant`, `revoke` and `list`, and `aic task targets` showing which targets need a grant.
+4. **Documentation**, including a new invariant, and the limit stated in the security policy.
+
+Tests:
+
+- A target that needs a grant is refused for a project with none, nothing is written, and the reason names the target and the project.
+- With an active grant the run goes ahead. After a revoke it is refused again. A grant for one project does not allow another.
+- A request built by hand with no `requires_grant` is checked. `noop`, which says it needs none, runs without a grant.
+- A task whose project is not registered is refused.
+- A grant cannot change between the check and the start: the check and the start share one guard entry.
+- The registry round trips, keeps revoked grants, and refuses an active duplicate and an unregistered project or target.
+- `aic validate` reports each problem above and passes on a clean state.
+- The classification test covers `permission grant` and `revoke` as locking and `list` as read-only.
+- Eight `aic task run` processes with a grant in place all complete.
+
+## Risks
+
+- **It cannot tell a person from a program.** Stated above and to be repeated in the security policy.
+- **A fifth state file.** More to keep consistent, validated and documented.
+- **Deny by default can be tiresome.** Only targets that do real work need a grant, and a grant is one command.
+- **A revoke does not stop a run in progress.** It affects the next run.
+- **A target that is renamed in code leaves its grants pointing at nothing.** `aic validate` reports them.
+- **Time-limited grants, roles and users are not covered.** They would need an identity that does not exist yet.
+
+## Open questions for the maintainer
+
+1. Grants per project and target, deny by default, with `noop` exempt (Option 1A)? Recommendation: yes.
+2. Keep them in a versioned `permissions.json` (Option 2A)? Recommendation: yes.
+3. Check in admission, with `requires_grant` on the request defaulting to "yes" (Decision 3)? Recommendation: yes.
+4. Plain commands with a required reason and no confirmation prompt, and a plain statement of the limit (Option 4A)? Recommendation: yes.
+5. Keep revoked grants as history (Decision 5)? Recommendation: yes.
+6. Leave what an adapter may touch to the note on the first real adapter (Decision 6)? Recommendation: yes.
+
+## After this decision
+
+Stage 1 is first and touches only the library. If a different option is chosen anywhere above, this note is revised and approved again before any code.
