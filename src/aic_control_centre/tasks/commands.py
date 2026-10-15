@@ -456,6 +456,13 @@ def run_task(task_id: str, target: str) -> int:
             "Use aic task complete, fail, or requeue."
         )
         return 1
+    except KeyboardInterrupt:
+        print("Interrupted.")
+        print(
+            "Check the task with aic task status. If it is running, "
+            "use aic task complete, fail, or requeue."
+        )
+        return 130
 
     print(f"Task: {result.task_id}")
     print(f"Target: {target.strip()}")
