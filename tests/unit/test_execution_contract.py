@@ -111,3 +111,21 @@ def test_execution_result_rejects_empty_reason(reason):
             accepted=False,
             reason=reason,
         )
+
+
+def test_request_requires_a_grant_by_default() -> None:
+    """A request built by hand is checked unless it says otherwise."""
+    request = ExecutionRequest(task_id="task-1", target="test")
+
+    assert request.requires_grant is True
+
+
+def test_request_can_say_that_no_grant_is_needed() -> None:
+    """A request for a target that does nothing can say so."""
+    request = ExecutionRequest(
+        task_id="task-1",
+        target="test",
+        requires_grant=False,
+    )
+
+    assert request.requires_grant is False
