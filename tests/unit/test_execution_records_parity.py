@@ -44,6 +44,15 @@ def _shape(record) -> tuple:
     )
 
 
+def request_for(task_id):
+    """Build a request for a target that needs no grant."""
+    return ExecutionRequest(
+        task_id=task_id,
+        target="test",
+        requires_grant=False,
+    )
+
+
 def _setup(tmp_path, monkeypatch):
     """Build two ready tasks, one for each route, in shared registries."""
     goal_registry = GoalRegistry(tmp_path / "goals.json")
@@ -106,7 +115,7 @@ def test_cli_and_library_record_an_attempt_alike(
     )
 
     assert start_task(cli_task.id) == 0
-    starter.start(ExecutionRequest(task_id=library_task.id, target="test"))
+    starter.start(request_for(library_task.id))
 
     opened_cli = records.list_attempts(cli_task.id)
     opened_library = records.list_attempts(library_task.id)
@@ -139,7 +148,7 @@ def test_only_the_route_and_target_differ_between_routes(
     )
 
     assert start_task(cli_task.id) == 0
-    starter.start(ExecutionRequest(task_id=library_task.id, target="test"))
+    starter.start(request_for(library_task.id))
 
     cli_record = records.list_attempts(cli_task.id)[0]
     library_record = records.list_attempts(library_task.id)[0]
@@ -167,7 +176,7 @@ def test_cli_and_library_abandon_a_stale_attempt_alike(
     records.open_attempt(library_task.id, EXECUTION_SOURCE_CLI)
 
     assert start_task(cli_task.id) == 0
-    starter.start(ExecutionRequest(task_id=library_task.id, target="test"))
+    starter.start(request_for(library_task.id))
 
     cli_records = records.list_attempts(cli_task.id)
     library_records = records.list_attempts(library_task.id)
@@ -199,7 +208,7 @@ def test_cli_and_library_keep_a_finishing_reason_alike(
     )
 
     assert start_task(cli_task.id) == 0
-    starter.start(ExecutionRequest(task_id=library_task.id, target="test"))
+    starter.start(request_for(library_task.id))
 
     assert cli_finish(cli_task.id, reason="  disk was full  ") == 0
     recorder.record(

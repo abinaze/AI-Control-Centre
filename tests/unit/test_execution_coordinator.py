@@ -38,6 +38,7 @@ from aic_control_centre.tasks.registry import TaskRegistry
 class FakeExecutionAdapter:
     outcome: str
     reason: str = ""
+    requires_grant = False
 
     def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
         return ExecutionOutcome(
@@ -175,6 +176,8 @@ def test_coordinator_does_not_execute_rejected_task(tmp_path) -> None:
     task_registry.add_task(task)
 
     class FailingAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             raise AssertionError("adapter must not execute rejected task")
 
@@ -219,6 +222,8 @@ def test_coordinator_passes_request_to_adapter(tmp_path) -> None:
     received = []
 
     class RecordingAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             received.append(request)
 
@@ -350,6 +355,8 @@ def test_coordinator_records_adapter_exception_as_failed(tmp_path) -> None:
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
     class FailingAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             raise RuntimeError("adapter crashed")
 
@@ -394,6 +401,8 @@ def test_coordinator_fails_task_when_adapter_returns_wrong_task(
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
     class MismatchedAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             return ExecutionOutcome(
                 task_id="different-task",
@@ -443,6 +452,8 @@ def test_coordinator_fails_task_when_adapter_returns_invalid_result(
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
     class InvalidAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest):
             return None
 
@@ -568,6 +579,8 @@ def test_coordinator_keeps_the_adapter_failure_reason(tmp_path) -> None:
     goal_registry, task_registry, task = make_ready_task(tmp_path)
 
     class FailingAdapter:
+        requires_grant = False
+
         def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
             raise RuntimeError("adapter crashed")
 

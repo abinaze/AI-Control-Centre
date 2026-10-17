@@ -27,6 +27,15 @@ from aic_control_centre.tasks.model import (
 from aic_control_centre.tasks.registry import TaskRegistry
 
 
+def request_for(task_id):
+    """Build a request for a target that needs no grant."""
+    return ExecutionRequest(
+        task_id=task_id,
+        target="test",
+        requires_grant=False,
+    )
+
+
 def build_starter(tmp_path):
     """Build an execution starter backed by isolated registries."""
     goal_registry = GoalRegistry(tmp_path / "goals.json")
@@ -74,7 +83,7 @@ def test_ready_task_is_started(tmp_path):
     starter, task_registry, task = create_ready_task(tmp_path)
 
     result = starter.start(
-        ExecutionRequest(task_id=task.id, target="test"),
+        request_for(task.id),
     )
 
     assert result.task_id == task.id
@@ -107,7 +116,7 @@ def test_pending_task_is_not_started(tmp_path):
     assert before.status == TASK_STATUS_PENDING
 
     result = starter.start(
-        ExecutionRequest(task_id=task.id, target="test"),
+        request_for(task.id),
     )
 
     after = task_registry.get_task(task.id)
@@ -124,7 +133,7 @@ def test_missing_task_is_not_started(tmp_path):
     starter, _, _ = build_starter(tmp_path)
 
     result = starter.start(
-        ExecutionRequest(task_id="missing-task", target="test"),
+        request_for("missing-task"),
     )
 
     assert result.task_id == "missing-task"
@@ -137,7 +146,7 @@ def test_start_persists_running_status(tmp_path):
     starter, task_registry, task = create_ready_task(tmp_path)
 
     starter.start(
-        ExecutionRequest(task_id=task.id, target="test"),
+        request_for(task.id),
     )
 
     persisted = json.loads(
@@ -190,7 +199,7 @@ def test_started_task_opens_an_attempt_record(tmp_path):
     """Starting a task opens an attempt for it."""
     starter, _, task = create_ready_task(tmp_path)
 
-    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+    starter.start(request_for(task.id))
 
     records = starter.record_registry.list_attempts(task.id)
 
@@ -205,7 +214,7 @@ def test_attempt_records_are_stored_beside_the_task_file(tmp_path):
     """The records file sits next to the task registry file."""
     starter, _, task = create_ready_task(tmp_path)
 
-    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+    starter.start(request_for(task.id))
 
     assert (tmp_path / "executions.json").exists()
 
@@ -215,7 +224,7 @@ def test_rejected_start_writes_no_attempt_record(tmp_path):
     starter, _, _ = create_ready_task(tmp_path)
 
     result = starter.start(
-        ExecutionRequest(task_id="missing-task", target="test"),
+        request_for("missing-task"),
     )
 
     assert result.started is False
@@ -227,7 +236,7 @@ def test_start_abandons_a_stale_open_attempt(tmp_path):
     starter, _, task = create_ready_task(tmp_path)
     starter.record_registry.open_attempt(task.id, EXECUTION_SOURCE_CLI)
 
-    starter.start(ExecutionRequest(task_id=task.id, target="test"))
+    starter.start(request_for(task.id))
 
     records = starter.record_registry.list_attempts(task.id)
 
@@ -248,7 +257,7 @@ def test_failed_attempt_write_leaves_the_task_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(starter.record_registry, "open_attempt", fail_open)
 
     with pytest.raises(OSError, match="simulated crash"):
-        starter.start(ExecutionRequest(task_id=task.id, target="test"))
+        starter.start(request_for(task.id))
 
     assert task_registry.get_task(task.id).status == TASK_STATUS_READY
 
@@ -263,7 +272,7 @@ def test_failed_task_update_leaves_an_open_attempt(tmp_path, monkeypatch):
     monkeypatch.setattr(task_registry, "update_task_status", fail_update)
 
     with pytest.raises(OSError, match="simulated crash"):
-        starter.start(ExecutionRequest(task_id=task.id, target="test"))
+        starter.start(request_for(task.id))
 
     assert task_registry.get_task(task.id).status == TASK_STATUS_READY
     assert starter.record_registry.get_open_attempt(task.id) is not None
@@ -273,7 +282,7 @@ def test_start_result_names_the_attempt_it_opened(tmp_path):
     """A started task's result carries the ID of its open attempt."""
     starter, _, task = create_ready_task(tmp_path)
 
-    result = starter.start(ExecutionRequest(task_id=task.id, target="test"))
+    result = starter.start(request_for(task.id))
 
     opened = starter.record_registry.get_open_attempt(task.id)
 
@@ -286,7 +295,7 @@ def test_rejected_start_result_names_no_attempt(tmp_path):
     starter, task_registry, task = create_ready_task(tmp_path)
     task_registry.update_task_status(task.id, TASK_STATUS_RUNNING)
 
-    result = starter.start(ExecutionRequest(task_id=task.id, target="test"))
+    result = starter.start(request_for(task.id))
 
     assert result.started is False
     assert result.attempt_id is None

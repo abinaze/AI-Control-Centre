@@ -34,6 +34,8 @@ def run_cli(monkeypatch, data_dir, *arguments):
 class Scripted:
     """An adapter that does what the test tells it to."""
 
+    requires_grant = False
+
     def __init__(self, behavior="completed", during=None):
         self.behavior = behavior
         self.during = during

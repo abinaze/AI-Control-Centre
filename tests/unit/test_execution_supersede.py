@@ -32,6 +32,8 @@ from aic_control_centre.tasks.registry import TaskRegistry
 class OperatorDuringRun:
     """An adapter that lets a person act on the task while it runs."""
 
+    requires_grant = False
+
     def __init__(self, actions, behavior="completed"):
         self.actions = actions
         self.behavior = behavior

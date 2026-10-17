@@ -55,7 +55,10 @@ def test_run_with_a_child_process_adapter_completes_the_task(
     capsys,
 ) -> None:
     """A result from a child process is recorded like any other."""
-    adapter = ProcessAdapter([sys.executable, "-c", ECHO_CHILD])
+    adapter = ProcessAdapter(
+        [sys.executable, "-c", ECHO_CHILD],
+        requires_grant=False,
+    )
     task = _setup(tmp_path, monkeypatch, adapter)
 
     result = run_cli(
@@ -86,6 +89,7 @@ def test_a_timed_out_run_fails_the_task_and_records_why(
     """The CLI stops a hung child, and the task and record say so."""
     adapter = ProcessAdapter(
         [sys.executable, "-c", "import time; time.sleep(60)"],
+        requires_grant=False,
         timeout_seconds=1,
     )
     task = _setup(tmp_path, monkeypatch, adapter)

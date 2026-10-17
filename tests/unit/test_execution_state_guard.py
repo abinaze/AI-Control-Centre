@@ -45,6 +45,8 @@ class Journal:
 class JournalAdapter:
     """An adapter that writes to the journal and then behaves as told."""
 
+    requires_grant = False
+
     def __init__(self, journal, behavior="completed"):
         self.journal = journal
         self.behavior = behavior
@@ -72,6 +74,8 @@ class JournalAdapter:
 
 class LockProbe:
     """An adapter that needs the state lock while it runs."""
+
+    requires_grant = False
 
     def __init__(self, data_dir):
         self.data_dir = data_dir
@@ -208,6 +212,8 @@ from aic_control_centre.locking import state_lock
 
 
 class Instant:
+    requires_grant = False
+
     def execute(self, request):
         return ExecutionOutcome(
             task_id=request.task_id,
