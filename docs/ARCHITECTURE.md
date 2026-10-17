@@ -51,7 +51,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants
 ```
 
 ## Core Lifecycle Model
@@ -175,6 +175,12 @@ An adapter that runs inside the CLI process cannot be stopped if it hangs. `Proc
 AIC stops the child, and the processes it started, when the run takes longer than its timeout, when standard output or standard error passes its cap, or when the command is interrupted. A timeout or too much output is a failed outcome with a reason, recorded like any other outcome. A non-zero exit, output that is not that object, and an unknown outcome are failed outcomes too. The child inherits only a short list of environment variables and runs in a new empty temporary directory that is removed afterwards.
 
 On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). Nothing registers a process adapter yet, and no real adapter should be built before permissions exist.
+
+### Grants
+
+A target that does real work must not run for a project until a person has allowed it. `ExecutionRequest` has a `requires_grant` field that defaults to true, and an adapter can declare `requires_grant`. An adapter that says nothing is treated as needing a grant, and `noop`, which does nothing, declares that it needs none. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
+
+Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. The grant registry, its commands and its validation are not built yet, so nothing can be granted. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
 
 ### Execution Outcome
 
