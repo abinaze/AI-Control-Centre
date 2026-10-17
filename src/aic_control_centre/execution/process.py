@@ -210,6 +210,7 @@ class ProcessAdapter:
         command: Sequence[str],
         *,
         description: str = "",
+        requires_grant: bool = True,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         stdout_limit: int = DEFAULT_STDOUT_LIMIT,
         stderr_limit: int = DEFAULT_STDERR_LIMIT,
@@ -229,6 +230,7 @@ class ProcessAdapter:
 
         self.command = arguments
         self.description = description
+        self.requires_grant = requires_grant
         self.timeout_seconds = timeout_seconds
         self.stdout_limit = stdout_limit
         self.stderr_limit = stderr_limit

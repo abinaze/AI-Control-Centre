@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from aic_control_centre.execution.contract import ExecutionRequest
 from aic_control_centre.execution.outcome import (
@@ -96,8 +96,13 @@ class ExecutionCoordinator:
                 reason=str(exc).strip("'"),
             )
 
+        start_request = replace(
+            request,
+            requires_grant=getattr(adapter, "requires_grant", True),
+        )
+
         with self.state_guard():
-            start_result = self.starter.start(request)
+            start_result = self.starter.start(start_request)
 
         if not start_result.started:
             return ExecutionCoordinateResult(

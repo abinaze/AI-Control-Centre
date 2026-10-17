@@ -23,6 +23,9 @@ class NoopAdapter:
 
     description = "completes the task at once; no work is done"
 
+    # It does nothing, so no project needs permission to use it.
+    requires_grant = False
+
     def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
         """Return a completed outcome for the requested task."""
         return ExecutionOutcome(
