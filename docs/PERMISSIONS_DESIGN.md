@@ -1,6 +1,6 @@
 # Design Note: Permissions
 
-**Status: Proposed.** Nothing in this note is implemented. It needs the maintainer's decisions before any code is written. It is the third design note of Phase 3 in [ROADMAP.md](../ROADMAP.md), after [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) and [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. No real adapter should be built before this is settled.
+**Status: Stage 1 is built; the rest is proposed.** Stage 1, the check in admission, is built, and what happened is at the end of this note. The grant registry, the commands and the checks in `aic validate` are not built, so nothing can be granted yet. The decisions behind them need the maintainer's acceptance before any further code is written. It is the third design note of Phase 3 in [ROADMAP.md](../ROADMAP.md), after [COORDINATOR_CLI_DESIGN.md](COORDINATOR_CLI_DESIGN.md) and [PROCESS_ADAPTERS_DESIGN.md](PROCESS_ADAPTERS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. No real adapter should be built before this is settled.
 
 ## Problem
 
@@ -120,6 +120,19 @@ Tests:
 5. Keep revoked grants as history (Decision 5)? Recommendation: yes.
 6. Leave what an adapter may touch to the note on the first real adapter (Decision 6)? Recommendation: yes.
 
+## Stage 1: built
+
+Everything in this section was observed on Linux.
+
+- `ExecutionRequest` has a `requires_grant` field that defaults to true. An adapter can declare `requires_grant`, and an adapter that says nothing is treated as needing a grant. `noop` declares false. `ProcessAdapter` takes it as a parameter and defaults to true.
+- The coordinator marks the request that it gives to the starter from the adapter, and ignores what the caller put in the field. The adapter itself still receives the request exactly as the caller sent it. An existing test showed the adapter receiving the marked copy, which was a needless change, so only the starter sees the copy.
+- `execution/grants.py` holds `GrantSource`, a protocol with one method, `is_granted(project, target)`, and `NoGrants`, the default, which allows nothing. Admission asks the source after the readiness checks. A refusal reads `target X is not granted for project Y`, opens no attempt and leaves the task as it was.
+- Admission runs inside the start, so the check and the start share one entry of the state guard.
+- Existing tests that run requests without a grant now say so: a `request_for` helper that builds a request with `requires_grant=False`, `requires_grant = False` on the test adapters, and `requires_grant=False` on the process adapters in the CLI tests. That is about fifty call sites in nine files. They were changed before the check was turned on.
+- On the real CLI, through a harness that registers a process adapter as `shell`, `aic task run --target shell` printed `Result: rejected` and `Reason: target shell is not granted for project proj`, exited 1, left the task `ready` and wrote no `executions.json`. `--target noop` still completed.
+- The suite grew from 480 to 501 tests. Twelve changes made one at a time were each caught by a test: the field defaulting to false, the check skipped, the project and target swapped, `NoGrants` allowing everything, a refusal that does not name the project, the coordinator never or always asking for a grant, the coordinator trusting the caller, an adapter that says nothing treated as exempt, the adapter receiving the marked copy, `noop` needing a grant, and a process adapter exempt by default.
+- Not built: the grant registry, `permissions.json`, the `aic permission` commands and the checks in `aic validate`. Until they exist nothing can be granted, so any target that needs a grant is refused. Only `noop` is registered, and it needs none, so the CLI behaves as before.
+
 ## After this decision
 
-Stage 1 is first and touches only the library. If a different option is chosen anywhere above, this note is revised and approved again before any code.
+Stage 2, the registry and its validation, is next. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
