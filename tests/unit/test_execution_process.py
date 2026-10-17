@@ -398,3 +398,12 @@ def test_limits_must_be_positive(settings):
     """A zero or negative limit is refused when the adapter is built."""
     with pytest.raises(ValueError):
         ProcessAdapter(["python"], **settings)
+
+
+def test_a_process_adapter_needs_a_grant_by_default():
+    """Anything that runs a command needs permission unless it says not."""
+    default = ProcessAdapter(["python"])
+    exempt = ProcessAdapter(["python"], requires_grant=False)
+
+    assert default.requires_grant is True
+    assert exempt.requires_grant is False

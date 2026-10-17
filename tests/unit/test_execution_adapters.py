@@ -32,3 +32,8 @@ def test_the_shipped_registry_holds_only_the_noop_adapter():
 def test_noop_adapter_describes_itself_honestly():
     """The description shown by aic task targets says no work is done."""
     assert "no work is done" in NoopAdapter.description
+
+
+def test_noop_adapter_needs_no_grant():
+    """It does nothing, so no project needs permission to use it."""
+    assert NoopAdapter.requires_grant is False
