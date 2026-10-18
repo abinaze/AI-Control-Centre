@@ -51,6 +51,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
+  permissions/      grant model and registry
   execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants
 ```
 
@@ -180,7 +181,7 @@ On Linux the child starts in its own session, and its whole group is stopped. On
 
 A target that does real work must not run for a project until a person has allowed it. `ExecutionRequest` has a `requires_grant` field that defaults to true, and an adapter can declare `requires_grant`. An adapter that says nothing is treated as needing a grant, and `noop`, which does nothing, declares that it needs none. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
 
-Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. The grant registry, its commands and its validation are not built yet, so nothing can be granted. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
+Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. `PermissionRegistry`, in `permissions/registry.py`, is a grant source that keeps grants in `permissions.json` next to the task file, and `aic task run` gives it to admission. A grant records a project, a target, a reason and when it was made, and it is active until it is revoked. A revoked grant stays in the file as history. The registry reads the file on every question, and a file that cannot be read is an error, never an empty answer. `aic validate` reports a repeated grant ID, an active grant that repeats another, and an active grant for a project or a target that does not exist. The commands that grant and revoke are not built yet, so nothing can be granted from the CLI. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
 
 ### Execution Outcome
 
@@ -253,6 +254,7 @@ State is stored as JSON files in a local data directory.
 | `goals.json` | Goals |
 | `tasks.json` | Tasks |
 | `executions.json` | Execution attempt records, created when the first attempt is recorded |
+| `permissions.json` | Grants, created when the first grant is made |
 | `.aic.lock` | The state lock, created by the first command that locks. It is never deleted and holds no data |
 
 The data directory is resolved in this order:
@@ -325,7 +327,7 @@ None of this exists in code. It is recorded as research in [DESIGN_DIRECTIONS.md
 
 The current architecture does not yet provide unrestricted execution capabilities.
 
-Concrete system-level execution adapters, execution permissions, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
+Concrete system-level execution adapters, the commands that make and revoke execution permissions, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
