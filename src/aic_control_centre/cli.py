@@ -7,6 +7,7 @@ import argparse
 from aic_control_centre import __version__
 from aic_control_centre.config import load_config
 from aic_control_centre.doctor import run_doctor
+from aic_control_centre.execution.adapters import build_adapter_registry
 from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.commands import (
     create_goal,
@@ -14,6 +15,7 @@ from aic_control_centre.goals.commands import (
     show_goal_status,
 )
 from aic_control_centre.locking import StateLockError, state_lock
+from aic_control_centre.permissions.registry import PermissionRegistry
 from aic_control_centre.projects.commands import add_project, list_projects
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.storage import StateFileError
@@ -343,6 +345,10 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
             record_registry=ExecutionRecordRegistry.beside(
                 TaskRegistry().registry_path,
             ),
+            permission_registry=PermissionRegistry.beside(
+                TaskRegistry().registry_path,
+            ),
+            known_targets=build_adapter_registry().list_targets(),
         )
         result = validator.validate()
 
