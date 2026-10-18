@@ -91,7 +91,7 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are partly built, with the check in admission and no way to grant yet, real adapters are planned, and CPU and memory limits are not enforced.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are partly built, with the check in admission and a grant registry but no command to grant yet, real adapters are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
@@ -110,7 +110,7 @@ The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_D
 
 The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree. Its first two stages are built. Nothing registers a process adapter yet.
 
-The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. Its first stage, the check in admission, is built.
+The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. Its first two stages, the check in admission and the grant registry with its validation, are built.
 
 ## Phase 4 — Validation and Recovery
 
