@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from aic_control_centre.execution.records import ExecutionRecordRegistry
@@ -13,6 +14,7 @@ from aic_control_centre.goals.model import (
 )
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import derive_goal_status
+from aic_control_centre.permissions.registry import PermissionRegistry
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
@@ -51,7 +53,11 @@ class GoalTaskValidator:
 
     Goal project references are checked only when a project registry is
     given; without one, project names are not checked. Execution records
-    are checked only when a record registry is given.
+    are checked only when a record registry is given. Grants are checked
+    only when a permission registry is given. A grant that is still active
+    must name a registered project, when a project registry is given, and
+    a known target, when the targets are given. A revoked grant is history
+    and is left alone, apart from its ID.
     """
 
     def __init__(
@@ -60,11 +66,17 @@ class GoalTaskValidator:
         task_registry: TaskRegistry | None = None,
         project_registry: ProjectRegistry | None = None,
         record_registry: ExecutionRecordRegistry | None = None,
+        permission_registry: PermissionRegistry | None = None,
+        known_targets: Iterable[str] | None = None,
     ) -> None:
         self.goal_registry = goal_registry or GoalRegistry()
         self.task_registry = task_registry or TaskRegistry()
         self.project_registry = project_registry
         self.record_registry = record_registry
+        self.permission_registry = permission_registry
+        self.known_targets = (
+            None if known_targets is None else frozenset(known_targets)
+        )
 
     def _registered_project_names(self) -> set[str] | None:
         """Return registered project names, or None when not checking."""
@@ -123,6 +135,59 @@ class GoalTaskValidator:
             if count > 1:
                 errors.append(
                     f"Task {task_id} has {count} open execution records"
+                )
+
+        return errors
+
+    def _permission_errors(
+        self,
+        registered_projects: set[str] | None,
+    ) -> list[str]:
+        """Return the errors found in the grants."""
+        if self.permission_registry is None:
+            return []
+
+        errors: list[str] = []
+        grant_ids: set[str] = set()
+        active_pairs: set[tuple[str, str]] = set()
+
+        for grant in self.permission_registry.list_grants(
+            include_revoked=True,
+        ):
+            if grant.id in grant_ids:
+                errors.append(f"Duplicate grant ID: {grant.id}")
+            else:
+                grant_ids.add(grant.id)
+
+            if not grant.is_active:
+                continue
+
+            pair = (grant.project, grant.target)
+
+            if pair in active_pairs:
+                errors.append(
+                    f"Grant {grant.id} duplicates an active grant for "
+                    f"target {grant.target} in project {grant.project}"
+                )
+            else:
+                active_pairs.add(pair)
+
+            if (
+                registered_projects is not None
+                and grant.project not in registered_projects
+            ):
+                errors.append(
+                    f"Grant {grant.id} references unregistered project: "
+                    f"{grant.project}"
+                )
+
+            if (
+                self.known_targets is not None
+                and grant.target not in self.known_targets
+            ):
+                errors.append(
+                    f"Grant {grant.id} references unregistered target: "
+                    f"{grant.target}"
                 )
 
         return errors
@@ -195,6 +260,7 @@ class GoalTaskValidator:
                 )
 
         errors.extend(self._record_errors(tasks))
+        errors.extend(self._permission_errors(registered_projects))
 
         return ValidationResult(errors=tuple(errors))
 
