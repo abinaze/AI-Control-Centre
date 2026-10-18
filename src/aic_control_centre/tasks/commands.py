@@ -496,11 +496,17 @@ def list_targets() -> int:
     print(f"Execution targets: {len(targets)}")
 
     for target in targets:
-        description = getattr(registry.resolve(target), "description", "")
+        adapter = registry.resolve(target)
+        description = getattr(adapter, "description", "")
+
+        if getattr(adapter, "requires_grant", True):
+            grant_note = "needs a grant"
+        else:
+            grant_note = "needs no grant"
 
         if description:
-            print(f"{target}: {description}")
+            print(f"{target}: {description} ({grant_note})")
         else:
-            print(target)
+            print(f"{target} ({grant_note})")
 
     return 0
