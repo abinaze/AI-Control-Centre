@@ -28,6 +28,8 @@ LOCKING_COMMANDS = {
     "task complete",
     "task fail",
     "task requeue",
+    "permission grant",
+    "permission revoke",
 }
 
 READ_ONLY = {
@@ -39,6 +41,7 @@ READ_ONLY = {
     "task readiness",
     "task history",
     "task targets",
+    "permission list",
 }
 
 SELF_LOCKING = {"task run"}

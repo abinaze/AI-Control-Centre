@@ -15,6 +15,11 @@ from aic_control_centre.goals.commands import (
     show_goal_status,
 )
 from aic_control_centre.locking import StateLockError, state_lock
+from aic_control_centre.permissions.commands import (
+    grant_permission,
+    list_permissions,
+    revoke_permission,
+)
 from aic_control_centre.permissions.registry import PermissionRegistry
 from aic_control_centre.projects.commands import add_project, list_projects
 from aic_control_centre.projects.registry import ProjectRegistry
@@ -49,6 +54,7 @@ READ_ONLY_COMMANDS = frozenset(
         "task readiness",
         "task history",
         "task targets",
+        "permission list",
     }
 )
 
@@ -276,6 +282,59 @@ def build_parser() -> argparse.ArgumentParser:
         help="List the execution targets that aic task run can use.",
     )
 
+    permission_parser = subparsers.add_parser(
+        "permission",
+        help="Manage which projects may use which execution targets.",
+    )
+
+    permission_subparsers = permission_parser.add_subparsers(
+        dest="permission_command",
+    )
+
+    permission_grant_parser = permission_subparsers.add_parser(
+        "grant",
+        help="Let a project use an execution target.",
+    )
+    permission_grant_parser.add_argument(
+        "project",
+        help="Registered project name.",
+    )
+    permission_grant_parser.add_argument(
+        "--target",
+        required=True,
+        help="Execution target. See aic task targets.",
+    )
+    permission_grant_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Why the project may use the target.",
+    )
+
+    permission_revoke_parser = permission_subparsers.add_parser(
+        "revoke",
+        help="Withdraw a project's permission to use an execution target.",
+    )
+    permission_revoke_parser.add_argument(
+        "project",
+        help="Project name.",
+    )
+    permission_revoke_parser.add_argument(
+        "--target",
+        required=True,
+        help="Execution target.",
+    )
+
+    permission_list_parser = permission_subparsers.add_parser(
+        "list",
+        help="List the permissions that are granted.",
+    )
+    permission_list_parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="include_revoked",
+        help="Include permissions that were revoked.",
+    )
+
     return parser
 
 
@@ -387,6 +446,26 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
             return show_goal_status(args.goal_id)
 
         parser.parse_args(["goal", "--help"])
+        return 0
+
+    if args.command == "permission":
+        if args.permission_command == "grant":
+            return grant_permission(
+                project=args.project,
+                target=args.target,
+                reason=args.reason,
+            )
+
+        if args.permission_command == "revoke":
+            return revoke_permission(
+                project=args.project,
+                target=args.target,
+            )
+
+        if args.permission_command == "list":
+            return list_permissions(include_revoked=args.include_revoked)
+
+        parser.parse_args(["permission", "--help"])
         return 0
 
     if args.command == "task":
