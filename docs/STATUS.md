@@ -60,7 +60,7 @@ After the process adapter change the suite has 480 tests: the 448 above plus 32 
 
 After the permission check the suite has 501 tests: the 480 above plus 21 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the seven code and test commits in that change and again after the documentation commits; the final run at `b231165` gave 500 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
-After the grant registry the suite has 568 tests: the 501 above plus 67 new ones.
+After the grant registry the suite has 568 tests: the 501 above plus 67 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the ten code and test commits in that change and again after the documentation commits; the final run at `8b8f396` gave 567 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
 ## Capability status
 
