@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aic_control_centre.config import load_config
 from aic_control_centre.execution.adapters import build_adapter_registry
+from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
 from aic_control_centre.execution.coordinator import (
     EXECUTION_COORDINATION_COMPLETED,
@@ -16,9 +17,11 @@ from aic_control_centre.execution.records import (
     EXECUTION_SOURCE_CLI,
     ExecutionRecordRegistry,
 )
+from aic_control_centre.execution.start import ExecutionStarter
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.locking import StateLockError, state_lock
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
+from aic_control_centre.permissions.registry import PermissionRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
@@ -413,6 +416,8 @@ def run_task(task_id: str, target: str) -> int:
     """Run a ready task through the execution adapter for a target.
 
     The task is started, the adapter runs, and its outcome is recorded.
+    A target that needs a grant runs only for a project that has an
+    active grant for it in the permission registry.
     The state lock is held only while state is read or written, never
     while the adapter runs, so other commands, including requeue, still
     work during a long run.
@@ -436,8 +441,12 @@ def run_task(task_id: str, target: str) -> int:
         guard_calls.append(1)
         return state_lock(data_dir)
 
+    permissions = PermissionRegistry.beside(TaskRegistry().registry_path)
     coordinator = ExecutionCoordinator(
         adapter_registry=build_adapter_registry(),
+        starter=ExecutionStarter(
+            admission=ExecutionAdmission(grants=permissions),
+        ),
         state_guard=guard,
     )
 
