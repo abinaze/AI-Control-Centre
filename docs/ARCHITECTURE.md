@@ -51,7 +51,7 @@ src/aic_control_centre/
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
-  permissions/      grant model and registry
+  permissions/      grant model, registry and commands
   execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants
 ```
 
@@ -181,7 +181,7 @@ On Linux the child starts in its own session, and its whole group is stopped. On
 
 A target that does real work must not run for a project until a person has allowed it. `ExecutionRequest` has a `requires_grant` field that defaults to true, and an adapter can declare `requires_grant`. An adapter that says nothing is treated as needing a grant, and `noop`, which does nothing, declares that it needs none. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
 
-Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. `PermissionRegistry`, in `permissions/registry.py`, is a grant source that keeps grants in `permissions.json` next to the task file, and `aic task run` gives it to admission. A grant records a project, a target, a reason and when it was made, and it is active until it is revoked. A revoked grant stays in the file as history. The registry reads the file on every question, and a file that cannot be read is an error, never an empty answer. `aic validate` reports a repeated grant ID, an active grant that repeats another, and an active grant for a project or a target that does not exist. The commands that grant and revoke are not built yet, so nothing can be granted from the CLI. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
+Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. `PermissionRegistry`, in `permissions/registry.py`, is a grant source that keeps grants in `permissions.json` next to the task file, and `aic task run` gives it to admission. A grant records a project, a target, a reason and when it was made, and it is active until it is revoked. A revoked grant stays in the file as history. The registry reads the file on every question, and a file that cannot be read is an error, never an empty answer. `aic validate` reports a repeated grant ID, an active grant that repeats another, and an active grant for a project or a target that does not exist. `aic permission grant` makes a grant for a registered project and a registered target and needs a reason, `aic permission revoke` ends it even if the project or the target has since been removed, and `aic permission list` shows the active grants, or all of them with `--all`. `grant` and `revoke` take the state lock, and `list` does not. `aic task targets` says which targets need a grant. No command asks for confirmation, because the CLI cannot tell a person from a program. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
 
 ### Execution Outcome
 
@@ -209,7 +209,7 @@ The coordination result has a status of `rejected`, `completed`, or `failed`. A 
 
 Adapter exceptions, invalid adapter results, and task identity mismatches are converted into controlled failure outcomes rather than being allowed to bypass outcome recording.
 
-`aic task run <task-id> --target <name>` runs a ready task through the coordinator. It prints the task, the target, a result (`completed`, `failed` or `rejected`) and a reason, and it exits 0 only for `completed`. `aic task targets` lists the registered targets. The command passes a state guard, described under State locking, so the lock is held only while state is read or written.
+`aic task run <task-id> --target <name>` runs a ready task through the coordinator. It prints the task, the target, a result (`completed`, `failed` or `rejected`) and a reason, and it exits 0 only for `completed`. `aic task targets` lists the registered targets and says whether each needs a grant. The command passes a state guard, described under State locking, so the lock is held only while state is read or written.
 
 ### Execution Records
 
@@ -277,7 +277,7 @@ Atomic writes protect against a crash. They do nothing for two processes that ov
 
 `state_lock(data_dir)` in `locking.py` locks one byte of `.aic.lock` in the data directory with the operating system: `fcntl.flock` on Unix-like systems and `msvcrt.locking` on Windows. Other processes retry every 20 ms for 10 seconds and then fail with `StateLockError`, which `main` reports as `Error: another aic process is using the state files (waited 10s).` and exit status 1, having changed nothing. The operating system releases the lock when its holder ends, even if it was killed. A second acquisition in the same process raises `StateLockError`, because it would otherwise wait for itself.
 
-`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks for its whole run except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, and `task list`, `status`, `readiness`, `history` and `targets`; and those in `SELF_LOCKING_COMMANDS`: `task run`. A self-locking command takes the lock itself, around each state operation, because it runs something slow in between. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
+`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks for its whole run except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, `permission list`, and `task list`, `status`, `readiness`, `history` and `targets`; and those in `SELF_LOCKING_COMMANDS`: `task run`. A self-locking command takes the lock itself, around each state operation, because it runs something slow in between. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
 
 A read-only command sees one file at a time and each file is always complete, so it never reads a half-written file. On Windows such a reader can hold a state file open at the moment a writer replaces it, so `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`. Other errors are not retried.
 
@@ -327,7 +327,7 @@ None of this exists in code. It is recorded as research in [DESIGN_DIRECTIONS.md
 
 The current architecture does not yet provide unrestricted execution capabilities.
 
-Concrete system-level execution adapters, the commands that make and revoke execution permissions, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
+Concrete system-level execution adapters, limits on what an adapter may touch, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
