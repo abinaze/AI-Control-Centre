@@ -112,6 +112,8 @@ The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTER
 
 The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. All four of its stages are built.
 
+The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is proposed, and nothing in it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
