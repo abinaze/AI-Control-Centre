@@ -63,6 +63,7 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/PROCESS_ADAPTERS_DESIGN.md`: a design note for running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree, based on what happens today when an in-process adapter hangs or is interrupted. Its first two stages are built, after a check on Windows settled how to stop a process tree.
 - Added `docs/PERMISSIONS_DESIGN.md`: a design note on which projects may use which execution targets, where that is enforced, and what it cannot protect against. All four of its stages are built.
 - Added the invariants INV-27 to INV-31 for grants to `docs/STATUS.md`, and moved the Execution grants row to Implemented.
+- Added `docs/STALE_TASKS_DESIGN.md`: a proposed design note for a read-only listing of how long each task has been `running`, based on what a live run and a killed run leave on disk. Nothing in it is built.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
