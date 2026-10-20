@@ -1,6 +1,6 @@
 # Design Note: Seeing How Long a Task Has Been `running`
 
-**Status: Proposed.** Nothing described here is built. It addresses what is still open in gap G5 in [STATUS.md](STATUS.md): nothing helps a person decide that a `running` task is dead. It needs the maintainer's decisions before any code is written.
+**Status: Implemented as recommended.** It addresses what was open in gap G5 in [STATUS.md](STATUS.md): nothing helped a person decide that a `running` task is dead. The build took the recommendation for every decision, and what happened is at the end of this note. It helps a person to decide. It does not detect a dead run, and G5 stays open for detection.
 
 ## Problem
 
@@ -170,12 +170,26 @@ The time that is shown for a task is the start of the latest open attempt. A tas
 
 ## Open questions for the maintainer
 
+These are the questions as they were asked. The build took the recommendation for each of them.
+
 1. Name the command `aic task running` (4A) rather than `stale` or `stuck`? Recommendation: yes. It makes no claim that the files cannot support.
 2. List every running task with no default threshold, and filter with an optional `--older-than` (3A)? Recommendation: yes. A default would be a guess.
 3. Fall back to the task's `updated_at` for a running task with no open attempt, and label it as an estimate (2A)? Recommendation: yes. Those tasks are the ones most likely to be old.
 4. Leave `aic task status` and `aic task list` as they are (1A, not 1B)? Recommendation: yes.
 5. Leave detection (1D) for the first real adapter, which can report liveness? Recommendation: yes. Detection needs an owner and a heartbeat, and a real adapter to give them meaning.
 
+## What was built
+
+Everything in this section was observed on Linux.
+
+- `tasks/running.py` holds the report: `parse_duration`, `format_elapsed`, `describe_running_tasks`, which takes the two registries and a clock and returns the rows, and `filter_older_than`. The command `show_running_tasks` is in `tasks/commands.py`, and `aic task running [--older-than DURATION]` is in the CLI. It is in `READ_ONLY_COMMANDS`, so it takes no lock.
+- It follows the recommendation in every decision: a new command (1A), timed from the latest open attempt with the last update as a labelled estimate (2A), no default threshold and an optional `--older-than` (3A), the name `aic task running` (4A), times that cannot be used are shown and never hidden (5A), no lock (6A) and exit status 0 (7A). The output has the layout sketched above: a count, then for each task the ID, title, goal, route, start time and how long, then the warning and the `aic task requeue` hint. The elapsed time is shown as `42s`, `5m`, `3h 12m` or `2d 6h`.
+- Details that the note left open. A time with no offset cannot be compared with the clock, so it is treated like a time that cannot be read. A duration is a whole number and one lower-case unit, so `5M`, `10m30s` and `1.5h` are refused, and so is zero. A bad duration is refused by the command with one `Error:` line and exit status 1, and nothing is printed before it. Because argparse reads a value that starts with a dash as an option, a negative value has to be written as `--older-than=-5m` to reach that message. Written with a space, argparse reports a usage error instead.
+- On the real CLI, with a temporary data directory, the scenario behind this note was repeated. With nothing running it printed `No running tasks.` and exited 0. A task started with `aic task start`, a coordinator run killed with `kill -9` and a running task whose record had been removed were all listed, and a task that was only `ready` was not. The killed run and the task with no record had been aged by hand, to 3 hours 12 minutes and to 2 days 6 hours, to show those formats. The fresh start showed `4s`, and the task with no record showed the estimate label and the route `unknown (before records existed)`. `--older-than 1h` listed the two older tasks and `--older-than 30d` printed `No running tasks older than 30d.` The values `0m`, `-5m` (written with `=`), `5w` and `1.5h` each printed an error and exited 1. Both state files were byte-identical after the command. With a start time of `garbage` the task was listed with `Running for: unknown (the start time cannot be read)` and kept by `--older-than 30d`.
+- The suite grew from 609 to 679 tests: 49 for the report and 21 for the CLI. Thirty-two changes made one at a time were each caught by a test: a zero duration allowed, a wrong unit, an upper-case unit accepted, surrounding space refused, an overflow not handled, the three boundaries of the elapsed format, a time with no offset accepted, other offsets ignored, tasks that are not running listed, closed records counted as open, the estimate not marked, the target left out of the route, a future time not flagged or not clamped, the order reversed, unreadable times not first, the limit made exclusive, unreadable times dropped by the filter, a bad duration that exits 0, a filter that is not applied or not passed on, the empty message without the limit, the warning or the requeue hint removed, the estimate, future and unreadable labels removed, the count and the route line removed, and the command taking the lock. A thirty-third change, taking the first open attempt of a task instead of the last, was not tried as a mutation because it differs only when two attempts are open at once, a state that `aic validate` already reports.
+- Found while building: nothing validates times. `aic validate` passed with a start time of `garbage`. This is recorded as gap G14 in [STATUS.md](STATUS.md) and is not fixed. The command handles such a time by listing the task and saying that the time cannot be read.
+- Not built: detection of a dead run (1D). It needs a recorded owner or lease, and it stays with the first real adapter.
+
 ## After this decision
 
-If the recommendation is accepted, the build is small: a function that turns the two registries and a clock into rows, a parser for the duration, the command with its classification, and the documentation. It can be done in three stages: the library and its tests, the command and its tests, then the documentation and the Windows record. A recorded owner or lease (1D) is the long-term way to close the rest of G5, and the listing would then show whether the owner is alive.
+The listing is built in three stages: the report and its tests, the command and its tests, then the documentation and the Windows record. A recorded owner or lease (1D) is the long-term way to close the rest of G5, and the listing would then show whether the owner is alive.
