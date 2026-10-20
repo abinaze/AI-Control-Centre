@@ -33,6 +33,7 @@ from aic_control_centre.tasks.commands import (
     mark_task_ready,
     requeue_task,
     run_task,
+    show_running_tasks,
     show_task_history,
     show_task_readiness,
     show_task_status,
@@ -54,6 +55,7 @@ READ_ONLY_COMMANDS = frozenset(
         "task readiness",
         "task history",
         "task targets",
+        "task running",
         "permission list",
     }
 )
@@ -280,6 +282,20 @@ def build_parser() -> argparse.ArgumentParser:
     task_subparsers.add_parser(
         "targets",
         help="List the execution targets that aic task run can use.",
+    )
+
+    task_running_parser = task_subparsers.add_parser(
+        "running",
+        help="List the running tasks and how long each has been running.",
+    )
+    task_running_parser.add_argument(
+        "--older-than",
+        dest="older_than",
+        metavar="DURATION",
+        help=(
+            "Only list tasks that have been running for at least this "
+            "long, for example 30m, 2h or 1d."
+        ),
     )
 
     permission_parser = subparsers.add_parser(
@@ -516,6 +532,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.task_command == "targets":
             return list_targets()
+
+        if args.task_command == "running":
+            return show_running_tasks(older_than=args.older_than)
 
         parser.parse_args(["task", "--help"])
         return 0

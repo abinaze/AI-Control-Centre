@@ -41,6 +41,7 @@ READ_ONLY = {
     "task readiness",
     "task history",
     "task targets",
+    "task running",
     "permission list",
 }
 
