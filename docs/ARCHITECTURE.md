@@ -45,6 +45,7 @@ src/aic_control_centre/
   doctor.py         environment checks (Python version, git on PATH)
   storage.py        atomic writes and versioned reads of state files
   locking.py        the exclusive state lock held for one CLI command
+  timestamps.py     reading the times that the registries write
   projects/         project registry and commands
   goals/            goal model, registry, and commands
   tasks/            task model (lifecycle table), registry, commands, and the running task report
@@ -106,7 +107,7 @@ The `running` to `ready` transition exists for recovery, when the process runnin
 
 Validation provides a deterministic boundary for checking persisted project state.
 
-The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, and goals whose persisted status differs from the status derived from their tasks. The project check runs only when the validator is given a project registry; `aic validate` always gives it one.
+The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, and goals whose persisted status differs from the status derived from their tasks. The project check runs only when the validator is given a project registry; `aic validate` always gives it one. It also reports a `created_at`, `updated_at`, `started_at`, `ended_at`, `granted_at` or `revoked_at` that cannot be read as ISO 8601 text with an offset. Goals and tasks are always checked, and execution records and grants are checked when their registries are given. A time that the model allows to be empty is not an error when it is empty. `read_time` in `timestamps.py` is the one reader, and `aic task running` uses it too. A bad time is reported and never refused when the state is loaded, so the commands that recover from it still run.
 
 Validation reports state inconsistencies and invalid conditions without modifying persisted state. It is a read-only operation.
 
