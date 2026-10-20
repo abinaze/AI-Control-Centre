@@ -25,6 +25,7 @@ from aic_control_centre.tasks.model import (
     Task,
 )
 from aic_control_centre.tasks.registry import TaskRegistry
+from aic_control_centre.timestamps import read_time
 
 
 KNOWN_TASK_STATUSES = {
@@ -57,7 +58,9 @@ class GoalTaskValidator:
     only when a permission registry is given. A grant that is still active
     must name a registered project, when a project registry is given, and
     a known target, when the targets are given. A revoked grant is history
-    and is left alone, apart from its ID.
+    and is left alone, apart from its ID and its times. The times of
+    goals and tasks, and of the records and grants that are checked, must
+    be readable as ISO 8601 text with an offset.
     """
 
     def __init__(
@@ -192,6 +195,76 @@ class GoalTaskValidator:
 
         return errors
 
+    def _time_errors(
+        self,
+        goals: list[Goal],
+        tasks: list[Task],
+    ) -> list[str]:
+        """Return the errors found in the stored times.
+
+        Goals and tasks are always checked. Execution records and grants
+        are checked only when their registries are given. A time that
+        may be empty, such as the end of an open attempt, is not an error
+        when it is empty.
+        """
+        errors: list[str] = []
+
+        for goal in goals:
+            errors.extend(
+                _unreadable_times(
+                    "Goal",
+                    goal.id,
+                    {
+                        "created_at": goal.created_at,
+                        "updated_at": goal.updated_at,
+                    },
+                )
+            )
+
+        for task in tasks:
+            errors.extend(
+                _unreadable_times(
+                    "Task",
+                    task.id,
+                    {
+                        "created_at": task.created_at,
+                        "updated_at": task.updated_at,
+                    },
+                )
+            )
+
+        if self.record_registry is not None:
+            for record in self.record_registry.list_records():
+                errors.extend(
+                    _unreadable_times(
+                        "Execution record",
+                        record.id,
+                        {
+                            "started_at": record.started_at,
+                            "ended_at": record.ended_at,
+                        },
+                        optional=("started_at", "ended_at"),
+                    )
+                )
+
+        if self.permission_registry is not None:
+            for grant in self.permission_registry.list_grants(
+                include_revoked=True,
+            ):
+                errors.extend(
+                    _unreadable_times(
+                        "Grant",
+                        grant.id,
+                        {
+                            "granted_at": grant.granted_at,
+                            "revoked_at": grant.revoked_at,
+                        },
+                        optional=("revoked_at",),
+                    )
+                )
+
+        return errors
+
     def validate(self) -> ValidationResult:
         """Validate the complete persisted goal/task graph."""
         goals = self.goal_registry.list_goals()
@@ -261,8 +334,42 @@ class GoalTaskValidator:
 
         errors.extend(self._record_errors(tasks))
         errors.extend(self._permission_errors(registered_projects))
+        errors.extend(self._time_errors(goals, tasks))
 
         return ValidationResult(errors=tuple(errors))
+
+
+def _unreadable_times(
+    kind: str,
+    identifier: str,
+    times: dict[str, object],
+    optional: tuple[str, ...] = (),
+) -> list[str]:
+    """Return an error for each time that cannot be read.
+
+    A time named in optional may be None. Any other value that is not
+    readable, including None, is an error.
+    """
+    errors: list[str] = []
+
+    for name, value in times.items():
+        if value is None and name in optional:
+            continue
+
+        if read_time(value) is not None:
+            continue
+
+        shown = repr(value)
+
+        if len(shown) > 60:
+            shown = shown[:57] + "..."
+
+        errors.append(
+            f"{kind} {identifier} has a time that cannot be read in "
+            f"{name}: {shown}"
+        )
+
+    return errors
 
 
 def validate_task_creation(goal: Goal) -> str | None:
