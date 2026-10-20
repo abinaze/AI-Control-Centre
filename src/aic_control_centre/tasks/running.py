@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from aic_control_centre.execution.records import (
     ExecutionRecord,
@@ -12,6 +12,7 @@ from aic_control_centre.execution.records import (
 )
 from aic_control_centre.tasks.model import TASK_STATUS_RUNNING
 from aic_control_centre.tasks.registry import TaskRegistry
+from aic_control_centre.timestamps import read_time
 
 PROBLEM_FUTURE = "future"
 PROBLEM_UNREADABLE = "unreadable"
@@ -84,23 +85,6 @@ def format_elapsed(elapsed: timedelta) -> str:
     return f"{days}d {hours}h"
 
 
-def _read_time(text: str) -> datetime | None:
-    """Return a stored time as UTC, or None when it cannot be used.
-
-    A time with no offset cannot be compared with the clock, so it is
-    treated as unreadable.
-    """
-    try:
-        moment = datetime.fromisoformat(text)
-    except (TypeError, ValueError):
-        return None
-
-    if moment.tzinfo is None:
-        return None
-
-    return moment.astimezone(timezone.utc)
-
-
 def _route(record: ExecutionRecord) -> str:
     """Describe how an attempt was started."""
     if record.target:
@@ -149,7 +133,7 @@ def describe_running_tasks(
         else:
             raw, estimated, route = attempt.started_at, False, _route(attempt)
 
-        moment = _read_time(raw)
+        moment = read_time(raw)
         elapsed: timedelta | None = None
         problem: str | None = None
 
