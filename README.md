@@ -41,7 +41,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-Nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
+Nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
 
 ## Quick Start
 
@@ -78,6 +78,7 @@ aic task complete <task-id> [--reason "<text>"]   running -> completed
 aic task fail <task-id> [--reason "<text>"]       running -> failed
 aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
 aic task history <task-id>                  Show the recorded execution attempts for a task
+aic task running [--older-than <duration>]  List the running tasks and how long each has run (30m, 2h, 1d)
 aic task run <task-id> --target <name>      Run a ready task through an execution target
 aic task targets                            List the execution targets and whether each needs a grant (only noop exists)
 
@@ -86,7 +87,7 @@ aic permission revoke <project> --target <name>                    Withdraw that
 aic permission list [--all]                 List the permissions (--all includes revoked ones)
 ```
 
-Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history` and `targets` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its only target, `noop`, marks a task completed without doing any work, so it proves the path and nothing else. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its only target, `noop`, marks a task completed without doing any work, so it proves the path and nothing else. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
 
 A minimal walkthrough:
 
@@ -195,7 +196,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md) | Design note on reaching the execution coordinator from the CLI; implemented |
 | [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md) | Design note on out-of-process adapters, timeouts and limits; stages 1 and 2 built |
 | [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md) | Design note on which projects may use which execution targets; built |
-| [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md) | Design note on a read-only listing of how long tasks have been `running`; proposed |
+| [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md) | Design note on a read-only listing of how long tasks have been `running`; implemented as `aic task running` |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
