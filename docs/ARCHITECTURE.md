@@ -47,7 +47,7 @@ src/aic_control_centre/
   locking.py        the exclusive state lock held for one CLI command
   projects/         project registry and commands
   goals/            goal model, registry, and commands
-  tasks/            task model (lifecycle table), registry, and commands
+  tasks/            task model (lifecycle table), registry, commands, and the running task report
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
@@ -223,6 +223,8 @@ The library (`ExecutionStarter` and `ExecutionOutcomeRecorder`) and the CLI (`ai
 
 `aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID. It accepts a `running` task with no record. `aic task history <task-id>` lists a task's attempts, oldest first. Both are read-only.
 
+`aic task running` lists the `running` tasks and how long each has been running, longest first. A task is timed from the start of its latest open attempt. A running task with no open attempt began before records existed, so it is timed from its last update and marked as an estimate. A start time that cannot be read, because it is not a time or has no offset, is listed as unknown and is kept by the `--older-than` filter. A start time in the future is listed and counts as zero. The command is advisory: a live run and a killed run leave the same record, so it says how long and never whether anything is still running the task. It writes nothing and takes no lock. The design is in [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md).
+
 An attempt left open for a completed or failed task is never closed by the normal lifecycle (G11 in [STATUS.md](STATUS.md)). The design and its options are in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md).
 
 ## Execution Entry Points
@@ -277,7 +279,7 @@ Atomic writes protect against a crash. They do nothing for two processes that ov
 
 `state_lock(data_dir)` in `locking.py` locks one byte of `.aic.lock` in the data directory with the operating system: `fcntl.flock` on Unix-like systems and `msvcrt.locking` on Windows. Other processes retry every 20 ms for 10 seconds and then fail with `StateLockError`, which `main` reports as `Error: another aic process is using the state files (waited 10s).` and exit status 1, having changed nothing. The operating system releases the lock when its holder ends, even if it was killed. A second acquisition in the same process raises `StateLockError`, because it would otherwise wait for itself.
 
-`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks for its whole run except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, `permission list`, and `task list`, `status`, `readiness`, `history` and `targets`; and those in `SELF_LOCKING_COMMANDS`: `task run`. A self-locking command takes the lock itself, around each state operation, because it runs something slow in between. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
+`main` takes the lock around `_run`, once per process. Library code does not lock. Every command locks for its whole run except those listed in `READ_ONLY_COMMANDS`: `doctor`, `project list`, `goal list`, `permission list`, and `task list`, `status`, `readiness`, `history`, `targets` and `running`; and those in `SELF_LOCKING_COMMANDS`: `task run`. A self-locking command takes the lock itself, around each state operation, because it runs something slow in between. `aic validate` locks, because it reads four files and should see them agree. A command that only prints help takes no lock. The default is to lock, so a new command is protected until someone decides that it only reads. A test lists every command the parser knows and fails if one is not classified.
 
 A read-only command sees one file at a time and each file is always complete, so it never reads a half-written file. On Windows such a reader can hold a state file open at the moment a writer replaces it, so `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`. Other errors are not retried.
 
