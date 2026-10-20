@@ -64,7 +64,7 @@ After the grant registry the suite has 568 tests: the 501 above plus 67 new ones
 
 After the permission commands the suite has 609 tests: the 568 above plus 41 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the six code and test commits in that change and again after the documentation commits; the final run at `6efd6f6` gave 608 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
-After `aic task running` the suite has 679 tests: the 609 above plus 70 new ones.
+After `aic task running` the suite has 679 tests: the 609 above plus 70 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `6b19333` gave 678 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
 ## Capability status
 
