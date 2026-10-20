@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from aic_control_centre.config import load_config
 from aic_control_centre.execution.adapters import build_adapter_registry
 from aic_control_centre.execution.admission import ExecutionAdmission
@@ -31,6 +33,14 @@ from aic_control_centre.tasks.model import (
     Task,
 )
 from aic_control_centre.tasks.registry import TaskRegistry
+from aic_control_centre.tasks.running import (
+    PROBLEM_FUTURE,
+    PROBLEM_UNREADABLE,
+    describe_running_tasks,
+    filter_older_than,
+    format_elapsed,
+    parse_duration,
+)
 from aic_control_centre.validation.goal_tasks import validate_task_creation
 
 
@@ -482,6 +492,80 @@ def run_task(task_id: str, target: str) -> int:
         return 0
 
     return 1
+
+
+def _now() -> datetime:
+    """Return the current time, with its time zone."""
+    return datetime.now(timezone.utc)
+
+
+def show_running_tasks(older_than: str | None = None) -> int:
+    """List the running tasks and how long each has been running.
+
+    The time is advisory. A task that is listed may still be running,
+    and nothing is written or changed. The tasks are listed with the
+    longest running first.
+    """
+    threshold = None
+
+    if older_than is not None:
+        try:
+            threshold = parse_duration(older_than)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            return 1
+
+    rows = describe_running_tasks(
+        TaskRegistry(),
+        _record_registry(),
+        _now(),
+    )
+
+    if threshold is not None:
+        rows = filter_older_than(rows, threshold)
+
+    if not rows:
+        if older_than is None:
+            print("No running tasks.")
+        else:
+            print(f"No running tasks older than {older_than.strip()}.")
+
+        return 0
+
+    print(f"Running tasks: {len(rows)}")
+    print()
+
+    for row in rows:
+        since = row.since
+
+        if row.estimated:
+            since = f"{since} (estimated from the last update)"
+
+        if row.problem == PROBLEM_UNREADABLE:
+            running_for = "unknown (the start time cannot be read)"
+        elif row.problem == PROBLEM_FUTURE:
+            running_for = "0s (the start time is in the future)"
+        else:
+            running_for = format_elapsed(row.elapsed)
+
+        print(f"- {row.task_id}")
+        print(f"  Title: {row.title}")
+        print(f"  Goal: {row.goal_id}")
+        print(f"  Route: {row.route}")
+        print(f"  Since: {since}")
+        print(f"  Running for: {running_for}")
+        print()
+
+    print(
+        "A task listed here may still be running. "
+        "Requeueing a live run runs the task twice."
+    )
+    print(
+        "To put a task back in the queue: "
+        'aic task requeue <task-id> --reason "<text>"'
+    )
+
+    return 0
 
 
 def list_targets() -> int:
