@@ -79,7 +79,7 @@ Scope: atomic write-and-replace for the JSON registries and an explicit schema v
 
 ### Step 4 — Recovery path for `running` tasks (addresses G5)
 
-Status: Implemented, using Option A (operator requeue). `aic task requeue <task-id> --reason "<text>"` returns a `running` task to `ready` so it can pass readiness and start again. It adds only the `running → ready` transition and does not change any state file shape.
+Status: Implemented, using Option A (operator requeue). `aic task requeue <task-id> --reason "<text>"` returns a `running` task to `ready` so it can pass readiness and start again. It adds only the `running → ready` transition and does not change any state file shape. `aic task running` lists how long each task has been running, to help a person to decide what to requeue.
 
 Not done: automatic detection of dead runs, and storing the reason. Both depend on Step 5. Options and the decision are in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
 
@@ -112,7 +112,7 @@ The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTER
 
 The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. All four of its stages are built.
 
-The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is proposed, and nothing in it is built.
+The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is implemented as `aic task running`.
 
 ## Phase 4 — Validation and Recovery
 
