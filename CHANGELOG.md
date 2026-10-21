@@ -68,6 +68,8 @@ All notable changes to AI Control Centre are documented here.
 - Added `docs/STALE_TASKS_DESIGN.md`: a design note for a read-only listing of how long each task has been `running`, based on what a live run and a killed run leave on disk. It is implemented as `aic task running`.
 - Added the invariants INV-32 and INV-33 and the gap G14 (times are not validated) to `docs/STATUS.md`.
 - Closed the gap G14 in `docs/STATUS.md` and added the invariant INV-34 for the time checks.
+- Added `docs/FIRST_ADAPTER_DESIGN.md`: a proposed design note for the first adapter that does real work on a project, based on what a process child can see and reach, how project names and paths behave, and what a snapshot of a project costs. Nothing in it is built.
+- Added the gap G15 (project names are not unique, and a deleted project directory is not noticed) to `docs/STATUS.md`.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
@@ -78,6 +80,7 @@ All notable changes to AI Control Centre are documented here.
 - `noop` is the only registered adapter. It can mark a task `completed` when no work was done, and its reason says so. A grant does not limit what an adapter touches, and it runs in the CLI process. A `ProcessAdapter` with a timeout and an output cap exists, but nothing registers one. Its limits are listed as G13 in `docs/STATUS.md`.
 - A grant says which projects may use a target. It does not limit what the target touches. The CLI cannot tell a person from a program, so grants are a policy for automation and not a defence against a process that runs as the same operating system user. Only `noop` is registered, and it needs no grant.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide.
+- Two different project directories can be registered under the same name, and a deleted project directory is not noticed (G15). No adapter uses a project path yet.
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
 
 See `docs/STATUS.md` for details and reproduction steps.
