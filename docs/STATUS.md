@@ -66,7 +66,7 @@ After the permission commands the suite has 609 tests: the 568 above plus 41 new
 
 After `aic task running` the suite has 679 tests: the 609 above plus 70 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `6b19333` gave 678 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
-After the time checks in `aic validate` the suite has 728 tests: the 679 above plus 49 new ones.
+After the time checks in `aic validate` the suite has 728 tests: the 679 above plus 49 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the six code and test commits in that change and again after the documentation commits; the final run at `955a618` gave 727 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
 ## Capability status
 
