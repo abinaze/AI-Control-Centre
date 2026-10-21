@@ -114,6 +114,8 @@ The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md
 
 The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is implemented as `aic task running`.
 
+The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. It is proposed, and nothing in it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
