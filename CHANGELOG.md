@@ -69,6 +69,7 @@ All notable changes to AI Control Centre are documented here.
 - Added the invariants INV-32 and INV-33 and the gap G14 (times are not validated) to `docs/STATUS.md`.
 - Closed the gap G14 in `docs/STATUS.md` and added the invariant INV-34 for the time checks.
 - Added `docs/FIRST_ADAPTER_DESIGN.md`: a proposed design note for the first adapter that does real work on a project, based on what a process child can see and reach, how project names and paths behave, and what a snapshot of a project costs. Nothing in it is built.
+- Recorded the Windows observations in `docs/FIRST_ADAPTER_DESIGN.md`: paths with spaces and non-ASCII characters round-trip, a child can reach any path that the user can, a snapshot of 2,175 files took 0.28 seconds to list and 0.62 seconds to hash, and modification times advance in coarse steps, which points to comparing content hashes.
 - Added the gap G15 (project names are not unique, and a deleted project directory is not noticed) to `docs/STATUS.md`.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
