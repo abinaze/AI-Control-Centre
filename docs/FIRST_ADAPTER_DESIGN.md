@@ -1,6 +1,6 @@
 # Design Note: The First Real Execution Adapter
 
-**Status: Proposed.** Nothing described here is built. It decides what the first adapter that does real work on a project may receive, where it runs, what it may touch, what it records and what it does. It needs the maintainer's decisions before any code is written. Everything in the evidence was observed on Linux. Nothing has been observed on Windows yet: a check script was prepared for it, and its results are to be added to this note.
+**Status: Proposed.** Nothing described here is built. It decides what the first adapter that does real work on a project may receive, where it runs, what it may touch, what it records and what it does. It needs the maintainer's decisions before any code is written. The evidence was observed on Linux, and the Windows observations are in a section of their own after it.
 
 ## Problem
 
@@ -19,6 +19,17 @@ All of this was run on Linux with the real code and temporary directories.
 5. **What a snapshot of a project costs.** Listing every file with its size and modification time took 0.007 seconds for 566 files (1.6 MiB), and 0.146 seconds for 2,040 files (25.7 MiB). Reading and hashing every file took 0.012 and 0.377 seconds. These are Linux times with a warm cache.
 6. **A shipped child module needs the installed package.** A child that imports `aic_control_centre` worked when the package was installed and failed with `ModuleNotFoundError` when it was reachable only through `PYTHONPATH`, because the allowlist does not pass `PYTHONPATH` on.
 7. **Results have no home but the reason.** The attempt record keeps a `reason` of at most 1000 characters. Nothing stores the output of a run. The repository has `logs/`, `goals/` and `reports/` folders that hold only a `.gitkeep` and that no code uses.
+
+## Windows observations
+
+These were observed on Windows with Python 3.14.3, by the maintainer running the check script in Git Bash. The directory that was measured for the snapshot was the AIC repository.
+
+1. **Paths.** A project path with spaces and a non-ASCII character went through the child and came back as the same text, through UTF-8 on standard input and output.
+2. **What the child sees.** Standard input held only `task_id` and `target`, and the working directory was an empty temporary directory, as on Linux. The environment held `PATH`, `SYSTEMROOT`, `TEMP` and `TMP`.
+3. **What the child can reach.** `os.path.expanduser("~")` returned `~`, so a child with this environment does not find the home directory in the way that the Linux child did. It still read a file by its path in a directory that it had not been given, wrote a file into another directory, and connected to a local listener. The reach is the same on both systems: any path that the user can use. Only the way of finding the home directory differs.
+4. **A shipped child module.** A child that imports `aic_control_centre` worked under the allowlist. The package was installed in the active virtual environment.
+5. **What a snapshot costs.** The AIC repository, 2,175 files and 5.0 MiB, took 0.282 seconds to list with size and modification time, and 0.616 seconds to read and hash. The time per file is about ten times the Linux time of 0.007 seconds for 566 files. By that rate, listing a tree of a hundred thousand files would take about 13 seconds, which is an estimate and not a measurement.
+6. **Modification times.** Twenty same-size rewrites of one file, each made straight after the previous write, changed its modification time five times. So the time advances in coarse steps on this system. This does not say how often a real change would be missed, because the last write of a file is normally long before a snapshot. It does show that size and modification time cannot be trusted alone for a change that comes right after a write.
 
 ## Facts about the current code
 
@@ -78,7 +89,7 @@ The evidence says that nothing in the process adapter confines a child. The opti
 
 **4A. Read-only by construction, and checked (recommended).** The first adapter is code that AIC ships and that only reads. Around each run AIC lists every file of the project with its size and modification time, before and after, without following links. If anything differs, the outcome is `failed` with the reason `the project changed during a read-only run`. This detects a change inside the project. It does not stop one, and it cannot see a change outside the project.
 
-- Cost: 0.15 seconds for about 2,000 files on Linux. At that rate a tree of a hundred thousand files would take several seconds, which is an estimate and not a measurement, and whether to refuse above a number of files is an open question.
+- Cost: 0.15 seconds for about 2,000 files on Linux, and 0.28 seconds for about 2,200 files on Windows. By those rates a tree of a hundred thousand files would take several seconds on Linux and about 13 seconds on Windows, which is an estimate and not a measurement, and whether to refuse above a number of files is an open question.
 - Limit: a person who edits the project while the run goes on causes a false failure. The failure is safe, because the run can be requeued, and the reason says that the cause may be another program.
 
 **4B. An operating system sandbox.** It is the strong answer and it is different for each system: namespaces or a tool such as bubblewrap on Linux, a restricted token or an AppContainer on Windows. It is not standard library and it is a project by itself. Later, if an adapter needs to write.
@@ -159,7 +170,7 @@ The example reason is an illustration of the intended content, not output.
 ## Risks
 
 - **A sense of safety that is not there.** The read-only check detects, it does not prevent, and it sees only the project. The note, the output of `aic task targets` and SECURITY have to say so plainly.
-- **Timestamps.** A file system with coarse modification times can miss a change that keeps the size. Comparing size and time is a floor. A hash of every file closes it for small projects, at the cost of reading them.
+- **Timestamps.** The modification time advances in coarse steps on Windows: only 5 of 20 same-size rewrites made straight after a write changed it. A change that keeps the size can be missed when it comes right after the previous write. Comparing size and time is a floor. A hash of every file closes it, at the cost of reading them: 0.6 seconds for 2,175 files (5.0 MiB) on Windows.
 - **Large projects.** A snapshot of a very large tree is slow. A limit is a guess, and it is an open question.
 - **False failures.** A person or a program that edits the project during a run fails it. The reason says so.
 - **File names are data.** They can hold control characters and very long text. They are escaped and shortened before they are recorded or printed.
@@ -173,7 +184,7 @@ The example reason is an illustration of the intended content, not output.
 3. Run the first adapter in an empty directory, with the path on standard input (3A)? Recommendation: yes.
 4. Accept read-only by construction with a before and after check (4A), and say plainly that it is not a sandbox? Recommendation: yes. A sandbox (4B) belongs to the first adapter that writes.
 5. Make the first adapter `inspect` (5A), and a Python syntax check the second (5B)? Recommendation: yes.
-6. Compare size and modification time only, or also hash small projects? Recommendation: size and time first, and decide on hashing when the Windows timestamps are known.
+6. Compare size and modification time only, or also hash the content? Recommendation: size and time plus a content hash, because the Windows modification times advance in coarse steps (see the Windows observations) and a hash cost 0.6 seconds for 2,175 files on Windows. The cost grows with the bytes read, so the limit on project size in question 7 matters more with hashing.
 7. Refuse a project above some number of files, or leave it unlimited? Recommendation: unlimited at first, with the time that a snapshot takes reported if it is long. Any number now would be a guess.
 
 ## Recommended order
@@ -185,4 +196,4 @@ The example reason is an illustration of the intended content, not output.
 
 ## After this decision
 
-If the recommendation is accepted, stage 1 starts with the project names. The Windows items in the evidence are to be recorded first, because they decide how Decision 4A is tested there. A write adapter and an operating system sandbox (4B) are for a later note.
+If the recommendation is accepted, stage 1 starts with the project names. The Windows observations are recorded above. They point to comparing content hashes in Decision 4A (question 6), and they make a limit on project size (question 7) more important. A write adapter and an operating system sandbox (4B) are for a later note.
