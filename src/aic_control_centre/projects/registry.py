@@ -21,6 +21,22 @@ class Project:
     path: Path
 
 
+class ProjectNameInUseError(ValueError):
+    """Raised when another registered directory already has the name.
+
+    Goals and permissions identify a project by its name, so two
+    directories cannot share one.
+    """
+
+    def __init__(self, name: str, existing_path: Path) -> None:
+        super().__init__(
+            f"a project named {name} is already registered at "
+            f"{existing_path}"
+        )
+        self.name = name
+        self.existing_path = existing_path
+
+
 class ProjectRegistry:
     """Manage the persistent local project registry."""
 
@@ -65,7 +81,12 @@ class ProjectRegistry:
         return self._load()
 
     def add_project(self, path: Path) -> Project:
-        """Register a local project."""
+        """Register a local project.
+
+        A directory that is registered already is returned as it is. A
+        different directory with the same name as a registered project is
+        refused, because a name must identify one directory.
+        """
         resolved_path = path.expanduser().resolve()
 
         if not resolved_path.exists():
@@ -83,6 +104,10 @@ class ProjectRegistry:
         for project in projects:
             if project.path.resolve() == resolved_path:
                 return project
+
+        for project in projects:
+            if project.name == resolved_path.name:
+                raise ProjectNameInUseError(project.name, project.path)
 
         project = Project(
             name=resolved_path.name,

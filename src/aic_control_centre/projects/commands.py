@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from aic_control_centre.projects.registry import ProjectRegistry
+from aic_control_centre.projects.registry import (
+    ProjectNameInUseError,
+    ProjectRegistry,
+)
 
 
 def add_project(path: str) -> int:
@@ -15,6 +18,14 @@ def add_project(path: str) -> int:
         project = registry.add_project(Path(path))
     except (FileNotFoundError, NotADirectoryError) as exc:
         print(f"Error: {exc}")
+        return 1
+    except ProjectNameInUseError as exc:
+        print(f"Error: {exc}")
+        print(
+            "Project names must be unique, because goals and permissions "
+            "use the name."
+        )
+        print("Rename one of the directories to register both.")
         return 1
 
     print(f"Project registered: {project.name}")
