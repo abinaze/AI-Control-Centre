@@ -60,7 +60,9 @@ class GoalTaskValidator:
     a known target, when the targets are given. A revoked grant is history
     and is left alone, apart from its ID and its times. The times of
     goals and tasks, and of the records and grants that are checked, must
-    be readable as ISO 8601 text with an offset.
+    be readable as ISO 8601 text with an offset. A project name that is
+    used by more than one registered directory is reported, when a project
+    registry is given.
     """
 
     def __init__(
@@ -90,6 +92,30 @@ class GoalTaskValidator:
             project.name
             for project in self.project_registry.list_projects()
         }
+
+    def _project_name_errors(self) -> list[str]:
+        """Return an error for each name that more than one directory has.
+
+        Goals and permissions identify a project by its name, so a name
+        that belongs to two directories does not say which one is meant.
+        The check applies only when a project registry is given.
+        """
+        if self.project_registry is None:
+            return []
+
+        paths_by_name: dict[str, list[str]] = {}
+
+        for project in self.project_registry.list_projects():
+            paths_by_name.setdefault(project.name, []).append(
+                str(project.path)
+            )
+
+        return [
+            "Project name is used by more than one directory: "
+            f"{name} ({', '.join(paths)})"
+            for name, paths in paths_by_name.items()
+            if len(paths) > 1
+        ]
 
     def _record_errors(self, tasks: list[Task]) -> list[str]:
         """Return the errors found in the execution records.
@@ -332,6 +358,7 @@ class GoalTaskValidator:
                     f"persisted={goal.status}, derived={derived_status}"
                 )
 
+        errors.extend(self._project_name_errors())
         errors.extend(self._record_errors(tasks))
         errors.extend(self._permission_errors(registered_projects))
         errors.extend(self._time_errors(goals, tasks))
