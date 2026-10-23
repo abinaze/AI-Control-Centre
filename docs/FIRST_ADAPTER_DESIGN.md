@@ -1,6 +1,6 @@
 # Design Note: The First Real Execution Adapter
 
-**Status: Proposed.** Nothing described here is built. It decides what the first adapter that does real work on a project may receive, where it runs, what it may touch, what it records and what it does. It needs the maintainer's decisions before any code is written. The evidence was observed on Linux, and the Windows observations are in a section of their own after it.
+**Status: Accepted as recommended; stage 1 is built.** The maintainer accepted every recommendation in the open questions. Of the four stages in the recommended order only the first is built, unique project names (Decision 1A), and the rest is not. The note decides what the first adapter that does real work on a project may receive, where it runs, what it may touch, what it records and what it does. The evidence was observed on Linux, and the Windows observations are in a section of their own after it. What stage 1 did is in the section Stage 1: built.
 
 ## Problem
 
@@ -179,6 +179,8 @@ The example reason is an illustration of the intended content, not output.
 
 ## Open questions for the maintainer
 
+The maintainer accepted all seven recommendations below, with the reply continue with best. The questions are kept as they were asked.
+
 1. Make project names unique, with `aic project add` refusing a second one and `aic validate` reporting duplicates (1A)? Recommendation: yes. This is needed before any adapter uses a path.
 2. Carry the project path in the request, and let admission refuse a path that is gone (2A)? Recommendation: yes.
 3. Run the first adapter in an empty directory, with the path on standard input (3A)? Recommendation: yes.
@@ -189,11 +191,23 @@ The example reason is an illustration of the intended content, not output.
 
 ## Recommended order
 
-1. Make project names unique and report duplicates (Decision 1A), with tests. This does not touch execution, and it closes a gap that exists today (G15 in [STATUS.md](STATUS.md)).
+1. **Built.** Make project names unique and report duplicates (Decision 1A), with tests. This does not touch execution. It closes the names half of the gap G15 in [STATUS.md](STATUS.md). The deleted-directory half is open and belongs to stage 2.
 2. Carry the project path in the request and check it in admission (2A), with tests. No behaviour changes for `noop`.
 3. Add the read-only check as a wrapper around an adapter, with tests that use small test children.
 4. Add `inspect` and register it, with tests, then the documentation and the Windows record.
 
+## Stage 1: built
+
+Stage 1 of the recommended order, Decision 1A, is built, in a style fix and four code and test commits. Evidence item 3 above describes the behaviour before it.
+
+- **Registering.** `ProjectRegistry.add_project` raises `ProjectNameInUseError` when a different directory already has the name. The error is a `ValueError` that carries the `name` and the `existing_path`. Registering the same directory again, however it is spelled, still returns the project that exists. Names are compared exactly, as in `get_project`, so `App` and `app` are two names.
+- **The command.** `aic project add` prints `Error: a project named app is already registered at <path>`, then two lines that say that names must be unique because goals and permissions use the name and that renaming one of the directories lets both be registered. It exits 1 and writes nothing.
+- **Validation.** `GoalTaskValidator._project_name_errors` reports each name that more than one directory has, once for each name, with the paths in the order they were registered. It runs when a project registry is given, which `aic validate` always does, and it never writes. A state that already has duplicates is still loaded and listed, and a further directory with the same name is still refused.
+- **Observed on Linux, with the real CLI and a temporary data directory.** A directory called `app` was registered. A second directory called `app` printed the three lines and exited 1, and adding the first directory again exited 0 and left one project. After a second `app` was written into `projects.json` by hand, `aic validate` printed `Validation failed.` and one line that names both paths, exited 1, and left the file with the same checksum. There is no command to remove a project, so such a state is repaired by removing one entry from `projects.json`, after which `aic validate` printed `Validation passed.`
+- **Still open.** After a registered directory was removed, `aic validate` still printed `Validation passed.` and `aic project list` still showed it. That is the second half of G15, and it belongs to stage 2.
+- **Tests.** There are 17 new tests, 9 in `tests/unit/test_project_names.py` and 8 in `tests/unit/test_project_name_validation.py`. The suite has 745 tests on Linux.
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the five commits of this stage, the style fix, the refusal, its tests, the validation check and its tests. The runs gave 727, 727, 736, 736 and 744 passed, each with 1 skipped. The skipped test is the one that applies only to Linux.
+
 ## After this decision
 
-If the recommendation is accepted, stage 1 starts with the project names. The Windows observations are recorded above. They point to comparing content hashes in Decision 4A (question 6), and they make a limit on project size (question 7) more important. A write adapter and an operating system sandbox (4B) are for a later note.
+The recommendation is accepted. Stage 1, the project names, is built, and stage 2, the project path in the request and the check in admission, is next. The Windows observations are recorded above. They point to comparing content hashes in Decision 4A (question 6), and they make a limit on project size (question 7) more important. A write adapter and an operating system sandbox (4B) are for a later note.
