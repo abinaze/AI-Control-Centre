@@ -10,7 +10,9 @@ The contract with the child is small:
 - The command is a fixed list of arguments written in code. Nothing from
   a task is ever placed in it, or in the child's environment.
 - AIC writes one JSON object to the child's standard input, as UTF-8:
-  ``{"task_id": ..., "target": ...}``.
+  ``{"task_id": ..., "target": ...}``. An adapter that needs a project
+  also gets ``"project_path"``, the registered directory of the project
+  of the task, as text. The path is sent here and nowhere else.
 - The child writes one JSON object to its standard output, as UTF-8, and
   exits with status 0: ``{"outcome": ..., "reason": ...}``.
 - Anything else is a failed outcome: a non-zero exit, output that is not
@@ -211,6 +213,7 @@ class ProcessAdapter:
         *,
         description: str = "",
         requires_grant: bool = True,
+        requires_project: bool = False,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         stdout_limit: int = DEFAULT_STDOUT_LIMIT,
         stderr_limit: int = DEFAULT_STDERR_LIMIT,
@@ -231,15 +234,26 @@ class ProcessAdapter:
         self.command = arguments
         self.description = description
         self.requires_grant = requires_grant
+        self.requires_project = requires_project
         self.timeout_seconds = timeout_seconds
         self.stdout_limit = stdout_limit
         self.stderr_limit = stderr_limit
 
     def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
         """Run the command for a request and return what it reported."""
-        payload = json.dumps(
-            {"task_id": request.task_id, "target": request.target},
-        ).encode("utf-8")
+        if self.requires_project and request.project_path is None:
+            return ExecutionOutcome(
+                task_id=request.task_id,
+                outcome=EXECUTION_OUTCOME_FAILED,
+                reason="the request has no project path",
+            )
+
+        message = {"task_id": request.task_id, "target": request.target}
+
+        if self.requires_project:
+            message["project_path"] = str(request.project_path)
+
+        payload = json.dumps(message).encode("utf-8")
 
         with tempfile.TemporaryDirectory(
             prefix="aic-run-",
