@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
@@ -22,6 +23,7 @@ class ExecutionStartResult:
     started: bool
     reason: str
     attempt_id: str | None = None
+    project_path: Path | None = None
 
     def __post_init__(self) -> None:
         """Reject incomplete execution start results."""
@@ -83,4 +85,5 @@ class ExecutionStarter:
             started=True,
             reason="task execution started",
             attempt_id=attempt.id,
+            project_path=admission_result.project_path,
         )

@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from aic_control_centre.execution.contract import (
     ExecutionRequest,
     ExecutionResult,
 )
 from aic_control_centre.execution.grants import GrantSource, NoGrants
+from aic_control_centre.execution.projects import (
+    NoProjects,
+    ProjectSource,
+)
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 
 
@@ -17,11 +23,13 @@ class ExecutionAdmission:
         self,
         readiness_evaluator: TaskReadinessEvaluator | None = None,
         grants: GrantSource | None = None,
+        projects: ProjectSource | None = None,
     ) -> None:
         self.readiness_evaluator = (
             readiness_evaluator or TaskReadinessEvaluator()
         )
         self.grants = grants if grants is not None else NoGrants()
+        self.projects = projects if projects is not None else NoProjects()
 
     def evaluate(self, request: ExecutionRequest) -> ExecutionResult:
         """Evaluate an execution request without executing or mutating state."""
@@ -33,6 +41,18 @@ class ExecutionAdmission:
                 accepted=False,
                 reason=readiness.reason,
             )
+
+        project_path: Path | None = None
+
+        if request.requires_project:
+            project_path, refusal = self._project_directory(request.task_id)
+
+            if refusal:
+                return ExecutionResult(
+                    task_id=request.task_id,
+                    accepted=False,
+                    reason=refusal,
+                )
 
         if request.requires_grant:
             project = self._project_of(request.task_id)
@@ -54,6 +74,7 @@ class ExecutionAdmission:
             task_id=request.task_id,
             accepted=True,
             reason="task accepted for execution",
+            project_path=project_path,
         )
 
     def _project_of(self, task_id: str) -> str:
@@ -69,3 +90,45 @@ class ExecutionAdmission:
             return ""
 
         return goal.project
+
+    def _project_directory(
+        self,
+        task_id: str,
+    ) -> tuple[Path | None, str]:
+        """Return the directory of the task's project, or why not.
+
+        The second value is empty when the directory can be used. The
+        directory is only looked at. Nothing is opened or written.
+        """
+        name = self._project_of(task_id)
+
+        if not name:
+            return None, "the project of the task is unknown"
+
+        project = self.projects.get_project(name)
+
+        if project is None:
+            return None, f"project {name} is not registered"
+
+        try:
+            exists = project.path.exists()
+            is_directory = project.path.is_dir()
+        except OSError:
+            return None, (
+                f"the directory of project {name} cannot be read: "
+                f"{project.path}"
+            )
+
+        if not exists:
+            return None, (
+                f"the directory of project {name} does not exist: "
+                f"{project.path}"
+            )
+
+        if not is_directory:
+            return None, (
+                f"the path of project {name} is not a directory: "
+                f"{project.path}"
+            )
+
+        return project.path, ""

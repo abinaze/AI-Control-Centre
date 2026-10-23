@@ -67,6 +67,10 @@ class ExecutionCoordinator:
     the same time. It is never held while an adapter runs, so a person can
     still requeue a task during a long run. Without one the coordinator
     takes no lock, as before.
+
+    An adapter that needs a project is given the registered path of its
+    directory, found by admission. A path that a caller put in the request
+    is never passed on.
     """
 
     def __init__(
@@ -99,6 +103,7 @@ class ExecutionCoordinator:
         start_request = replace(
             request,
             requires_grant=getattr(adapter, "requires_grant", True),
+            requires_project=getattr(adapter, "requires_project", False),
         )
 
         with self.state_guard():
@@ -113,7 +118,9 @@ class ExecutionCoordinator:
             )
 
         try:
-            outcome = adapter.execute(request)
+            outcome = adapter.execute(
+                replace(request, project_path=start_result.project_path),
+            )
         except Exception as exc:
             recorded = self._record(
                 ExecutionOutcome(
