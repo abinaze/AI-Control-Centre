@@ -68,6 +68,8 @@ Project state is stored locally and managed through deterministic commands.
 
 A goal refers to a project by name. `aic goal create` refuses a project that is not registered, and `aic validate` reports goals whose project is not registered. Names are matched exactly.
 
+A project name belongs to one directory, because a goal or a grant that names a project does not say which directory it means. `aic project add` refuses a second directory with a name that is already registered and says which path holds it, and registering the same directory again returns the project that exists. `aic validate` reports a name that more than one directory has. There is no command to remove a project. A directory that is deleted after it is registered is not noticed by `aic validate` or `aic project list` (G15 in [STATUS.md](STATUS.md)).
+
 ### Goal
 
 A goal represents a desired outcome within a project.
@@ -107,7 +109,7 @@ The `running` to `ready` transition exists for recovery, when the process runnin
 
 Validation provides a deterministic boundary for checking persisted project state.
 
-The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, and goals whose persisted status differs from the status derived from their tasks. The project check runs only when the validator is given a project registry; `aic validate` always gives it one. It also reports a `created_at`, `updated_at`, `started_at`, `ended_at`, `granted_at` or `revoked_at` that cannot be read as ISO 8601 text with an offset. Goals and tasks are always checked, and execution records and grants are checked when their registries are given. A time that the model allows to be empty is not an error when it is empty. `read_time` in `timestamps.py` is the one reader, and `aic task running` uses it too. A bad time is reported and never refused when the state is loaded, so the commands that recover from it still run.
+The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, project names that more than one directory has, and goals whose persisted status differs from the status derived from their tasks. The project checks run only when the validator is given a project registry; `aic validate` always gives it one. It also reports a `created_at`, `updated_at`, `started_at`, `ended_at`, `granted_at` or `revoked_at` that cannot be read as ISO 8601 text with an offset. Goals and tasks are always checked, and execution records and grants are checked when their registries are given. A time that the model allows to be empty is not an error when it is empty. `read_time` in `timestamps.py` is the one reader, and `aic task running` uses it too. A bad time is reported and never refused when the state is loaded, so the commands that recover from it still run.
 
 Validation reports state inconsistencies and invalid conditions without modifying persisted state. It is a read-only operation.
 
