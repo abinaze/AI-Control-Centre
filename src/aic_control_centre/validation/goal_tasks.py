@@ -62,7 +62,8 @@ class GoalTaskValidator:
     goals and tasks, and of the records and grants that are checked, must
     be readable as ISO 8601 text with an offset. A project name that is
     used by more than one registered directory is reported, when a project
-    registry is given.
+    registry is given. So is a registered directory that does not exist or
+    is not a directory.
     """
 
     def __init__(
@@ -116,6 +117,41 @@ class GoalTaskValidator:
             for name, paths in paths_by_name.items()
             if len(paths) > 1
         ]
+
+    def _project_directory_errors(self) -> list[str]:
+        """Return an error for each project whose directory is not usable.
+
+        The directory is only looked at, and never created. The check
+        applies only when a project registry is given.
+        """
+        if self.project_registry is None:
+            return []
+
+        errors: list[str] = []
+
+        for project in self.project_registry.list_projects():
+            try:
+                exists = project.path.exists()
+                is_directory = project.path.is_dir()
+            except OSError:
+                errors.append(
+                    "Project directory cannot be read: "
+                    f"{project.name} ({project.path})"
+                )
+                continue
+
+            if not exists:
+                errors.append(
+                    "Project directory does not exist: "
+                    f"{project.name} ({project.path})"
+                )
+            elif not is_directory:
+                errors.append(
+                    "Project path is not a directory: "
+                    f"{project.name} ({project.path})"
+                )
+
+        return errors
 
     def _record_errors(self, tasks: list[Task]) -> list[str]:
         """Return the errors found in the execution records.
@@ -359,6 +395,7 @@ class GoalTaskValidator:
                 )
 
         errors.extend(self._project_name_errors())
+        errors.extend(self._project_directory_errors())
         errors.extend(self._record_errors(tasks))
         errors.extend(self._permission_errors(registered_projects))
         errors.extend(self._time_errors(goals, tasks))
