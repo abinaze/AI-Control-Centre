@@ -24,6 +24,7 @@ from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.locking import StateLockError, state_lock
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.permissions.registry import PermissionRegistry
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
@@ -427,7 +428,9 @@ def run_task(task_id: str, target: str) -> int:
 
     The task is started, the adapter runs, and its outcome is recorded.
     A target that needs a grant runs only for a project that has an
-    active grant for it in the permission registry.
+    active grant for it in the permission registry. A target that acts
+    on a project's files runs only if the project is registered and its
+    directory exists.
     The state lock is held only while state is read or written, never
     while the adapter runs, so other commands, including requeue, still
     work during a long run.
@@ -455,7 +458,10 @@ def run_task(task_id: str, target: str) -> int:
     coordinator = ExecutionCoordinator(
         adapter_registry=build_adapter_registry(),
         starter=ExecutionStarter(
-            admission=ExecutionAdmission(grants=permissions),
+            admission=ExecutionAdmission(
+                grants=permissions,
+                projects=ProjectRegistry(),
+            ),
         ),
         state_guard=guard,
     )
