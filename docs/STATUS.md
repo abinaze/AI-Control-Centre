@@ -70,7 +70,7 @@ After the time checks in `aic validate` the suite has 728 tests: the 679 above p
 
 After unique project names the suite has 745 tests: the 728 above plus 17 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the five code and test commits in that change and again after the documentation commits; the final run at `8937be0` gave 744 passed and 1 skipped. The skipped test is the one that applies only to Linux.
 
-After the project directory check the suite has 790 tests: the 745 above plus 45 new ones.
+After the project directory check the suite has 790 tests: the 745 above plus 45 new ones. The maintainer ran the full suite on Windows under Git Bash before each of the ten code and test commits in that change and again after the documentation commits; the final run at `a7756c9` gave 789 passed and 1 skipped. The skipped test is the one that applies only to Linux. A first attempt failed on Windows in the tests of the process adapter, because of a mistake in a test, and was run again after the fix; it is recorded in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md).
 
 ## Capability status
 
