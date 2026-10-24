@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly
 ```
 
 ## Core Lifecycle Model
@@ -191,6 +191,12 @@ Admission, which runs inside the start and so inside one entry of the state guar
 A target that acts on the files of a project needs to know where the project is. `ExecutionRequest` has a `requires_project` field that defaults to false, and an adapter can declare `requires_project`. An adapter that says nothing needs no project, and `noop` is one. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
 
 Admission, inside the same entry of the state guard as the grant check, asks a project source for the project of the task. `NoProjects`, the default source, finds nothing, and `ProjectRegistry` is a source that `aic task run` gives to admission. After readiness and before the grant check, a request is refused when the project is not registered, when its directory does not exist, when its path is not a directory, and when the directory cannot be looked at. The reason names the project, and nothing is written. The accepted result and the start result carry the registered path, and the coordinator gives the adapter its request with that path. A path that a caller put in the request is dropped. The directory is checked once, at admission, so it can still vanish before the adapter works, and an adapter has to treat that as a failed outcome. A `ProcessAdapter` created with `requires_project=True` sends the path as `project_path` in the JSON on the child's standard input and nowhere else, and it fails without starting the child when it has no path. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md). Nothing that is registered needs a project yet.
+
+### Read-only runs
+
+An adapter that is meant to only read a project is wrapped in `ReadOnlyAdapter`. The wrapper takes a snapshot of the project before the run and another after it, with `take_snapshot` in `execution/snapshot.py`, and a run that left the project different is a failed outcome. A snapshot lists every file with its size, its modification time in nanoseconds and the SHA-256 of its content, every directory, and every link. A link is recorded with its target and is never followed. A Windows junction is recognised by its reparse tag, because its mode looks like a directory. A file that is not a regular file is listed and never opened. Anything that cannot be read is recorded as unreadable, and is the same in both snapshots unless it changes. The content hash is compared as well as the size and the time, because a modification time can advance in coarse steps.
+
+The wrapper always needs a project, so admission checks the directory first, and it takes the grant rule and the description of the adapter it wraps. If the project cannot be read before the run, the adapter does not run. If it cannot be read after the run, the run fails. A change is reported even when the adapter said it succeeded or raised an error, with the counts and at most three escaped names in a reason that starts `the project changed during a read-only run`. This detects a change and does not prevent one. It sees only the project, it cannot tell who made a change, it is not a sandbox, and the snapshots are not limited in time or in the number of files (G16 in [STATUS.md](STATUS.md)). Nothing registered uses it yet.
 
 ### Execution Outcome
 
