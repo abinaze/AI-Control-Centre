@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects
 ```
 
 ## Core Lifecycle Model
@@ -68,7 +68,7 @@ Project state is stored locally and managed through deterministic commands.
 
 A goal refers to a project by name. `aic goal create` refuses a project that is not registered, and `aic validate` reports goals whose project is not registered. Names are matched exactly.
 
-A project name belongs to one directory, because a goal or a grant that names a project does not say which directory it means. `aic project add` refuses a second directory with a name that is already registered and says which path holds it, and registering the same directory again returns the project that exists. `aic validate` reports a name that more than one directory has. There is no command to remove a project. A directory that is deleted after it is registered is not noticed by `aic validate` or `aic project list` (G15 in [STATUS.md](STATUS.md)).
+A project name belongs to one directory, because a goal or a grant that names a project does not say which directory it means. `aic project add` refuses a second directory with a name that is already registered and says which path holds it, and registering the same directory again returns the project that exists. `aic validate` reports a name that more than one directory has. There is no command to remove a project. `aic validate` also reports a registered directory that does not exist or is not a directory. `aic project list` only lists, and does not look at the directories.
 
 ### Goal
 
@@ -109,7 +109,7 @@ The `running` to `ready` transition exists for recovery, when the process runnin
 
 Validation provides a deterministic boundary for checking persisted project state.
 
-The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, project names that more than one directory has, and goals whose persisted status differs from the status derived from their tasks. The project checks run only when the validator is given a project registry; `aic validate` always gives it one. It also reports a `created_at`, `updated_at`, `started_at`, `ended_at`, `granted_at` or `revoked_at` that cannot be read as ISO 8601 text with an offset. Goals and tasks are always checked, and execution records and grants are checked when their registries are given. A time that the model allows to be empty is not an error when it is empty. `read_time` in `timestamps.py` is the one reader, and `aic task running` uses it too. A bad time is reported and never refused when the state is loaded, so the commands that recover from it still run.
+The validator checks for duplicate goal and task IDs, unknown goal and task statuses, tasks that reference a missing goal, goals whose project is not registered, project names that more than one directory has, registered project directories that do not exist or are not directories, and goals whose persisted status differs from the status derived from their tasks. The project checks run only when the validator is given a project registry; `aic validate` always gives it one. It also reports a `created_at`, `updated_at`, `started_at`, `ended_at`, `granted_at` or `revoked_at` that cannot be read as ISO 8601 text with an offset. Goals and tasks are always checked, and execution records and grants are checked when their registries are given. A time that the model allows to be empty is not an error when it is empty. `read_time` in `timestamps.py` is the one reader, and `aic task running` uses it too. A bad time is reported and never refused when the state is loaded, so the commands that recover from it still run.
 
 Validation reports state inconsistencies and invalid conditions without modifying persisted state. It is a read-only operation.
 
@@ -174,17 +174,23 @@ The coordinator can be given a state guard: a function that returns a context ma
 
 ### Process adapters
 
-An adapter that runs inside the CLI process cannot be stopped if it hangs. `ProcessAdapter`, in `execution/process.py`, is an ordinary adapter that runs a fixed command in a child process instead, so the coordinator needs no change. The command is a list written in code. Nothing from a task is placed in it or in the child's environment. The request goes to the child as one JSON object on standard input, and the child answers with one JSON object on standard output and exit status 0.
+An adapter that runs inside the CLI process cannot be stopped if it hangs. `ProcessAdapter`, in `execution/process.py`, is an ordinary adapter that runs a fixed command in a child process instead, so the coordinator needs no change. The command is a list written in code. Nothing from a task is placed in it or in the child's environment. The request goes to the child as one JSON object on standard input, which holds the task ID and the target and, for an adapter that needs a project, the registered path of the project directory, and the child answers with one JSON object on standard output and exit status 0.
 
 AIC stops the child, and the processes it started, when the run takes longer than its timeout, when standard output or standard error passes its cap, or when the command is interrupted. A timeout or too much output is a failed outcome with a reason, recorded like any other outcome. A non-zero exit, output that is not that object, and an unknown outcome are failed outcomes too. The child inherits only a short list of environment variables and runs in a new empty temporary directory that is removed afterwards.
 
-On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). Nothing registers a process adapter yet, and no real adapter should be built before permissions exist.
+On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). Nothing registers a process adapter yet.
 
 ### Grants
 
 A target that does real work must not run for a project until a person has allowed it. `ExecutionRequest` has a `requires_grant` field that defaults to true, and an adapter can declare `requires_grant`. An adapter that says nothing is treated as needing a grant, and `noop`, which does nothing, declares that it needs none. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
 
 Admission, which runs inside the start and so inside one entry of the state guard, asks a grant source whether the project of the task may use the target. `NoGrants`, the default source, allows nothing. A request that is not covered is refused with `target X is not granted for project Y`, and nothing is written. `PermissionRegistry`, in `permissions/registry.py`, is a grant source that keeps grants in `permissions.json` next to the task file, and `aic task run` gives it to admission. A grant records a project, a target, a reason and when it was made, and it is active until it is revoked. A revoked grant stays in the file as history. The registry reads the file on every question, and a file that cannot be read is an error, never an empty answer. `aic validate` reports a repeated grant ID, an active grant that repeats another, and an active grant for a project or a target that does not exist. `aic permission grant` makes a grant for a registered project and a registered target and needs a reason, `aic permission revoke` ends it even if the project or the target has since been removed, and `aic permission list` shows the active grants, or all of them with `--all`. `grant` and `revoke` take the state lock, and `list` does not. `aic task targets` says which targets need a grant. No command asks for confirmation, because the CLI cannot tell a person from a program. The design, including what grants cannot protect against, is in [PERMISSIONS_DESIGN.md](PERMISSIONS_DESIGN.md).
+
+### Project directories
+
+A target that acts on the files of a project needs to know where the project is. `ExecutionRequest` has a `requires_project` field that defaults to false, and an adapter can declare `requires_project`. An adapter that says nothing needs no project, and `noop` is one. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
+
+Admission, inside the same entry of the state guard as the grant check, asks a project source for the project of the task. `NoProjects`, the default source, finds nothing, and `ProjectRegistry` is a source that `aic task run` gives to admission. After readiness and before the grant check, a request is refused when the project is not registered, when its directory does not exist, when its path is not a directory, and when the directory cannot be looked at. The reason names the project, and nothing is written. The accepted result and the start result carry the registered path, and the coordinator gives the adapter its request with that path. A path that a caller put in the request is dropped. The directory is checked once, at admission, so it can still vanish before the adapter works, and an adapter has to treat that as a failed outcome. A `ProcessAdapter` created with `requires_project=True` sends the path as `project_path` in the JSON on the child's standard input and nowhere else, and it fails without starting the child when it has no path. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md). Nothing that is registered needs a project yet.
 
 ### Execution Outcome
 
