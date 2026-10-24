@@ -91,7 +91,7 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, real adapters are planned, and CPU and memory limits are not enforced.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, real adapters are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
@@ -114,7 +114,7 @@ The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md
 
 The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is implemented as `aic task running`.
 
-The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. Its first two stages, unique project names and the project path with its check in admission, are built, and the rest is not.
+The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. Its first three stages, unique project names, the project path with its check in admission, and the read-only check as a wrapper, are built, and the rest is not.
 
 ## Phase 4 — Validation and Recovery
 
