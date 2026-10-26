@@ -7,7 +7,7 @@ from pathlib import Path
 
 from aic_control_centre.config import load_config
 from aic_control_centre.storage import (
-    read_state_items,
+    read_state_items_or_empty,
     serialize_state_items,
     write_text_atomic,
 )
@@ -46,10 +46,10 @@ class ProjectRegistry:
 
     def _load(self) -> list[Project]:
         """Load registered projects from disk."""
-        if not self.registry_path.exists():
-            return []
-
-        data = read_state_items(self.registry_path, "projects")
+        data = read_state_items_or_empty(
+            self.registry_path,
+            "projects",
+        )
 
         return [
             Project(

@@ -8,7 +8,7 @@ from pathlib import Path
 from aic_control_centre.permissions.model import Grant
 from aic_control_centre.storage import (
     StateFileError,
-    read_state_items,
+    read_state_items_or_empty,
     serialize_state_items,
     write_text_atomic,
 )
@@ -40,10 +40,10 @@ class PermissionRegistry:
 
     def _load(self) -> list[Grant]:
         """Load grants from disk."""
-        if not self.registry_path.exists():
-            return []
-
-        data = read_state_items(self.registry_path, "permissions")
+        data = read_state_items_or_empty(
+            self.registry_path,
+            "permissions",
+        )
 
         try:
             return [

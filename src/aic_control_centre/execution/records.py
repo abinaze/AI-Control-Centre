@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from aic_control_centre.storage import (
     StateFileError,
-    read_state_items,
+    read_state_items_or_empty,
     serialize_state_items,
     write_text_atomic,
 )
@@ -138,10 +138,10 @@ class ExecutionRecordRegistry:
 
     def _load(self) -> list[ExecutionRecord]:
         """Load execution records from disk."""
-        if not self.registry_path.exists():
-            return []
-
-        data = read_state_items(self.registry_path, "executions")
+        data = read_state_items_or_empty(
+            self.registry_path,
+            "executions",
+        )
 
         try:
             return [
