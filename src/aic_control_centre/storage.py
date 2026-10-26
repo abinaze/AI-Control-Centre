@@ -33,10 +33,24 @@ def read_state_items(path: Path, collection: str) -> list[Any]:
     versioning is a bare JSON list; it is read as schema version 1.
 
     Reading never modifies the file. A file written by a newer schema
-    version than this one supports is refused rather than guessed at.
+    version than this one supports is refused rather than guessed at. A
+    file that cannot be read is a StateFileError that says why. A file that
+    is not there raises FileNotFoundError, which read_state_items_or_empty
+    turns into an empty list.
     """
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+    except (FileNotFoundError, NotADirectoryError):
+        raise
+    except OSError as exc:
+        raise StateFileError(
+            f"{path} cannot be read: {exc.strerror or type(exc).__name__}"
+        ) from exc
+    except ValueError as exc:
+        raise StateFileError(f"{path} is not valid JSON: {exc}") from exc
+
+    try:
+        data = json.loads(text)
     except ValueError as exc:
         raise StateFileError(f"{path} is not valid JSON: {exc}") from exc
 
@@ -67,6 +81,21 @@ def read_state_items(path: Path, collection: str) -> list[Any]:
         raise StateFileError(f"{path} has no '{collection}' list")
 
     return items
+
+
+def read_state_items_or_empty(path: Path, collection: str) -> list[Any]:
+    """Return the items in a state file, or an empty list if it is absent.
+
+    Only a file that is not there gives an empty list. Any other problem,
+    such as a file that cannot be read for a moment, is an error. An empty
+    list for such a file would let the next save write only the new item
+    and overwrite everything that was saved. Path.exists() is not used,
+    because on some Python versions it answers no for any error.
+    """
+    try:
+        return read_state_items(path, collection)
+    except (FileNotFoundError, NotADirectoryError):
+        return []
 
 
 def serialize_state_items(collection: str, items: list[Any]) -> str:
