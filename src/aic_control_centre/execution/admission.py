@@ -13,6 +13,11 @@ from aic_control_centre.execution.projects import (
     NoProjects,
     ProjectSource,
 )
+from aic_control_centre.projects.directory import (
+    MISSING,
+    NOT_A_DIRECTORY,
+    directory_problem,
+)
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 
 
@@ -110,25 +115,26 @@ class ExecutionAdmission:
         if project is None:
             return None, f"project {name} is not registered"
 
-        try:
-            exists = project.path.exists()
-            is_directory = project.path.is_dir()
-        except OSError:
-            return None, (
-                f"the directory of project {name} cannot be read: "
-                f"{project.path}"
-            )
+        problem = directory_problem(project.path)
 
-        if not exists:
+        if problem is None:
+            return project.path, ""
+
+        kind, detail = problem
+
+        if kind == MISSING:
             return None, (
                 f"the directory of project {name} does not exist: "
                 f"{project.path}"
             )
 
-        if not is_directory:
+        if kind == NOT_A_DIRECTORY:
             return None, (
                 f"the path of project {name} is not a directory: "
                 f"{project.path}"
             )
 
-        return project.path, ""
+        return None, (
+            f"the directory of project {name} cannot be read: "
+            f"{project.path}; {detail}"
+        )

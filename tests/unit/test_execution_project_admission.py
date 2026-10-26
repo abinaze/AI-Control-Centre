@@ -1,5 +1,8 @@
 """Tests for the project check in admission, start and the coordinator."""
 
+import os
+import pathlib
+
 from aic_control_centre.execution.adapters import NoopAdapter
 from aic_control_centre.execution.admission import ExecutionAdmission
 from aic_control_centre.execution.contract import ExecutionRequest
@@ -12,6 +15,7 @@ from aic_control_centre.execution.registry import ExecutionAdapterRegistry
 from aic_control_centre.execution.start import ExecutionStarter
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
+from aic_control_centre.projects import directory as directory_module
 from aic_control_centre.projects.registry import Project
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
 from aic_control_centre.tasks.model import Task
@@ -64,17 +68,35 @@ class PlainProjectAdapter(RecordingAdapter):
     requires_project = False
 
 
-class UnreadablePath:
-    """A path whose directory cannot be looked at."""
+def _deny_access(monkeypatch, path):
+    """Make looking at one path fail the way a locked file system does."""
+    real = os.stat
 
-    def __str__(self):
-        return "/unreadable"
+    def stat(target, *arguments, **options):
+        if os.fspath(target) == str(path):
+            raise PermissionError(13, "Access is denied")
 
-    def exists(self):
-        raise PermissionError("denied")
+        return real(target, *arguments, **options)
 
-    def is_dir(self):
-        raise PermissionError("denied")
+    monkeypatch.setattr(directory_module.os, "stat", stat)
+
+
+def _hide_from_pathlib(monkeypatch, path):
+    """Make Path.exists and Path.is_dir answer no for one path.
+
+    That is what pathlib does for any error on some Python versions.
+    """
+    real_exists = pathlib.Path.exists
+    real_is_dir = pathlib.Path.is_dir
+
+    def exists(self, **options):
+        return False if self == path else real_exists(self, **options)
+
+    def is_dir(self, **options):
+        return False if self == path else real_is_dir(self, **options)
+
+    monkeypatch.setattr(pathlib.Path, "exists", exists)
+    monkeypatch.setattr(pathlib.Path, "is_dir", is_dir)
 
 
 def _directory(tmp_path, name="alpha"):
@@ -181,18 +203,41 @@ def test_a_path_that_is_a_file_is_refused(tmp_path) -> None:
     )
 
 
-def test_a_directory_that_cannot_be_read_is_refused(tmp_path) -> None:
-    """An error from the file system is a refusal, not a crash."""
+def test_a_directory_that_cannot_be_read_is_refused(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An error from the file system is a refusal that gives its reason."""
     evaluator, _, _, task = _make_task(tmp_path)
-    projects = InMemoryProjects(Project(name="alpha", path=UnreadablePath()))
+    path = _directory(tmp_path)
+    projects = InMemoryProjects(Project(name="alpha", path=path))
     admission = ExecutionAdmission(evaluator, projects=projects)
+    _deny_access(monkeypatch, path)
 
     result = admission.evaluate(_request(task))
 
     assert result.accepted is False
     assert result.reason == (
-        "the directory of project alpha cannot be read: /unreadable"
+        f"the directory of project alpha cannot be read: {path}; "
+        "Access is denied"
     )
+
+
+def test_a_directory_is_not_judged_by_pathlib_exists(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A directory that is there is accepted, whatever pathlib says."""
+    evaluator, _, _, task = _make_task(tmp_path)
+    path = _directory(tmp_path)
+    projects = InMemoryProjects(Project(name="alpha", path=path))
+    admission = ExecutionAdmission(evaluator, projects=projects)
+    _hide_from_pathlib(monkeypatch, path)
+
+    result = admission.evaluate(_request(task))
+
+    assert result.accepted is True
+    assert result.project_path == path
 
 
 def test_the_directory_is_checked_at_every_request(tmp_path) -> None:

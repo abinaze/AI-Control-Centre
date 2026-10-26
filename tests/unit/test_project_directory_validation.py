@@ -1,11 +1,14 @@
 """Tests for project directories in validation."""
 
+import os
+import pathlib
 import shutil
 import sys
 
 from aic_control_centre.cli import main
 from aic_control_centre.goals.registry import GoalRegistry
-from aic_control_centre.projects.registry import Project, ProjectRegistry
+from aic_control_centre.projects import directory as directory_module
+from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.registry import TaskRegistry
 from aic_control_centre.validation.goal_tasks import GoalTaskValidator
 
@@ -17,24 +20,17 @@ def run_cli(monkeypatch, data_dir, *arguments):
     return main()
 
 
-class UnreadablePath:
-    """A path whose directory cannot be looked at."""
+def _deny_access(monkeypatch, path):
+    """Make looking at one path fail the way a locked file system does."""
+    real = os.stat
 
-    def __str__(self):
-        return "/unreadable"
+    def stat(target, *arguments, **options):
+        if os.fspath(target) == str(path):
+            raise PermissionError(13, "Access is denied")
 
-    def exists(self):
-        raise PermissionError("denied")
+        return real(target, *arguments, **options)
 
-    def is_dir(self):
-        raise PermissionError("denied")
-
-
-class StubProjects:
-    """A project registry with one project that cannot be looked at."""
-
-    def list_projects(self):
-        return [Project(name="app", path=UnreadablePath())]
+    monkeypatch.setattr(directory_module.os, "stat", stat)
 
 
 def _register(tmp_path, name="app"):
@@ -130,19 +126,40 @@ def test_validation_does_not_create_the_missing_directory(tmp_path) -> None:
     assert (tmp_path / "projects.json").read_bytes() == before
 
 
-def test_a_directory_that_cannot_be_read_is_reported(tmp_path) -> None:
-    """An error from the file system is a line in the report, not a crash."""
-    validator = GoalTaskValidator(
-        goal_registry=GoalRegistry(tmp_path / "goals.json"),
-        task_registry=TaskRegistry(tmp_path / "tasks.json"),
-        project_registry=StubProjects(),
-    )
+def test_a_directory_that_cannot_be_read_is_reported(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An error from the file system is a line in the report, with why."""
+    path = _register(tmp_path)
+    _deny_access(monkeypatch, path)
 
-    result = validator.validate()
+    result = _validator(tmp_path).validate()
 
     assert result.errors == (
-        "Project directory cannot be read: app (/unreadable)",
+        f"Project directory cannot be read: app ({path}); Access is denied",
     )
+
+
+def test_a_directory_is_not_judged_by_pathlib_exists(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """A directory that is there is valid, whatever pathlib says."""
+    path = _register(tmp_path)
+    real_exists = pathlib.Path.exists
+    real_is_dir = pathlib.Path.is_dir
+
+    def exists(self, **options):
+        return False if self == path else real_exists(self, **options)
+
+    def is_dir(self, **options):
+        return False if self == path else real_is_dir(self, **options)
+
+    monkeypatch.setattr(pathlib.Path, "exists", exists)
+    monkeypatch.setattr(pathlib.Path, "is_dir", is_dir)
+
+    assert _validator(tmp_path).validate().valid is True
 
 
 def test_aic_validate_fails_on_a_missing_project_directory(

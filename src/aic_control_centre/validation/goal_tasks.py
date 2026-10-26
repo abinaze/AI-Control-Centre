@@ -15,6 +15,11 @@ from aic_control_centre.goals.model import (
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.orchestration.goal_tasks import derive_goal_status
 from aic_control_centre.permissions.registry import PermissionRegistry
+from aic_control_centre.projects.directory import (
+    MISSING,
+    NOT_A_DIRECTORY,
+    directory_problem,
+)
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
@@ -130,25 +135,27 @@ class GoalTaskValidator:
         errors: list[str] = []
 
         for project in self.project_registry.list_projects():
-            try:
-                exists = project.path.exists()
-                is_directory = project.path.is_dir()
-            except OSError:
-                errors.append(
-                    "Project directory cannot be read: "
-                    f"{project.name} ({project.path})"
-                )
+            problem = directory_problem(project.path)
+
+            if problem is None:
                 continue
 
-            if not exists:
+            kind, detail = problem
+
+            if kind == MISSING:
                 errors.append(
                     "Project directory does not exist: "
                     f"{project.name} ({project.path})"
                 )
-            elif not is_directory:
+            elif kind == NOT_A_DIRECTORY:
                 errors.append(
                     "Project path is not a directory: "
                     f"{project.name} ({project.path})"
+                )
+            else:
+                errors.append(
+                    "Project directory cannot be read: "
+                    f"{project.name} ({project.path}); {detail}"
                 )
 
         return errors
