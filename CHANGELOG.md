@@ -50,6 +50,8 @@ All notable changes to AI Control Centre are documented here.
 - `ProcessAdapter` takes `requires_project`. When it is set, the path is sent as `project_path` in the JSON on the child's standard input and only there, and the adapter fails without starting the child when the request has no path.
 - Added `execution/snapshot.py` with `take_snapshot`, `compare_snapshots` and `escape_name`. A snapshot lists every file with its size, modification time and SHA-256, every directory and every link. A link, including a Windows junction, is recorded and never followed, a file that is not a regular file is never opened, and what cannot be read is recorded as unreadable.
 - Added `ReadOnlyAdapter` in `execution/readonly.py`. It wraps an adapter, takes a snapshot of the project before and after the run, and turns a run that changed anything in the project into a failed outcome that starts `the project changed during a read-only run`. It detects a change and does not prevent one. Nothing registers it yet, so no behaviour changes.
+- Fixed the project directory check. It no longer uses `Path.exists()` and `Path.is_dir()`, which answer no for any error on some Python versions, so a directory that could not be looked at could be reported as missing. `projects/directory.py` asks the system once with `os.stat` and tells a directory that is not there from a path that is not a directory and from one that cannot be read. An unreadable directory is now refused by `aic task run` and reported by `aic validate` with the reason that the system gave, for example `cannot be read: <path>; Access is denied`.
+- Fixed the registries reading a state file that could not be read as an empty registry, which would have let the next save overwrite what was saved. `read_state_items_or_empty` in `storage.py` returns an empty list only when there is no file. Any other error is a `StateFileError` that names the file and the reason, so the CLI prints `Error: ...` and exits 1. The plain `read_state_items` reports an unreadable file the same way instead of a traceback.
 
 ### Documentation
 
@@ -81,6 +83,7 @@ All notable changes to AI Control Centre are documented here.
 - Marked `docs/FIRST_ADAPTER_DESIGN.md` accepted as recommended with its first stage built, added the invariant INV-35 for unique project names to `docs/STATUS.md`, and narrowed G15 to the deleted directory.
 - Marked stages 1 and 2 of `docs/FIRST_ADAPTER_DESIGN.md` built, with a section on each, added the invariants INV-36 to INV-38 to `docs/STATUS.md`, and closed G15.
 - Marked stage 3 of `docs/FIRST_ADAPTER_DESIGN.md` built, with a section on it and the Windows observations of a junction, added the invariants INV-39 and INV-40 and the gap G16 to `docs/STATUS.md`, and added the rule for read-only adapters to the contributing guide.
+- Recorded the failure on Windows that was not explained as G17 and the state file fix as G18 in `docs/STATUS.md`, added the invariants INV-41 and INV-42, noted the failure in the first adapter design note, and added the rule about `Path.exists()` to the contributing guide.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
 ### Known issues (documented, not fixed)
@@ -93,6 +96,7 @@ All notable changes to AI Control Centre are documented here.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide.
 - A project directory can still vanish between the admission check and the adapter's work. The check is made once, so an adapter that acts on a project has to treat that as a failed outcome. No registered adapter acts on a project yet.
 - The read-only check detects a change after a run and does not prevent it, sees only the project, and its snapshots are not limited in time or in the number of files (G16). Nothing registers it yet.
+- One test failed once on Windows, and the cause is not known. It did not happen again in 25 runs of that test on its own, 50 runs of the same steps through the real CLI and two full runs. The check that printed the message was changed so that a recurrence says why (G17).
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
 
 See `docs/STATUS.md` for details and reproduction steps.
