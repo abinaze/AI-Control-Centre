@@ -25,7 +25,7 @@ Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
 ## Phase 2 — Readiness and Execution Boundaries
 
-Status: Implemented; the coordinator is reached from the CLI by `aic task run`, with one adapter that does no work
+Status: Implemented; the coordinator is reached from the CLI by `aic task run`, first with an adapter that does no work and now also with `inspect`, which only reads
 
 - Task readiness evaluation
 - Explicit readiness reasons
@@ -42,7 +42,7 @@ Status: Implemented; the coordinator is reached from the CLI by `aic task run`, 
 
 This phase establishes the execution control boundary without introducing unrestricted execution capabilities.
 
-The boundaries and the coordinator were first built and tested at the library level, with no CLI command invoking the coordinator (G6 in [docs/STATUS.md](docs/STATUS.md)). `aic task run` now does, with a single `noop` adapter that does no work. The manual lifecycle commands `aic task ready` and `aic task start` are gated by readiness; see Phase 2.5, Step 1.
+The boundaries and the coordinator were first built and tested at the library level, with no CLI command invoking the coordinator (G6 in [docs/STATUS.md](docs/STATUS.md)). `aic task run` now does, first with a single `noop` adapter that does no work, and later with `inspect` as well (Phase 3). The manual lifecycle commands `aic task ready` and `aic task start` are gated by readiness; see Phase 2.5, Step 1.
 
 ## Phase 2.5 — Boundary Hardening
 
@@ -91,11 +91,11 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, real adapters are planned, and CPU and memory limits are not enforced.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, `inspect` is the first adapter that does real work and is registered with a grant required, further adapters are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
-- Concrete local execution adapters
+- Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -106,15 +106,15 @@ Potential future work:
 
 Phase 3 depends on Phase 2.5 Steps 1 and 5.
 
-The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. Real adapters are not built, and permissions are only partly built.
+The first design note is [docs/COORDINATOR_CLI_DESIGN.md](docs/COORDINATOR_CLI_DESIGN.md). It covers where the lock is held while an adapter runs, tying each outcome to its attempt, the command, and the first adapter. All three of its stages are built: the lock (G12), the attempt identity, and `aic task run` with a `noop` adapter that does no work. When it was written no real adapter existed and permissions were only partly built. Both have since been built, in the third and fifth notes.
 
-The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree. Its first two stages are built. Nothing registers a process adapter yet.
+The second design note is [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md). It covers running adapters out of process, with a timeout, an output cap and a way to stop the whole process tree. Its first two stages are built. `inspect` is registered as a process adapter.
 
 The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md). It covers which projects may use which execution targets, where that is enforced, and what it cannot protect against. All four of its stages are built.
 
 The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is implemented as `aic task running`.
 
-The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. Its first three stages, unique project names, the project path with its check in admission, and the read-only check as a wrapper, are built, and the rest is not.
+The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. All four of its stages are built: unique project names, the project path with its check in admission, the read-only check as a wrapper, and `inspect`, registered as a read-only process adapter with a grant required. A write adapter, an operating system sandbox and the detection of dead runs are not built.
 
 ## Phase 4 — Validation and Recovery
 
