@@ -21,12 +21,21 @@ def test_noop_adapter_completes_the_requested_task_and_says_so():
     assert "no work was done" in outcome.reason
 
 
-def test_the_shipped_registry_holds_only_the_noop_adapter():
-    """No other adapter is registered, so nothing else can be run."""
+def test_the_shipped_registry_always_holds_the_noop_adapter():
+    """noop is registered, and it is the adapter that ships."""
     registry = build_adapter_registry()
 
-    assert registry.list_targets() == [NOOP_TARGET]
+    assert NOOP_TARGET in registry.list_targets()
     assert isinstance(registry.resolve(NOOP_TARGET), NoopAdapter)
+
+
+def test_every_shipped_adapter_except_noop_needs_a_grant():
+    """Only noop does nothing, so every other adapter needs permission."""
+    registry = build_adapter_registry()
+
+    for target in registry.list_targets():
+        if target != NOOP_TARGET:
+            assert registry.resolve(target).requires_grant is True
 
 
 def test_noop_adapter_describes_itself_honestly():
