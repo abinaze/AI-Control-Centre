@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project
 ```
 
 ## Core Lifecycle Model
@@ -166,7 +166,7 @@ Unknown targets are rejected before the task is started so that target resolutio
 
 An execution adapter receives an execution request and returns an execution outcome.
 
-The current architecture defines this as a protocol boundary. The only concrete adapter is `noop`, in `execution/adapters.py`, which completes a task without doing any work. `build_adapter_registry` registers adapters in code; nothing is loaded by name from configuration. The tests use test doubles for everything else.
+The current architecture defines this as a protocol boundary. There are two concrete adapters, both in `execution/adapters.py`: `noop`, which completes a task without doing any work, and `inspect`, which reports what is in a project directory. `build_adapter_registry` registers adapters in code; nothing is loaded by name from configuration. The tests use test doubles for everything else.
 
 Adapter failures are handled by the coordinator and converted into a failed execution outcome.
 
@@ -178,7 +178,7 @@ An adapter that runs inside the CLI process cannot be stopped if it hangs. `Proc
 
 AIC stops the child, and the processes it started, when the run takes longer than its timeout, when standard output or standard error passes its cap, or when the command is interrupted. A timeout or too much output is a failed outcome with a reason, recorded like any other outcome. A non-zero exit, output that is not that object, and an unknown outcome are failed outcomes too. The child inherits only a short list of environment variables and runs in a new empty temporary directory that is removed afterwards.
 
-On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). Nothing registers a process adapter yet.
+On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). `inspect` is registered as a process adapter.
 
 ### Grants
 
@@ -190,13 +190,19 @@ Admission, which runs inside the start and so inside one entry of the state guar
 
 A target that acts on the files of a project needs to know where the project is. `ExecutionRequest` has a `requires_project` field that defaults to false, and an adapter can declare `requires_project`. An adapter that says nothing needs no project, and `noop` is one. The coordinator marks the request that it gives to the starter from the adapter, never from the caller.
 
-Admission, inside the same entry of the state guard as the grant check, asks a project source for the project of the task. `NoProjects`, the default source, finds nothing, and `ProjectRegistry` is a source that `aic task run` gives to admission. After readiness and before the grant check, a request is refused when the project is not registered, when its directory does not exist, when its path is not a directory, and when the directory cannot be looked at. The reason names the project, and nothing is written. The directory is looked at once with `os.stat`, in `projects/directory.py`, which tells a directory that is not there from a path that is not a directory and from one that cannot be read, and gives the reason that the system gave. `Path.exists()` and `Path.is_dir()` are not used, for the same reason as above (G17 in [STATUS.md](STATUS.md)). The accepted result and the start result carry the registered path, and the coordinator gives the adapter its request with that path. A path that a caller put in the request is dropped. The directory is checked once, at admission, so it can still vanish before the adapter works, and an adapter has to treat that as a failed outcome. A `ProcessAdapter` created with `requires_project=True` sends the path as `project_path` in the JSON on the child's standard input and nowhere else, and it fails without starting the child when it has no path. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md). Nothing that is registered needs a project yet.
+Admission, inside the same entry of the state guard as the grant check, asks a project source for the project of the task. `NoProjects`, the default source, finds nothing, and `ProjectRegistry` is a source that `aic task run` gives to admission. After readiness and before the grant check, a request is refused when the project is not registered, when its directory does not exist, when its path is not a directory, and when the directory cannot be looked at. The reason names the project, and nothing is written. The directory is looked at once with `os.stat`, in `projects/directory.py`, which tells a directory that is not there from a path that is not a directory and from one that cannot be read, and gives the reason that the system gave. `Path.exists()` and `Path.is_dir()` are not used, for the same reason as above (G17 in [STATUS.md](STATUS.md)). The accepted result and the start result carry the registered path, and the coordinator gives the adapter its request with that path. A path that a caller put in the request is dropped. The directory is checked once, at admission, so it can still vanish before the adapter works, and an adapter has to treat that as a failed outcome. A `ProcessAdapter` created with `requires_project=True` sends the path as `project_path` in the JSON on the child's standard input and nowhere else, and it fails without starting the child when it has no path. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md). `inspect` needs one.
 
 ### Read-only runs
 
 An adapter that is meant to only read a project is wrapped in `ReadOnlyAdapter`. The wrapper takes a snapshot of the project before the run and another after it, with `take_snapshot` in `execution/snapshot.py`, and a run that left the project different is a failed outcome. A snapshot lists every file with its size, its modification time in nanoseconds and the SHA-256 of its content, every directory, and every link. A link is recorded with its target and is never followed. A Windows junction is recognised by its reparse tag, because its mode looks like a directory. A file that is not a regular file is listed and never opened. Anything that cannot be read is recorded as unreadable, and is the same in both snapshots unless it changes. The content hash is compared as well as the size and the time, because a modification time can advance in coarse steps.
 
-The wrapper always needs a project, so admission checks the directory first, and it takes the grant rule and the description of the adapter it wraps. If the project cannot be read before the run, the adapter does not run. If it cannot be read after the run, the run fails. A change is reported even when the adapter said it succeeded or raised an error, with the counts and at most three escaped names in a reason that starts `the project changed during a read-only run`. This detects a change and does not prevent one. It sees only the project, it cannot tell who made a change, it is not a sandbox, and the snapshots are not limited in time or in the number of files (G16 in [STATUS.md](STATUS.md)). Nothing registered uses it yet.
+The wrapper always needs a project, so admission checks the directory first, and it takes the grant rule and the description of the adapter it wraps. If the project cannot be read before the run, the adapter does not run. If it cannot be read after the run, the run fails. A change is reported even when the adapter said it succeeded or raised an error, with the counts and at most three escaped names in a reason that starts `the project changed during a read-only run`. This detects a change and does not prevent one. It sees only the project, it cannot tell who made a change, it is not a sandbox, and the snapshots are not limited in time or in the number of files (G16 in [STATUS.md](STATUS.md)). `inspect` is wrapped in it.
+
+### The inspect adapter
+
+`inspect` is the first adapter that does real work, and it only reads. It is registered in `execution/adapters.py` by `build_inspect_adapter` as a `ReadOnlyAdapter` around a `ProcessAdapter` that runs `sys.executable -m aic_control_centre.execution.inspect_project`, so it needs a grant and a project, and a run is refused before anything starts when either is missing. The request reaches the child as JSON on standard input with the `project_path` that admission returned. The child starts in an empty temporary directory with a short environment and no `PYTHONPATH`, so it works only on the path that it is given, and AIC has to be installed for it to start (G19 in [STATUS.md](STATUS.md)).
+
+The module `execution/inspect_project.py` is both the library and the child. `inspect_directory` walks the project with directory listings and file status only. It never opens a file and never follows a link, counts files, directories, links, other entries and entries that it could not read, adds up the size of the files, keeps the three largest, and notes a README and a `.git` at the top level. `describe` writes the result as one line, with names that are escaped and cut, so the reason is short whatever the project holds. The child answers every request with one JSON line and exit status 0, and a request that cannot be done is a failed outcome with a reason. The snapshots of the wrapper do read every file to hash it, so a run reads the content of the project twice although `inspect` itself does not. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md).
 
 ### Execution Outcome
 
@@ -344,7 +350,7 @@ None of this exists in code. It is recorded as research in [DESIGN_DIRECTIONS.md
 
 The current architecture does not yet provide unrestricted execution capabilities.
 
-Concrete system-level execution adapters, limits on what an adapter may touch, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
+Concrete system-level execution adapters beyond `inspect`, limits on what an adapter may touch, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
