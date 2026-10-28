@@ -22,7 +22,7 @@ The current implementation provides:
 - Validation of persisted goal and task state
 - Task readiness evaluation
 - Execution admission, start, and outcome recording, reached through `aic task run`
-- Execution target selection and adapter registration; the only adapter is `noop`, which does no work
+- Execution target selection and adapter registration; two adapters are registered: `noop`, which does no work, and `inspect`, which reports what is in a project directory and changes nothing
 - Execution coordination, through `aic task run`
 - Deterministic local JSON persistence with atomic writes, a schema version, and a lock that keeps concurrent `aic` commands apart
 
@@ -35,7 +35,7 @@ The current implementation does **not** provide:
 - LLM execution
 - Autonomous agent loops
 - Unrestricted tool execution
-- Any concrete execution adapter
+- Any execution adapter that writes to a project, other than `noop` and the read-only `inspect`
 
 These capabilities are intentionally deferred until the underlying control boundaries are stable and well tested.
 
@@ -80,7 +80,7 @@ aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the g
 aic task history <task-id>                  Show the recorded execution attempts for a task
 aic task running [--older-than <duration>]  List the running tasks and how long each has run (30m, 2h, 1d)
 aic task run <task-id> --target <name>      Run a ready task through an execution target
-aic task targets                            List the execution targets and whether each needs a grant (only noop exists)
+aic task targets                            List the execution targets and whether each needs a grant (noop and inspect exist)
 
 aic permission grant <project> --target <name> --reason "<text>"   Let a project use a target that needs a grant
 aic permission revoke <project> --target <name>                    Withdraw that permission
@@ -197,7 +197,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/PROCESS_ADAPTERS_DESIGN.md](docs/PROCESS_ADAPTERS_DESIGN.md) | Design note on out-of-process adapters, timeouts and limits; stages 1 and 2 built |
 | [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md) | Design note on which projects may use which execution targets; built |
 | [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md) | Design note on a read-only listing of how long tasks have been `running`; implemented as `aic task running` |
-| [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, stages 1 to 3 built |
+| [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, all four stages built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
