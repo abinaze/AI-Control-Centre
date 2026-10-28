@@ -21,12 +21,19 @@ Rules that matter:
 
 from __future__ import annotations
 
+import json
 import os
 import stat
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from aic_control_centre.execution.snapshot import escape_name, is_link
+from aic_control_centre.projects.directory import (
+    MISSING,
+    NOT_A_DIRECTORY,
+    directory_problem,
+)
 
 LARGEST_SHOWN = 3
 NAME_LIMIT = 60
@@ -195,3 +202,75 @@ def describe(summary: Summary) -> str:
         f"inspected project: {', '.join(parts)}; largest: {largest}; "
         f"README: {_yes(summary.has_readme)}; .git: {_yes(summary.has_git)}"
     )
+
+
+# What follows is the child process. AIC starts it with a ProcessAdapter,
+# writes the request to its standard input, and reads one JSON object from
+# its standard output. See aic_control_centre.execution.process.
+
+PATH_LIMIT = 120
+
+
+def _failed(reason: str) -> dict[str, str]:
+    return {"outcome": "failed", "reason": reason}
+
+
+def _shown_path(path: str) -> str:
+    return escape_name(path, limit=PATH_LIMIT)
+
+
+def run(request_bytes: bytes) -> dict[str, str]:
+    """Return the outcome and reason for a request read from the parent."""
+    try:
+        text = request_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return _failed("the request was not valid UTF-8")
+
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError):
+        return _failed("the request was not valid JSON")
+
+    path = data.get("project_path") if isinstance(data, dict) else None
+
+    if not isinstance(path, str) or not path:
+        return _failed("the request has no project path")
+
+    shown = _shown_path(path)
+    problem = directory_problem(Path(path))
+
+    if problem is not None:
+        kind, detail = problem
+
+        if kind == MISSING:
+            return _failed(f"the project directory does not exist: {shown}")
+
+        if kind == NOT_A_DIRECTORY:
+            return _failed(f"the project path is not a directory: {shown}")
+
+        return _failed(
+            f"the project directory cannot be read: {shown}; {detail}"
+        )
+
+    try:
+        summary = inspect_directory(path)
+    except OSError as error:
+        reason = error.strerror or type(error).__name__
+
+        return _failed(
+            f"the project directory cannot be read: "
+            f"{escape_name(reason, limit=PATH_LIMIT)}"
+        )
+
+    return {"outcome": "completed", "reason": describe(summary)}
+
+
+def main() -> int:
+    """Read a request from standard input and print the answer as JSON."""
+    print(json.dumps(run(sys.stdin.buffer.read())))
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
