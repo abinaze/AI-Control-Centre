@@ -20,6 +20,7 @@ LOCK_FILE = ".aic.lock"
 LOCKING_COMMANDS = {
     "validate",
     "project add",
+    "project remove",
     "goal create",
     "goal status",
     "task create",

@@ -21,7 +21,11 @@ from aic_control_centre.permissions.commands import (
     revoke_permission,
 )
 from aic_control_centre.permissions.registry import PermissionRegistry
-from aic_control_centre.projects.commands import add_project, list_projects
+from aic_control_centre.projects.commands import (
+    add_project,
+    list_projects,
+    remove_project,
+)
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.commands import (
@@ -113,6 +117,23 @@ def build_parser() -> argparse.ArgumentParser:
     project_subparsers.add_parser(
         "list",
         help="List registered projects.",
+    )
+
+    project_remove_parser = project_subparsers.add_parser(
+        "remove",
+        help=(
+            "Remove a project from the registry. "
+            "Its directory is not touched."
+        ),
+    )
+    project_remove_parser.add_argument(
+        "name",
+        help="Name of the registered project.",
+    )
+    project_remove_parser.add_argument(
+        "--path",
+        default=None,
+        help="Directory of the project, when more than one has the name.",
     )
 
     goal_parser = subparsers.add_parser(
@@ -444,6 +465,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.project_command == "list":
             return list_projects()
+
+        if args.project_command == "remove":
+            return remove_project(args.name, args.path)
 
         parser.parse_args(["project", "--help"])
         return 0
