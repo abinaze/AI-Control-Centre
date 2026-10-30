@@ -56,6 +56,9 @@ All notable changes to AI Control Centre are documented here.
 - Added the child process entry point to the same module, `python -m aic_control_centre.execution.inspect_project`. It reads the request from standard input and always answers with one JSON line and exit status 0, with a failed outcome for a request that is not UTF-8 or JSON, has no project path, or names a directory that is missing, is not a directory or cannot be read.
 - Registered the `inspect` target in `build_adapter_registry`: a `ReadOnlyAdapter` around a `ProcessAdapter` that runs that module with `sys.executable`, with a grant and a project required. `aic task targets` now lists two targets. AIC has to be installed for the child to start (G19).
 - Changed two tests that assumed `noop` was the only shipped adapter, so that they pass before and after the registration, and added a test that every shipped adapter other than `noop` needs a grant.
+- Added `find_project` and `remove_project` to the project registry, with `ProjectNotRegisteredError` and `ProjectNameAmbiguousError`. A name that more than one directory has needs the directory, which is compared as a resolved path and may be one that no longer exists.
+- Added `removal_blockers` in `projects/removal.py`, which finds the goals and the active grants that name a project, and finds nothing when another entry keeps the name.
+- Added `aic project remove <name> [--path <directory>]`. It removes one registry entry, never touches the directory, and refuses, writing nothing, while a goal or an active grant still names the project. It is classified as a command that takes the state lock for the whole command.
 
 ### Documentation
 
@@ -89,6 +92,7 @@ All notable changes to AI Control Centre are documented here.
 - Marked stage 3 of `docs/FIRST_ADAPTER_DESIGN.md` built, with a section on it and the Windows observations of a junction, added the invariants INV-39 and INV-40 and the gap G16 to `docs/STATUS.md`, and added the rule for read-only adapters to the contributing guide.
 - Marked stage 4 of `docs/FIRST_ADAPTER_DESIGN.md` built, with a section on it and its Windows record, added the invariants INV-43 to INV-46 and the gap G19 to `docs/STATUS.md`, updated the architecture, the security policy, the roadmap and the readme for `inspect`, and added the rules for modules that run out of process and for tests that need a link to the contributing guide.
 - Recorded the run of `inspect` on Windows through the real CLI, and the full suite at `873c106`, in `docs/FIRST_ADAPTER_DESIGN.md` and `docs/STATUS.md`.
+- Described `aic project remove` in the architecture, added the invariants INV-47 and INV-48 and the gap G20 to `docs/STATUS.md`, and updated the roadmap and the readme.
 - Recorded the failure on Windows that was not explained as G17 and the state file fix as G18 in `docs/STATUS.md`, added the invariants INV-41 and INV-42, noted the failure in the first adapter design note, and added the rule about `Path.exists()` to the contributing guide.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
@@ -102,6 +106,7 @@ All notable changes to AI Control Centre are documented here.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide.
 - A project directory can still vanish between the admission check and the adapter's work. The check is made once, so an adapter that acts on a project has to treat that as a failed outcome. `inspect` acts on a project, and it treats a directory that has vanished as a failed outcome.
 - The read-only check detects a change after a run and does not prevent it, sees only the project, and its snapshots are not limited in time or in the number of files (G16). `inspect` is wrapped in it.
+- A project that has had a goal cannot be removed, because goals cannot be removed (G20).
 - `inspect` runs a module of AIC in a child process that gets no `PYTHONPATH`, so AIC has to be installed for the Python that runs it (G19).
 - One test failed once on Windows, and the cause is not known. It did not happen again in 25 runs of that test on its own, 50 runs of the same steps through the real CLI and two full runs. The check that printed the message was changed so that a recurrence says why (G17).
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
