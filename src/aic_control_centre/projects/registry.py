@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,40 @@ class ProjectNameInUseError(ValueError):
         )
         self.name = name
         self.existing_path = existing_path
+
+
+class ProjectNotRegisteredError(ValueError):
+    """Raised when no registered project has the name, or the directory."""
+
+    def __init__(self, name: str, path: Path | None = None) -> None:
+        if path is None:
+            message = f"no project named {name} is registered"
+        else:
+            message = f"no project named {name} is registered at {path}"
+
+        super().__init__(message)
+        self.name = name
+        self.path = path
+
+
+class ProjectNameAmbiguousError(ValueError):
+    """Raised when more than one registered directory has the name."""
+
+    def __init__(self, name: str, paths: list[Path]) -> None:
+        listed = ", ".join(str(path) for path in paths)
+
+        super().__init__(f"{len(paths)} projects are named {name}: {listed}")
+        self.name = name
+        self.paths = paths
+
+
+def _path_key(path: Path) -> str:
+    """Return a string that is the same for the same directory.
+
+    The path is resolved without needing the directory to exist, because
+    the directory of a project may be the very thing that is gone.
+    """
+    return os.path.normcase(str(path.expanduser().resolve()))
 
 
 class ProjectRegistry:
@@ -126,3 +161,56 @@ class ProjectRegistry:
                 return project
 
         return None
+
+    def find_project(self, name: str, path: Path | None = None) -> Project:
+        """Return the registered project that has this name.
+
+        A name that more than one directory has does not say which one is
+        meant, so it needs the directory too. The directory is compared as
+        a resolved path and may be one that no longer exists. When the file
+        holds the same entry twice, the directory picks one of them.
+        """
+        matches = [item for item in self._load() if item.name == name]
+
+        if path is not None:
+            wanted = _path_key(path)
+            matches = [
+                item for item in matches if _path_key(item.path) == wanted
+            ]
+
+            if not matches:
+                raise ProjectNotRegisteredError(name, path)
+
+            return matches[0]
+
+        if not matches:
+            raise ProjectNotRegisteredError(name)
+
+        if len(matches) > 1:
+            raise ProjectNameAmbiguousError(
+                name,
+                [item.path for item in matches],
+            )
+
+        return matches[0]
+
+    def remove_project(self, project: Project) -> None:
+        """Remove one registry entry. The directory is never touched.
+
+        Only the entry that has this name and path is removed, and only one
+        of them when the file holds the same entry twice. Whether anything
+        still uses the project is for the caller to decide.
+        """
+        projects = self._load()
+
+        for index, existing in enumerate(projects):
+            if (
+                existing.name == project.name
+                and existing.path == project.path
+            ):
+                del projects[index]
+                self._save(projects)
+
+                return
+
+        raise ProjectNotRegisteredError(project.name, project.path)
