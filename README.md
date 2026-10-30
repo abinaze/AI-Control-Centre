@@ -63,6 +63,7 @@ aic validate                                Validate persisted goal and task sta
 
 aic project add <path>                      Register a local project (names must be unique)
 aic project list                            List registered projects
+aic project remove <name> [--path <dir>]    Remove a project from the registry; its directory is not touched
 
 aic goal create "<description>" --project <name>   (the project must be registered)
 aic goal list
