@@ -67,7 +67,7 @@ Option 1 is recommended because it closes the gap without changing what the comm
 
 ### Step 2 — Decide and enforce project references (closes G3)
 
-Status: Implemented. `aic goal create` refuses an unregistered project and `aic validate` reports goals whose project is not registered. Names are matched exactly.
+Status: Implemented. `aic goal create` refuses an unregistered project and `aic validate` reports goals whose project is not registered. Names are matched exactly. `aic project remove` removes an entry that no goal and no active grant still names.
 
 Original options: validate `--project` against the project registry at goal creation and in `aic validate`, or document free-text project names as intended.
 
@@ -96,6 +96,7 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 Potential future work:
 
 - Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
+- A command that removes goals, so that a project that has had a goal can be removed (G20 in [docs/STATUS.md](docs/STATUS.md)); it has to decide what becomes of their tasks and execution records
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
