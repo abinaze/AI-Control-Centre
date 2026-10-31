@@ -199,6 +199,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md) | Design note on which projects may use which execution targets; built |
 | [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md) | Design note on a read-only listing of how long tasks have been `running`; implemented as `aic task running` |
 | [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, all four stages built |
+| [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md) | Design note on taking finished goals out of the active state without destroying their history; proposed, not accepted |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
