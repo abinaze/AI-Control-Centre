@@ -96,7 +96,7 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 Potential future work:
 
 - Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
-- A command that removes goals, so that a project that has had a goal can be removed (G20 in [docs/STATUS.md](docs/STATUS.md)); it has to decide what becomes of their tasks and execution records
+- Archiving finished goals, so that a project that has had a goal can be removed (G20 in [docs/STATUS.md](docs/STATUS.md)); proposed in [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md)
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -116,6 +116,8 @@ The third design note is [docs/PERMISSIONS_DESIGN.md](docs/PERMISSIONS_DESIGN.md
 The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md). It covers a read-only listing of how long each task has been `running`, to help a person decide what to requeue. It is implemented as `aic task running`.
 
 The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. All four of its stages are built: unique project names, the project path with its check in admission, the read-only check as a wrapper, and `inspect`, registered as a read-only process adapter with a grant required. A write adapter, an operating system sandbox and the detection of dead runs are not built.
+
+The sixth design note is [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md). It covers how finished goals can leave the active state, so that a project that has had a goal can be removed, without destroying the history that the execution records keep. It is proposed and not accepted, and nothing of it is built.
 
 ## Phase 4 — Validation and Recovery
 
