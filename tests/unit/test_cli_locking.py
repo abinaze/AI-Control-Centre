@@ -22,6 +22,7 @@ LOCKING_COMMANDS = {
     "project add",
     "project remove",
     "goal create",
+    "goal archive",
     "goal status",
     "task create",
     "task ready",

@@ -11,6 +11,7 @@ from aic_control_centre.execution.adapters import build_adapter_registry
 from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.commands import (
+    archive_goal,
     create_goal,
     list_goals,
     show_goal_status,
@@ -172,6 +173,23 @@ def build_parser() -> argparse.ArgumentParser:
     goal_status_parser.add_argument(
         "goal_id",
         help="Goal ID.",
+    )
+
+    goal_archive_parser = goal_subparsers.add_parser(
+        "archive",
+        help=(
+            "Move a finished goal, its tasks and their records to the "
+            "archive."
+        ),
+    )
+    goal_archive_parser.add_argument(
+        "goal_id",
+        help="Goal ID.",
+    )
+    goal_archive_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Why the goal is archived.",
     )
 
     task_parser = subparsers.add_parser(
@@ -488,6 +506,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.goal_command == "status":
             return show_goal_status(args.goal_id)
+
+        if args.goal_command == "archive":
+            return archive_goal(args.goal_id, args.reason)
 
         parser.parse_args(["goal", "--help"])
         return 0
