@@ -59,6 +59,12 @@ All notable changes to AI Control Centre are documented here.
 - Added `find_project` and `remove_project` to the project registry, with `ProjectNotRegisteredError` and `ProjectNameAmbiguousError`. A name that more than one directory has needs the directory, which is compared as a resolved path and may be one that no longer exists.
 - Added `removal_blockers` in `projects/removal.py`, which finds the goals and the active grants that name a project, and finds nothing when another entry keeps the name.
 - Added `aic project remove <name> [--path <directory>]`. It removes one registry entry, never touches the directory, and refuses, writing nothing, while a goal or an active grant still names the project. It is classified as a command that takes the state lock for the whole command.
+- Added `ArchiveEntry` and `GoalArchive` in `goals/archive.py`. An entry holds a finished goal, its tasks, their execution records, the reason and the project directory, refuses work in flight, and is read-only. The archive is the append-only file `archive.json`, read with the reader that tells an absent file from an unreadable one, and a goal is never in it twice.
+- Added `remove_goal`, `remove_tasks` and `remove_records` to the three registries, for archiving only.
+- Added `GoalArchiver` in `goals/archiving.py`, which writes the archive entry first and then removes the records, the tasks and the goal, refuses a goal with unfinished work, and finishes a goal that a crash left archived and still active.
+- Added the check in `aic validate` for a goal that is archived and still active, and for a goal that is in the archive twice.
+- Added `aic goal archive <goal id> --reason <text>`. It is classified as a command that takes the state lock for the whole command.
+- Changed the refusal of `aic project remove` to name `aic goal archive` when a goal is what blocks the removal.
 
 ### Documentation
 
@@ -94,6 +100,7 @@ All notable changes to AI Control Centre are documented here.
 - Recorded the run of `inspect` on Windows through the real CLI, and the full suite at `873c106`, in `docs/FIRST_ADAPTER_DESIGN.md` and `docs/STATUS.md`.
 - Described `aic project remove` in the architecture, added the invariants INV-47 and INV-48 and the gap G20 to `docs/STATUS.md`, and updated the roadmap and the readme.
 - Added `docs/GOAL_ARCHIVE_DESIGN.md`: a design note, proposed and not accepted, on taking finished goals out of the active state without destroying their history. It is based on what happens to the tasks and records when a goal is removed by hand, and it recommends an append-only archive over deleting, with the write order, the rules for what can be archived, the options that were rejected and the tests a build would need. Nothing of it is built.
+- Accepted the goal archive design note and recorded its stages 1 and 2 in it, rewrote G20, added the gap G21 and the invariants INV-49 to INV-51 to `docs/STATUS.md`, described archiving in the architecture, the security policy, the roadmap and the readme, and added the rule that only archiving removes a goal, a task or an execution record to the contributing guide.
 - Recorded the failure on Windows that was not explained as G17 and the state file fix as G18 in `docs/STATUS.md`, added the invariants INV-41 and INV-42, noted the failure in the first adapter design note, and added the rule about `Path.exists()` to the contributing guide.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
@@ -107,7 +114,8 @@ All notable changes to AI Control Centre are documented here.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide.
 - A project directory can still vanish between the admission check and the adapter's work. The check is made once, so an adapter that acts on a project has to treat that as a failed outcome. `inspect` acts on a project, and it treats a directory that has vanished as a failed outcome.
 - The read-only check detects a change after a run and does not prevent it, sees only the project, and its snapshots are not limited in time or in the number of files (G16). `inspect` is wrapped in it.
-- A project that has had a goal cannot be removed, because goals cannot be removed (G20).
+- A goal that has a task that is not finished cannot be archived, so a project with unfinished work stays registered, and nothing lists the archive yet (G20).
+- A goal that was archived halfway and then got a new task cannot be finished by the command (G21).
 - `inspect` runs a module of AIC in a child process that gets no `PYTHONPATH`, so AIC has to be installed for the Python that runs it (G19).
 - One test failed once on Windows, and the cause is not known. It did not happen again in 25 runs of that test on its own, 50 runs of the same steps through the real CLI and two full runs. The check that printed the message was changed so that a recurrence says why (G17).
 - An attempt record left open for a completed or failed task cannot be closed from the CLI, so `aic validate` keeps reporting it (G11 in `docs/STATUS.md`).
