@@ -156,3 +156,32 @@ def archive_goal(goal_id: str, reason: str) -> int:
     print("Nothing was deleted. The history is in the archive file.")
 
     return 0
+
+
+def list_archived_goals() -> int:
+    """List the goals that were archived. Nothing is changed."""
+    archive = GoalArchive.beside(TaskRegistry().registry_path)
+    entries = archive.list_entries()
+
+    if not entries:
+        print("No archived goals.")
+        return 0
+
+    print("Archived goals:")
+    print()
+
+    for entry in entries:
+        goal = entry.goal
+
+        print(f"- {goal.id}")
+        print(f"  Project: {goal.project}")
+        print(f"  Directory: {entry.project_path or 'not recorded'}")
+        print(f"  Status: {goal.status}")
+        print(f"  Description: {goal.description}")
+        print(f"  Archived: {entry.archived_at}")
+        print(f"  Reason: {entry.reason}")
+        print(f"  Tasks: {len(entry.tasks)}")
+        print(f"  Execution records: {len(entry.records)}")
+        print()
+
+    return 0

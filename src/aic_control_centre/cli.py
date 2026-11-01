@@ -13,6 +13,7 @@ from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.commands import (
     archive_goal,
     create_goal,
+    list_archived_goals,
     list_goals,
     show_goal_status,
 )
@@ -56,6 +57,7 @@ READ_ONLY_COMMANDS = frozenset(
         "doctor",
         "project list",
         "goal list",
+        "goal archived",
         "task list",
         "task status",
         "task readiness",
@@ -164,6 +166,11 @@ def build_parser() -> argparse.ArgumentParser:
     goal_subparsers.add_parser(
         "list",
         help="List registered goals.",
+    )
+
+    goal_subparsers.add_parser(
+        "archived",
+        help="List the goals that were archived.",
     )
 
     goal_status_parser = goal_subparsers.add_parser(
@@ -503,6 +510,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.goal_command == "list":
             return list_goals()
+
+        if args.goal_command == "archived":
+            return list_archived_goals()
 
         if args.goal_command == "status":
             return show_goal_status(args.goal_id)

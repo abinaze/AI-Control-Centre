@@ -38,6 +38,7 @@ READ_ONLY = {
     "doctor",
     "project list",
     "goal list",
+    "goal archived",
     "task list",
     "task status",
     "task readiness",
