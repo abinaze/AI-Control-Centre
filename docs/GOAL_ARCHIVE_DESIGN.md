@@ -1,6 +1,6 @@
 # Design Note: Taking Finished Goals Out of the Active State
 
-**Status: Proposed. Not accepted, and no code is written.** Everything below the evidence is a recommendation for the maintainer to accept, change or reject. Nothing was run on Windows for this note.
+**Status: Accepted as recommended; stages 1 and 2 are built.** The maintainer accepted all six recommendations in the open questions. The evidence below was run on Linux before anything was built, and nothing in it was run on Windows. What the built stages did is in the sections Stage 1: built and Stage 2: built at the end. The listing of the archive is not built.
 
 ## Problem
 
@@ -99,6 +99,8 @@ So a goal that is deleted by hand leaves tasks and records that no command can f
 
 ## Open questions for the maintainer
 
+The maintainer accepted all six recommendations below.
+
 1. **Archive instead of delete?** Recommended: yes, 1A. The alternative that is shorter to build, 1B, destroys the history.
 2. **Only finished goals, with no `--force`?** Recommended: yes.
 3. **A required reason?** Recommended: yes, as for a grant, so that the archive says why each goal was taken out. A blank reason is refused.
@@ -108,8 +110,35 @@ So a goal that is deleted by hand leaves tasks and records that no command can f
 
 ## Recommended order
 
-1. The archive file and its registry as a library, with tests, including the write order and the unreadable file.
-2. `aic goal archive`, its classification as a locking command, the check in `aic validate` for a goal that is both active and archived, and tests through the CLI with the real registries.
-3. The change to the refusal of `aic project remove`, so that it points at the archive command.
+1. **Built.** The archive file and its registry as a library, with tests, including the write order and the unreadable file.
+2. **Built.** `aic goal archive`, its classification as a locking command, the check in `aic validate` for a goal that is both active and archived, and tests through the CLI with the real registries.
+3. **Built.** The change to the refusal of `aic project remove`, so that it points at the archive command.
 4. `aic goal archived`.
 5. The documentation, and the Windows record.
+
+
+## Stage 1: built
+
+Stage 1 of the recommended order, the archive file and its registry as a library, is built in four commits, with no command yet.
+
+- **The entry.** `ArchiveEntry` in `goals/archive.py` holds a goal, its tasks, their execution records, the time, the reason and the project directory that the registry had, or none. It enforces the rules of Decision 2 itself, as a second wall under the command: a blank reason, a task of another goal, a task that is `pending`, `ready` or `running`, a record of a task that is not in the entry, an open record, and a task or a record listed twice are all refused. An entry is read-only once made.
+- **The file.** `GoalArchive` stores `archive.json` beside `tasks.json` in the versioned state format, with the list called `archived`. It is read with the reader that tells an absent file from an unreadable one, so a file that cannot be read is an error and is never overwritten, and a newer schema version is refused and kept. The rules of an entry are applied to what is read as well, so an entry in the file that holds work in flight is invalid. `add_entry` returns `False` and writes nothing when the goal is already archived, and the entry that is there is kept, because it was made before anything was removed.
+- **Tests.** There are 31 new tests, 15 for the entry and 16 for the file. One of them makes `Path.exists()` answer no for the file and checks that the entries are still found, because whether the file is there is decided by reading it.
+- **Found while building.** The first mutation run left three of 29 mutations alive: a blank archive time, and lists that were not made tuples, which would make an entry unhashable. Two tests were added, and all 29 were then caught.
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the four commits, which gave 963, 978, 978 and 994 passed, each with 2 skipped. The last run was on the tree that became `51a040b`.
+
+## Stage 2: built
+
+Stage 2 and the change of Stage 3 of the recommended order that concerns the refusal of `aic project remove` are built, in ten commits.
+
+- **Removing from the active files.** `GoalRegistry.remove_goal`, `TaskRegistry.remove_tasks` and `ExecutionRecordRegistry.remove_records` each remove from one file with one atomic write, and write nothing when there is nothing to remove, including when the file is not there. Only archiving uses them.
+- **The archiver.** `GoalArchiver` in `goals/archiving.py` follows Decision 4. It writes the entry first, then removes the records, then the tasks, then the goal. A goal that has a task that is not finished is refused, with the tasks listed, and nothing is written. A blank reason is refused even for a goal that is already archived. A goal that is already archived and no longer active is reported as done and nothing changes. When an earlier attempt left the entry in the archive, the second attempt keeps that entry and its reason and only finishes the removal. The project directory is taken from the registry, and is none when the project is not registered or the name has two directories.
+- **`aic validate`.** A goal that is both active and archived is reported as `Goal <id> is archived and also still active; finish it with: aic goal archive <id> --reason <text>`, and a goal that is in the archive twice is reported too. The check applies when an archive registry is given, and the CLI gives one.
+- **The command.** `aic goal archive <goal id> --reason <text>` needs the reason. It prints what moved, the project and its directory, the reason and the path of the archive, and says that nothing was deleted. It takes the state lock for the whole command, and its entry in the classification is in the same commit as the parser entry. A refusal says `Nothing was changed.`
+- **The project removal refusal.** `aic project remove` still counts only the goals in `goals.json`. Its refusal now says that goals cannot be removed and names `aic goal archive <goal id> --reason <text>`, when a goal is what blocks it, and does not name it when only a grant does. The test that asserted the old wording was changed first, so that it passed before and after.
+- **Observed on Linux, with the real CLI and a temporary data directory.** A goal with a `ready` task was refused with `Nothing was changed.` A run without `--reason` was a usage error. Before the archive, `aic project remove` refused the project. After `aic goal archive <id> --reason "all shipped"` the goal, its two tasks and their two records were gone from the active files, `aic validate` printed `Validation passed.`, and `archive.json` held one entry with two tasks, two records, the reason and a project directory that exists. Archiving the same goal again exited 0 and changed nothing. `aic project remove` then succeeded, and the directory and its files were not touched. `aic task history` of an archived task no longer finds the task, which is the cost that Stage 3, the listing, is for.
+- **Tests.** There are 52 new tests: 10 for the removal methods, 20 for the archiver, 9 for validation and 13 for the command. The archiver tests make each of the four writes fail in turn, as a crash would, and check that the state is valid and reported and that archiving again finishes it with the same final state. They also show that removing the goal first fails five of them, so the write order is enforced.
+- **Found while building.** Three of my own tests were wrong and the code was right: one expected the earlier reason after a crash at the very first write, when nothing had been archived yet; one made a `pending` goal with a `completed` task, which tripped an existing status rule; and one line was too long. The first mutation run left five of 33 alive: `remove_tasks` and `remove_records` writing when nothing was removed, a blank reason for an already archived goal, the "and N more" boundary at exactly five unfinished tasks, and a goal id with spaces around it. Five tests were added, and all 33 were then caught. One case is not covered by the design: a task added to a goal after a crash left it archived and still active stops the second attempt (G21 in [STATUS.md](STATUS.md)).
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the ten commits, which gave 994, 1004, 1004, 1024, 1024, 1033, 1033, 1046, 1046 and 1046 passed, each with 2 skipped. The last run was on the tree that became `0012585`. A run of `aic goal archive` through the real CLI on Windows was not made.
+
+Stage 3, the read-only listing `aic goal archived`, is not built.
