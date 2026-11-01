@@ -94,9 +94,10 @@ def _print_blockers(project: Project, blockers: Blockers) -> None:
 
     if blockers.goals:
         print(
-            "Goals cannot be removed yet, so a project that has goals "
-            "stays registered."
+            "Goals cannot be removed. A goal whose tasks are all finished "
+            "can be taken out with:"
         )
+        print("aic goal archive <goal id> --reason <text>")
 
     if blockers.grants:
         print(

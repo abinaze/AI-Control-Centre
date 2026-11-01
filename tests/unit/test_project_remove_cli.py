@@ -133,6 +133,7 @@ def test_a_project_with_a_goal_stays(
     assert f"- {goal.id} (pending)" in output
     assert "Nothing was changed." in output
     assert "Goals cannot be removed" in output
+    assert "aic goal archive <goal id> --reason <text>" in output
     assert "aic permission revoke" not in output
     assert _state(tmp_path) == before
 
@@ -208,6 +209,7 @@ def test_a_grant_blocks_until_it_is_revoked(
     assert "- target inspect" in output
     assert "Withdraw a grant with: aic permission revoke app" in output
     assert "Goals cannot be removed" not in output
+    assert "aic goal archive" not in output
     assert _state(tmp_path) == before
 
     assert run_cli(
