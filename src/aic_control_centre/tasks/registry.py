@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from aic_control_centre.config import load_config
@@ -129,3 +130,19 @@ class TaskRegistry:
             return updated_task
 
         raise ValueError(f"Task not found: {task_id}")
+
+    def remove_tasks(self, task_ids: Iterable[str]) -> int:
+        """Remove tasks from the active file and return how many went.
+
+        Only archiving removes tasks. Nothing is written when none of the
+        ids is in the file, so that removing them again is safe.
+        """
+        wanted = set(task_ids)
+        tasks = self._load()
+        kept = [task for task in tasks if task.id not in wanted]
+        removed = len(tasks) - len(kept)
+
+        if removed:
+            self._save(kept)
+
+        return removed

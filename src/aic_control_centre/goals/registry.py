@@ -99,3 +99,19 @@ class GoalRegistry:
             return goal
 
         raise ValueError(f"Goal not found: {goal.id}")
+
+    def remove_goal(self, goal_id: str) -> bool:
+        """Remove a goal from the active file and say whether it was there.
+
+        Only archiving removes goals. Nothing is written when the goal is
+        not in the file, so that removing it again is safe.
+        """
+        goals = self._load()
+        kept = [goal for goal in goals if goal.id != goal_id]
+
+        if len(kept) == len(goals):
+            return False
+
+        self._save(kept)
+
+        return True

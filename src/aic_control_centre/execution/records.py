@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from uuid import uuid4
@@ -273,3 +274,19 @@ class ExecutionRecordRegistry:
         self._save(records)
 
         return closed
+
+    def remove_records(self, record_ids: Iterable[str]) -> int:
+        """Remove records from the active file and return how many went.
+
+        Only archiving removes records. Nothing is written when none of
+        the ids is in the file, so that removing them again is safe.
+        """
+        wanted = set(record_ids)
+        records = self._load()
+        kept = [record for record in records if record.id not in wanted]
+        removed = len(records) - len(kept)
+
+        if removed:
+            self._save(kept)
+
+        return removed
