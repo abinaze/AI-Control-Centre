@@ -47,7 +47,7 @@ src/aic_control_centre/
   locking.py        the exclusive state lock held for one CLI command
   timestamps.py     reading the times that the registries write
   projects/         project registry, commands and the directory check
-  goals/            goal model, registry, and commands
+  goals/            goal model, registry, commands, the archive of finished goals and archiving
   tasks/            task model (lifecycle table), registry, commands, and the running task report
   orchestration/    goal status derivation and reconciliation
   validation/       goal/task validation and the task-creation rule
@@ -200,11 +200,17 @@ The wrapper always needs a project, so admission checks the directory first, and
 
 ### Removing a project
 
-`aic project remove <name> [--path <directory>]` removes one entry from `projects.json` and never touches the directory. Goals and grants identify a project by its name, so a removal that left one of them pointing at a name that is no longer registered would bring back the problem that unique names closed: the name could be registered again for another directory, and the old goals would attach to it. The command therefore refuses, writes nothing, and lists what still uses the project: the goals that name it, with their ids and statuses and at most five shown, and the active grants, with their targets. A revoked grant is history and does not block. Goals cannot be removed (G20 in [STATUS.md](STATUS.md)), so a project that has ever had a goal stays registered.
+`aic project remove <name> [--path <directory>]` removes one entry from `projects.json` and never touches the directory. Goals and grants identify a project by its name, so a removal that left one of them pointing at a name that is no longer registered would bring back the problem that unique names closed: the name could be registered again for another directory, and the old goals would attach to it. The command therefore refuses, writes nothing, and lists what still uses the project: the goals that name it, with their ids and statuses and at most five shown, and the active grants, with their targets. A revoked grant is history and does not block. Goals cannot be deleted. A goal whose tasks are all finished can be archived (see Archiving a goal below), and then it no longer blocks the removal.
 
 A name that more than one directory has does not say which entry is meant. The command refuses it and shows the directories, and `--path` picks one. The directory is compared as a resolved path and may be one that no longer exists. Another entry keeps the name in that case, so goals and grants do not block the removal. This is the repair for the state that `aic validate` reports as one name held by two directories. The command holds the state lock for the whole command, as every command that writes does. The rules are in `removal_blockers` in `projects/removal.py` and in `find_project` and `remove_project` in `projects/registry.py`.
 
 Two options were rejected: removing the entry and leaving the goals and grants pointing at a name that is not registered, which `aic validate` would then report, and removing the goals, tasks and records together with the project, which destroys the audit trail.
+
+### Archiving a goal
+
+A goal whose work is finished can leave the active state without its history being destroyed. `aic goal archive <goal id> --reason <text>` moves the goal, its tasks and their execution records into `archive.json`, which is stored beside `tasks.json`, only ever appended to, and not read back into the active state. The entry also keeps the project directory that the registry had at that moment, or none, so that the history stays unambiguous if the same name is registered again for another directory. Only a goal whose tasks are all `completed` or `failed` is archived. A task that is `pending`, `ready` or `running` is work in flight, the command refuses the goal and lists those tasks, and there is no flag that forces it. A reason is always required.
+
+The entry is written first. Then the execution records are removed from `executions.json`, then the tasks from `tasks.json`, then the goal from `goals.json`, each as one atomic write of one file, which is the rule of INV-16 applied to four files: the copy that is kept is written before the original is removed. A crash leaves the work in the archive and in part still in the active files, and every such state is valid for them. `aic validate` reports a goal that is archived and still active, and archiving the goal again finishes the removal and keeps the first entry and its reason. `aic project remove` counts only the goals in `goals.json`, so an archived goal stops blocking it. The command holds the state lock for the whole command. The design, the options that were rejected, and what the built stages did are in [GOAL_ARCHIVE_DESIGN.md](GOAL_ARCHIVE_DESIGN.md). The registries have methods that remove a goal, tasks and records, and only archiving uses them. Nothing lists the archive yet, so `aic task history` no longer finds a task that was archived (G20 and G21 in [STATUS.md](STATUS.md)).
 
 ### The inspect adapter
 
