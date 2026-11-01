@@ -1,6 +1,6 @@
 # Design Note: Taking Finished Goals Out of the Active State
 
-**Status: Accepted as recommended; stages 1 and 2 are built.** The maintainer accepted all six recommendations in the open questions. The evidence below was run on Linux before anything was built, and nothing in it was run on Windows. What the built stages did is in the sections Stage 1: built and Stage 2: built at the end. The listing of the archive is not built.
+**Status: Accepted as recommended; all three stages are built.** The maintainer accepted all six recommendations in the open questions. The evidence below was run on Linux before anything was built, and nothing in it was run on Windows. What the built stages did is in the sections Stage 1: built, Stage 2: built and Stage 3: built at the end. A view of the tasks and the attempts of one archived goal is not part of the accepted design, and it is not built.
 
 ## Problem
 
@@ -113,7 +113,7 @@ The maintainer accepted all six recommendations below.
 1. **Built.** The archive file and its registry as a library, with tests, including the write order and the unreadable file.
 2. **Built.** `aic goal archive`, its classification as a locking command, the check in `aic validate` for a goal that is both active and archived, and tests through the CLI with the real registries.
 3. **Built.** The change to the refusal of `aic project remove`, so that it points at the archive command.
-4. `aic goal archived`.
+4. **Built.** `aic goal archived`.
 5. The documentation, and the Windows record.
 
 
@@ -141,4 +141,14 @@ Stage 2 and the change of Stage 3 of the recommended order that concerns the ref
 - **Found while building.** Three of my own tests were wrong and the code was right: one expected the earlier reason after a crash at the very first write, when nothing had been archived yet; one made a `pending` goal with a `completed` task, which tripped an existing status rule; and one line was too long. The first mutation run left five of 33 alive: `remove_tasks` and `remove_records` writing when nothing was removed, a blank reason for an already archived goal, the "and N more" boundary at exactly five unfinished tasks, and a goal id with spaces around it. Five tests were added, and all 33 were then caught. One case is not covered by the design: a task added to a goal after a crash left it archived and still active stops the second attempt (G21 in [STATUS.md](STATUS.md)).
 - **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the ten commits, which gave 994, 1004, 1004, 1024, 1024, 1033, 1033, 1046, 1046 and 1046 passed, each with 2 skipped. The last run was on the tree that became `0012585`. A run of `aic goal archive` through the real CLI on Windows was not made.
 
-Stage 3, the read-only listing `aic goal archived`, is not built.
+## Stage 3: built
+
+Stage 3 of the recommended order, the read-only listing `aic goal archived`, is built, in two commits.
+
+- **The listing.** `aic goal archived` prints every archived goal, oldest first and with no limit: the goal id, the project, the directory that the registry had or `not recorded`, the status, the description, the time, the reason, and the number of tasks and of execution records. It changes no file, does not create `archive.json` when it is not there, and says `No archived goals.` with exit status 0 when the archive is empty or absent. An archive that cannot be read is an error with exit status 1, and the file is kept as it was. It does not show the tasks or their attempts.
+- **The classification.** The command is in the read-only set in `cli.py` and in the locking test, so it does not take the state lock. My first attempt put it only in the test, and `test_every_parser_command_is_classified` failed before anything was committed. A read-only command that is not in `READ_ONLY_COMMANDS` takes the lock, which is safe and wrong.
+- **Observed on Linux, by hand, with a temporary data directory.** With no archive it printed `No archived goals.`, exited 0 and created no file. After one goal was archived with the reason `all shipped` it printed that goal with its project, its directory, `Status: completed`, `Tasks: 1` and `Execution records: 1`, and the checksums of the five state files were the same after listing. With the archive file replaced by invalid JSON it printed `Error: <path> is not valid JSON: ...`, exited 1, and the file was unchanged.
+- **Tests.** There are 8 new tests, which run the command through the CLI. They include a goal whose project was not registered, six goals in order, the directory that is still the original one after the project is removed and the name is registered again for another directory, and a goal with 3 tasks and 1 record, so that the two counts are told apart.
+- **Found while building.** The first mutation run left two of 16 alive: swapping the count of tasks with the count of records could not be seen, because my test goal had as many records as tasks. A test with 3 tasks and 1 record was added, and all 16 were then caught. Three of my own mutation anchors matched more than once, because `aic goal list` prints similar lines, and were made specific.
+- **Not built.** A view of the tasks and their attempts for one archived goal. After archiving, `aic task history` no longer finds an archived task, and its attempts can be read only in `archive.json`. That is not in the accepted design, so it needs its own decision.
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the two commits, which gave 1046 and 1054 passed, each with 2 skipped. The last run was on the tree that became `fe42772`. A run of `aic goal archived` on Windows was not made.
