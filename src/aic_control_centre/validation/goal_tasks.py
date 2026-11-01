@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from aic_control_centre.execution.records import ExecutionRecordRegistry
+from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.model import (
     GOAL_STATUS_COMPLETED,
     GOAL_STATUS_FAILED,
@@ -68,7 +69,9 @@ class GoalTaskValidator:
     be readable as ISO 8601 text with an offset. A project name that is
     used by more than one registered directory is reported, when a project
     registry is given. So is a registered directory that does not exist or
-    is not a directory.
+    is not a directory. A goal that is both active and archived, which is
+    what a crash leaves while a goal is archived, is reported when an
+    archive registry is given.
     """
 
     def __init__(
@@ -79,15 +82,50 @@ class GoalTaskValidator:
         record_registry: ExecutionRecordRegistry | None = None,
         permission_registry: PermissionRegistry | None = None,
         known_targets: Iterable[str] | None = None,
+        archive_registry: GoalArchive | None = None,
     ) -> None:
         self.goal_registry = goal_registry or GoalRegistry()
         self.task_registry = task_registry or TaskRegistry()
         self.project_registry = project_registry
         self.record_registry = record_registry
         self.permission_registry = permission_registry
+        self.archive_registry = archive_registry
         self.known_targets = (
             None if known_targets is None else frozenset(known_targets)
         )
+
+    def _archive_errors(self, goals: list[Goal]) -> list[str]:
+        """Return an error for a goal that is archived but still active.
+
+        That is what a crash leaves while a goal is being archived. The
+        same command finishes it. A goal that appears twice in the archive
+        is reported too. The check applies only when an archive registry
+        is given.
+        """
+        if self.archive_registry is None:
+            return []
+
+        active = {goal.id for goal in goals}
+        archived: set[str] = set()
+        errors: list[str] = []
+
+        for entry in self.archive_registry.list_entries():
+            goal_id = entry.goal.id
+
+            if goal_id in archived:
+                errors.append(f"Goal {goal_id} is archived more than once")
+                continue
+
+            archived.add(goal_id)
+
+            if goal_id in active:
+                errors.append(
+                    f"Goal {goal_id} is archived and also still active; "
+                    f"finish it with: aic goal archive {goal_id} "
+                    "--reason <text>"
+                )
+
+        return errors
 
     def _registered_project_names(self) -> set[str] | None:
         """Return registered project names, or None when not checking."""
@@ -405,6 +443,7 @@ class GoalTaskValidator:
         errors.extend(self._project_directory_errors())
         errors.extend(self._record_errors(tasks))
         errors.extend(self._permission_errors(registered_projects))
+        errors.extend(self._archive_errors(goals))
         errors.extend(self._time_errors(goals, tasks))
 
         return ValidationResult(errors=tuple(errors))

@@ -9,6 +9,7 @@ from aic_control_centre.config import load_config
 from aic_control_centre.doctor import run_doctor
 from aic_control_centre.execution.adapters import build_adapter_registry
 from aic_control_centre.execution.records import ExecutionRecordRegistry
+from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.commands import (
     create_goal,
     list_goals,
@@ -442,6 +443,9 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
                 TaskRegistry().registry_path,
             ),
             permission_registry=PermissionRegistry.beside(
+                TaskRegistry().registry_path,
+            ),
+            archive_registry=GoalArchive.beside(
                 TaskRegistry().registry_path,
             ),
             known_targets=build_adapter_registry().list_targets(),
