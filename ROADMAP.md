@@ -96,7 +96,7 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 Potential future work:
 
 - Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
-- Showing the tasks and the attempts of one archived goal, which `aic goal archived` does not do (G20 in [docs/STATUS.md](docs/STATUS.md)); it is not part of [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md) and needs its own decision
+- Showing the tasks and the attempts of one archived goal, which `aic goal archived` does not do (G20 in [docs/STATUS.md](docs/STATUS.md)); proposed in [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md)
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -118,6 +118,8 @@ The fourth design note is [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.m
 The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md). It covers the first adapter that does real work on a project: what it receives, where it runs, what it may touch, what it records and what it does. The maintainer accepted its recommendations. All four of its stages are built: unique project names, the project path with its check in admission, the read-only check as a wrapper, and `inspect`, registered as a read-only process adapter with a grant required. A write adapter, an operating system sandbox and the detection of dead runs are not built.
 
 The sixth design note is [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md). It covers how finished goals can leave the active state, so that a project that has had a goal can be removed, without destroying the history that the execution records keep. It is accepted, and all three of its stages are built: the archive file, `aic goal archive` and the listing `aic goal archived`.
+
+The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md). It covers how the tasks and the attempts of an archived goal can be read, which `aic goal archived` does not show. It is proposed and not accepted, and nothing of it is built.
 
 ## Phase 4 — Validation and Recovery
 
