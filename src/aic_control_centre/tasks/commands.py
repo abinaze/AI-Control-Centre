@@ -12,6 +12,7 @@ from aic_control_centre.execution.coordinator import (
     EXECUTION_COORDINATION_COMPLETED,
     ExecutionCoordinator,
 )
+from aic_control_centre.execution.history import attempt_lines
 from aic_control_centre.execution.records import (
     ENDED_AS_COMPLETED,
     ENDED_AS_FAILED,
@@ -392,33 +393,8 @@ def show_task_history(task_id: str) -> int:
     print(f"Attempts: {len(attempts)}")
 
     for number, record in enumerate(attempts, start=1):
-        route = record.source
-
-        if record.target:
-            route = f"{route} ({record.target})"
-
-        print()
-        print(f"Attempt {number}")
-        print(f"  Route: {route}")
-        print(
-            "  Started: "
-            f"{record.started_at or 'unknown (before records existed)'}"
-        )
-
-        if record.is_open:
-            print("  Ended: still open")
-
-            if task.status != TASK_STATUS_RUNNING:
-                print(
-                    "  Note: the task is not running, "
-                    "so this attempt was left open"
-                )
-        else:
-            print(f"  Ended: {record.ended_at}")
-            print(f"  Outcome: {record.ended_as}")
-
-        if record.reason:
-            print(f"  Reason: {record.reason}")
+        for line in attempt_lines(number, record, task.status):
+            print(line)
 
     return 0
 
