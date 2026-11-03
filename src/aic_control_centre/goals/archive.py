@@ -241,6 +241,14 @@ class GoalArchive:
         """Return whether a goal is in the archive."""
         return self.get_entry(goal_id) is not None
 
+    def find_task_entry(self, task_id: str) -> ArchiveEntry | None:
+        """Return the entry that holds a task, or None when none does."""
+        for entry in self._load():
+            if any(task.id == task_id for task in entry.tasks):
+                return entry
+
+        return None
+
     def add_entry(self, entry: ArchiveEntry) -> bool:
         """Append an entry, unless its goal is already archived.
 

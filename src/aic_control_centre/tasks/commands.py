@@ -21,12 +21,14 @@ from aic_control_centre.execution.records import (
     ExecutionRecordRegistry,
 )
 from aic_control_centre.execution.start import ExecutionStarter
+from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.registry import GoalRegistry
 from aic_control_centre.locking import StateLockError, state_lock
 from aic_control_centre.orchestration.goal_tasks import GoalTaskOrchestrator
 from aic_control_centre.permissions.registry import PermissionRegistry
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.readiness.tasks import TaskReadinessEvaluator
+from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -373,12 +375,34 @@ def requeue_task(task_id: str, reason: str) -> int:
     return result
 
 
+def _print_archive_hint(task_id: str) -> None:
+    """Say where an archived task is, when the archive holds it.
+
+    The archive is only asked after the task was not found among the active
+    tasks. An archive that cannot be read gives no hint, and the error that
+    was already printed stands.
+    """
+    try:
+        entry = GoalArchive.beside(
+            TaskRegistry().registry_path,
+        ).find_task_entry(task_id)
+    except StateFileError:
+        return
+
+    if entry is None:
+        return
+
+    print(f"The task is in the archive, in goal {entry.goal.id}.")
+    print(f"Show it with: aic goal archived {entry.goal.id}")
+
+
 def show_task_history(task_id: str) -> int:
     """Show the recorded execution attempts for a task, oldest first."""
     task = TaskRegistry().get_task(task_id)
 
     if task is None:
         print(f"Error: task not found: {task_id}")
+        _print_archive_hint(task_id)
         return 1
 
     attempts = _record_registry().list_attempts(task.id)
