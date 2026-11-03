@@ -168,9 +168,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="List registered goals.",
     )
 
-    goal_subparsers.add_parser(
+    goal_archived_parser = goal_subparsers.add_parser(
         "archived",
-        help="List the goals that were archived.",
+        help="List the goals that were archived, or show one.",
+    )
+    goal_archived_parser.add_argument(
+        "goal_id",
+        nargs="?",
+        default=None,
+        help="Goal ID of an archived goal to show.",
     )
 
     goal_status_parser = goal_subparsers.add_parser(
@@ -512,7 +518,7 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
             return list_goals()
 
         if args.goal_command == "archived":
-            return list_archived_goals()
+            return list_archived_goals(args.goal_id)
 
         if args.goal_command == "status":
             return show_goal_status(args.goal_id)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aic_control_centre.execution.records import ExecutionRecordRegistry
 from aic_control_centre.goals.archive import GoalArchive
+from aic_control_centre.goals.archive_view import archived_goal_lines
 from aic_control_centre.goals.archiving import GoalArchiveError, GoalArchiver
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
@@ -158,9 +159,35 @@ def archive_goal(goal_id: str, reason: str) -> int:
     return 0
 
 
-def list_archived_goals() -> int:
-    """List the goals that were archived. Nothing is changed."""
+def _show_archived_goal(archive: GoalArchive, goal_id: str) -> int:
+    """Show one archived goal with its tasks and their attempts."""
+    entry = archive.get_entry(goal_id)
+
+    if entry is None:
+        if GoalRegistry().get_goal(goal_id) is not None:
+            print(f"Error: goal {goal_id} is not archived; it is still active")
+        else:
+            print(f"Error: goal {goal_id} is not archived")
+
+        return 1
+
+    for line in archived_goal_lines(entry):
+        print(line)
+
+    return 0
+
+
+def list_archived_goals(goal_id: str | None = None) -> int:
+    """List the goals that were archived, or show one of them.
+
+    With a goal id the goal is shown with its tasks and their attempts.
+    Nothing is changed either way.
+    """
     archive = GoalArchive.beside(TaskRegistry().registry_path)
+
+    if goal_id is not None:
+        return _show_archived_goal(archive, goal_id.strip())
+
     entries = archive.list_entries()
 
     if not entries:
