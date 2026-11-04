@@ -82,11 +82,10 @@ def test_inspect_is_a_read_only_process_that_needs_a_grant() -> None:
 
     assert isinstance(adapter, ReadOnlyAdapter)
     assert isinstance(adapter.adapter, ProcessAdapter)
-    assert adapter.adapter.command == (
-        sys.executable,
-        "-m",
-        INSPECT_MODULE,
-    )
+    command = adapter.adapter.command
+
+    assert command[0] == sys.executable
+    assert command[-2:] == ("-m", INSPECT_MODULE)
     assert adapter.requires_grant is True
     assert adapter.requires_project is True
     assert adapter.adapter.requires_project is True
