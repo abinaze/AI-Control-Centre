@@ -282,3 +282,75 @@ def test_the_child_refuses_bytes_that_are_not_utf8(tmp_path) -> None:
     assert json.loads(done.stdout.decode("utf-8"))["reason"] == (
         "the request was not valid UTF-8"
     )
+
+
+def test_a_path_with_a_nul_character_is_reported_as_unreadable() -> None:
+    """The system refuses such a path, and the reason says so."""
+    result = run(_request(project_path="a\x00b"))
+
+    assert result == {
+        "outcome": "failed",
+        "reason": (
+            "the project directory cannot be read: a\\x00b; ValueError"
+        ),
+    }
+
+
+def test_a_long_path_is_cut_in_a_reason(monkeypatch) -> None:
+    """The path is shown up to the path limit and no further."""
+    monkeypatch.setattr(
+        inspect_module,
+        "directory_problem",
+        lambda path: (MISSING, ""),
+    )
+    long_path = "/nonexistent/" + "x" * 300
+
+    result = run(_request(project_path=long_path))
+
+    assert result["reason"] == (
+        "the project directory does not exist: " + _shown(long_path)
+    )
+    assert len(_shown(long_path)) < len(long_path)
+    assert "x" * 200 not in result["reason"]
+
+
+def test_an_error_during_the_walk_is_escaped_and_cut(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """The reason of the system is data, so it is escaped and cut."""
+    reason = "bad\nreason" + "y" * 200
+
+    def refuse(root):
+        raise OSError(errno.EIO, reason)
+
+    monkeypatch.setattr(inspect_module, "inspect_directory", refuse)
+
+    result = run(_request(project_path=str(tmp_path)))
+
+    assert result["outcome"] == "failed"
+    assert result["reason"] == (
+        "the project directory cannot be read: "
+        + escape_name(reason, limit=PATH_LIMIT)
+    )
+    assert "\n" not in result["reason"]
+    assert "y" * 150 not in result["reason"]
+
+
+def test_an_error_without_a_message_is_reported_by_its_type(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An error that has no message of its own is named by its type."""
+
+    def refuse(root):
+        raise OSError()
+
+    monkeypatch.setattr(inspect_module, "inspect_directory", refuse)
+
+    result = run(_request(project_path=str(tmp_path)))
+
+    assert result == {
+        "outcome": "failed",
+        "reason": "the project directory cannot be read: OSError",
+    }
