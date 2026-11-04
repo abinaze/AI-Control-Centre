@@ -66,6 +66,9 @@ All notable changes to AI Control Centre are documented here.
 - Added `aic goal archive <goal id> --reason <text>`. It is classified as a command that takes the state lock for the whole command.
 - Changed the refusal of `aic project remove` to name `aic goal archive` when a goal is what blocks the removal.
 - Added `aic goal archived`, a read-only listing of the archived goals, oldest first, with the project, the directory, the status, the description, the time, the reason and the counts of tasks and of records. It is in the read-only set in `cli.py`, so it does not take the state lock.
+- Added `attempt_lines` in `execution/history.py`, one function that makes the lines of an execution attempt. `aic task history` uses it, and its output is pinned by tests that passed before and after the change.
+- Added `archived_goal_lines` in `goals/archive_view.py` and an optional goal id on `aic goal archived`, which shows an archived goal with its tasks and their attempts in the lines of `aic task history`. A goal that is not archived is refused, and the message says whether it is still active.
+- Added `GoalArchive.find_task_entry` and a hint in the error of `aic task history`: when the task is in the archive, the error says which goal holds it and how to show it.
 
 ### Documentation
 
@@ -104,6 +107,7 @@ All notable changes to AI Control Centre are documented here.
 - Accepted the goal archive design note and recorded its stages 1 and 2 in it, rewrote G20, added the gap G21 and the invariants INV-49 to INV-51 to `docs/STATUS.md`, described archiving in the architecture, the security policy, the roadmap and the readme, and added the rule that only archiving removes a goal, a task or an execution record to the contributing guide.
 - Marked stage 3 of `docs/GOAL_ARCHIVE_DESIGN.md` built, with a section on it and its Windows record, added the invariant INV-52 to `docs/STATUS.md`, and updated the architecture, the roadmap and the readme for `aic goal archived`.
 - Added `docs/GOAL_ARCHIVE_DETAIL_DESIGN.md`: a design note, proposed and not accepted, on reading the tasks and the attempts of an archived goal. It is based on what `aic task history` and `aic task status` print after a goal is archived, and it recommends an optional goal id on `aic goal archived` that shows the attempts in the form of `aic task history` through one shared function, with the options that were rejected and the tests a build would need. Nothing of it is built.
+- Accepted the goal archive detail design note and recorded its two stages in it, added the invariants INV-53 and INV-54 to `docs/STATUS.md`, updated G20, and updated the architecture, the roadmap and the readme for the view of an archived goal.
 - Recorded the failure on Windows that was not explained as G17 and the state file fix as G18 in `docs/STATUS.md`, added the invariants INV-41 and INV-42, noted the failure in the first adapter design note, and added the rule about `Path.exists()` to the contributing guide.
 - Recorded gap G12 in `docs/STATUS.md`: coordinator outcomes are matched to a task rather than to an attempt, and the library takes no state lock. Both were reproduced with the real coordinator and a slow fake adapter, and both affect library callers only, because no CLI command reached the coordinator then.
 
@@ -117,7 +121,7 @@ All notable changes to AI Control Centre are documented here.
 - Nothing detects a `running` task whose process has died. A person recovers it with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide.
 - A project directory can still vanish between the admission check and the adapter's work. The check is made once, so an adapter that acts on a project has to treat that as a failed outcome. `inspect` acts on a project, and it treats a directory that has vanished as a failed outcome.
 - The read-only check detects a change after a run and does not prevent it, sees only the project, and its snapshots are not limited in time or in the number of files (G16). `inspect` is wrapped in it.
-- A goal that has a task that is not finished cannot be archived, so a project with unfinished work stays registered, and the tasks and the attempts of an archived goal can be read only in the archive file (G20).
+- A goal that has a task that is not finished cannot be archived, so a project with unfinished work stays registered (G20).
 - A goal that was archived halfway and then got a new task cannot be finished by the command (G21).
 - `inspect` runs a module of AIC in a child process that gets no `PYTHONPATH`, so AIC has to be installed for the Python that runs it (G19).
 - One test failed once on Windows, and the cause is not known. It did not happen again in 25 runs of that test on its own, 50 runs of the same steps through the real CLI and two full runs. The check that printed the message was changed so that a recurrence says why (G17).
