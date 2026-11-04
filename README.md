@@ -69,7 +69,7 @@ aic goal create "<description>" --project <name>   (the project must be register
 aic goal list
 aic goal status <goal-id>                   Show a goal (reconciles and saves its status)
 aic goal archive <goal-id> --reason <text>  Move a finished goal, its tasks and their records to the archive
-aic goal archived                           List the goals that were archived
+aic goal archived [goal-id]                 List the archived goals, or show one with its tasks
 
 aic task create --goal <goal-id> "<title>"
 aic task list
@@ -202,7 +202,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/STALE_TASKS_DESIGN.md](docs/STALE_TASKS_DESIGN.md) | Design note on a read-only listing of how long tasks have been `running`; implemented as `aic task running` |
 | [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, all four stages built |
 | [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md) | Design note on taking finished goals out of the active state without destroying their history; accepted, all three stages built |
-| [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; proposed, not accepted |
+| [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; accepted, built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
