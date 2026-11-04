@@ -9,8 +9,8 @@ import sys
 from types import SimpleNamespace
 
 from aic_control_centre.execution import inspect_project as inspect_module
+from aic_control_centre.execution.child_request import PATH_LIMIT
 from aic_control_centre.execution.inspect_project import (
-    PATH_LIMIT,
     describe,
     inspect_directory,
     main,
