@@ -52,10 +52,15 @@ def build_inspect_adapter() -> ReadOnlyAdapter:
     that runs AIC. The child is given no PYTHONPATH, so AIC must be
     installed for it to start. The run is wrapped in a read-only check, and
     it needs a grant like any adapter that touches a project.
+
+    The child is started with -B so that it never writes bytecode. When the
+    project is the directory that AIC is installed from, the bytecode of
+    the child's own module would be a change to the project, and the
+    read-only check would fail the run.
     """
     return ReadOnlyAdapter(
         ProcessAdapter(
-            [sys.executable, "-m", INSPECT_MODULE],
+            [sys.executable, "-B", "-m", INSPECT_MODULE],
             description=INSPECT_DESCRIPTION,
             requires_grant=True,
             requires_project=True,
