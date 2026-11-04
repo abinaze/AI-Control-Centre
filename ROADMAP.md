@@ -96,7 +96,6 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 Potential future work:
 
 - Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
-- Showing the tasks and the attempts of one archived goal, which `aic goal archived` does not do (G20 in [docs/STATUS.md](docs/STATUS.md)); proposed in [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md)
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -119,7 +118,7 @@ The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIG
 
 The sixth design note is [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md). It covers how finished goals can leave the active state, so that a project that has had a goal can be removed, without destroying the history that the execution records keep. It is accepted, and all three of its stages are built: the archive file, `aic goal archive` and the listing `aic goal archived`.
 
-The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md). It covers how the tasks and the attempts of an archived goal can be read, which `aic goal archived` does not show. It is proposed and not accepted, and nothing of it is built.
+The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md). It covers how the tasks and the attempts of an archived goal can be read, which `aic goal archived` does not show. It is accepted and built: `aic goal archived <goal id>` shows the tasks and the attempts, and the error of `aic task history` says which archived goal holds a task.
 
 ## Phase 4 — Validation and Recovery
 
