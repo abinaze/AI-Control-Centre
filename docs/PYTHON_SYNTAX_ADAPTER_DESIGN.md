@@ -1,6 +1,6 @@
 # Design Note: The Python Syntax Check Adapter
 
-**Status: Proposed. Not accepted.** This note decides how the second execution adapter, a Python syntax check, reads a project, what it reports, where it stops, and how it is registered. It is item 5B of [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md), which called it a good second adapter. The evidence was observed on Linux with Python 3.12.3, and nothing in it was run on Windows. Nothing is built.
+**Status: Accepted as recommended. Stage 1 is built and the rest is not.** This note decides how the second execution adapter, a Python syntax check, reads a project, what it reports, where it stops, and how it is registered. It is item 5B of [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md), which called it a good second adapter. The evidence was observed on Linux with Python 3.12.3, and none of it was run on Windows. The maintainer pushed the note and told the work to continue, and the eight recommendations were taken as accepted. Stage 1 of the recommended order, the fix for G22, is built, and its record is in the last section. Nothing else is built.
 
 ## Problem
 
@@ -176,8 +176,21 @@ Each has a recommendation, and the reply "continue with best" accepts them all.
 
 ## Recommended order
 
-1. Fix the bytecode write: `-B` for the `inspect` child, with the tests of the fix, and record G22.
+1. Fix the bytecode write: `-B` for the `inspect` child, with the tests of the fix, and record G22. Built.
 2. Move the reading of the request into one function, with the texts of `inspect` pinned first.
 3. Add the check as a library, with its tests.
 4. Add the child and register `pysyntax`, with the tests of the adapter and the change to the two tests that count the adapters, which comes before the registration. The test that compares the command of the child changes with the fix in step 1.
 5. Write the documentation and, after the maintainer runs it, the Windows record.
+
+
+## Stage 1: the bytecode fix (built)
+
+The `inspect` child is started with `-B`. `build_inspect_adapter` in `execution/adapters.py` now runs `[sys.executable, "-B", "-m", INSPECT_MODULE]`, and its docstring says why. Nothing else in the command changed, and no environment variable was added (Decision 1A, and not the variable of 1C).
+
+There were three commits, in this order. First, `test_inspect_is_a_read_only_process_that_needs_a_grant` stopped comparing the whole command and checks that it starts with the interpreter and ends with `-m` and the module, because a test that compares the whole command cannot pass both before and after the fix. Second, the fix. Third, `tests/unit/test_inspect_bytecode.py` with three tests: `test_the_inspect_child_is_started_without_writing_bytecode`, `test_a_child_that_imports_from_the_project_leaves_no_bytecode` and `test_stale_bytecode_in_the_project_is_left_as_it_was`. The last two take the flags of the real adapter, everything before `-m`, and run a small child that imports a module from the project through the real read-only wrapper.
+
+Linux evidence. Against the old command all three tests fail. The first misses `-B`. The other two end `failed` with the messages of evidence 7: `0 changed, 2 added, 0 removed (lib/__pycache__, lib/__pycache__/helper.cpython-312.pyc)` when no bytecode existed, and `1 changed, 0 added, 0 removed (lib/__pycache__/helper.cpython-312.pyc)` when it was stale. Four mutations of the fix were each caught: removing `-B`, putting it after the module, and using `-O` or `-I` in its place. With the fix, the real CLI completed three runs of `inspect` on a copy of the source that was both the installed tree and the project: a first run with no bytecode for the child, a run after the source of the child was edited, and a repeat. Before the fix the first two failed. No bytecode file for the child was written.
+
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the three commits, which gave 1091, 1091 and 1094 passed, each with 2 skipped. The last was on the commit `89599cd`. A run of `aic task run` with the `inspect` target on the AIC directory through the real CLI on Windows was not made, so on Windows `-B` has been exercised by the tests only.
+
+What it does not cover. The parent process that runs `aic` was not seen to write bytecode into a project during a run, and that was not tried. G22 is closed for the child only.
