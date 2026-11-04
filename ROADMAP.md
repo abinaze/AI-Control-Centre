@@ -95,7 +95,7 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 
 Potential future work:
 
-- Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md)
+- Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md), and is designed in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md)
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -119,6 +119,8 @@ The fifth design note is [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIG
 The sixth design note is [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md). It covers how finished goals can leave the active state, so that a project that has had a goal can be removed, without destroying the history that the execution records keep. It is accepted, and all three of its stages are built: the archive file, `aic goal archive` and the listing `aic goal archived`.
 
 The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md). It covers how the tasks and the attempts of an archived goal can be read, which `aic goal archived` does not show. It is accepted and built: `aic goal archived <goal id>` shows the tasks and the attempts, and the error of `aic task history` says which archived goal holds a task.
+
+The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md). It covers the second adapter, a Python syntax check: how it opens files that it does not trust, what it does with their content, the limits that it keeps and what it reports. It also records a false failure of `inspect` (G22) and proposes the fix. It is proposed and not accepted, and nothing of it is built.
 
 ## Phase 4 — Validation and Recovery
 
