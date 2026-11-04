@@ -106,7 +106,7 @@ In every option a grant is a policy for code that AIC ships. It is not a defence
 
 - Con: it is of little use by itself, which is the point of a first step.
 
-**5B. A Python syntax check.** It parses every `.py` file with the standard library and fails with the first files that do not parse. It is checkable and read-only, and it is useful for Python projects only. A good second adapter. It is designed in [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md), as proposed and not accepted.
+**5B. A Python syntax check.** It parses every `.py` file with the standard library and fails with the first files that do not parse. It is checkable and read-only, and it is useful for Python projects only. A good second adapter. It is designed in [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md), as accepted. Its first stage is built: the `inspect` child is now started with `-B` (G22 in [STATUS.md](STATUS.md)).
 
 **5C. Run a project's tests or an arbitrary command.** It needs a command per project, and AIC registers adapters in code and does not read configuration. It writes files, and it is the full risk of Decision 4. Not first.
 
