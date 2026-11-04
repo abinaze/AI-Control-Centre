@@ -1,6 +1,6 @@
 # Design Note: Reading the History of an Archived Goal
 
-**Status: Proposed. Not accepted, and no code is written.** It extends [GOAL_ARCHIVE_DESIGN.md](GOAL_ARCHIVE_DESIGN.md), whose three stages are built. Everything below the evidence is a recommendation for the maintainer to accept, change or reject. Nothing in it was run on Windows.
+**Status: Accepted as recommended, and built.** The maintainer accepted all six recommendations in the open questions. It extends [GOAL_ARCHIVE_DESIGN.md](GOAL_ARCHIVE_DESIGN.md), whose three stages are built. The evidence below was run on Linux before anything was built, and nothing in it was run on Windows. What the built stages did is in the sections Stage 1: built and Stage 2: built at the end.
 
 ## Problem
 
@@ -91,6 +91,8 @@ All of this was run on Linux, with the real CLI and a temporary data directory. 
 
 ## Open questions for the maintainer
 
+The maintainer accepted all six recommendations below.
+
 1. **An optional goal id on `aic goal archived`?** Recommended: yes, 1A.
 2. **The same lines as `aic task history`, through one shared function?** Recommended: yes.
 3. **The id matched exactly, with a separate message for a goal that is still active?** Recommended: yes.
@@ -100,8 +102,31 @@ All of this was run on Linux, with the real CLI and a temporary data directory. 
 
 ## Recommended order
 
-1. Move the printing of an attempt out of `aic task history` into one function, with tests that show that its output has not changed.
-2. The detail view as a library: the text of an archived goal, with tests.
-3. The optional goal id on `aic goal archived`, with its refusals, and tests through the CLI with the real registries.
-4. The hint in the error of `aic task history`, if it is accepted.
+1. **Built.** Move the printing of an attempt out of `aic task history` into one function, with tests that show that its output has not changed.
+2. **Built.** The detail view as a library: the text of an archived goal, with tests.
+3. **Built.** The optional goal id on `aic goal archived`, with its refusals, and tests through the CLI with the real registries.
+4. **Built.** The hint in the error of `aic task history`, if it is accepted.
 5. The documentation, and the Windows record.
+
+
+## Stage 1: built
+
+Stage 1 of the recommended order, one function that makes the lines of an execution attempt, is built, in three commits.
+
+- **The function.** `attempt_lines` in `execution/history.py` returns the lines that show one attempt, the first of them blank, and `aic task history` prints them. The move was meant to change nothing, so tests that pin the exact output of `aic task history` were written and committed first, against the old code.
+- **The pinned output.** There are 7 tests of the exact text: a task with no attempts, one completed attempt with a target, two attempts of which one has no target and one has no reason, a record from before records had a start time, an open attempt of a running task, an open attempt of a task that is not running, and an unknown task. They passed on the old code and on the new code, which is what shows that the output did not change.
+- **The function's own tests.** There are 8 more, on the lines that the function returns, and one that shows that it prints nothing itself.
+- **Found while building.** All 19 mutations of the new function and of its use were caught on the first run.
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash before each of the three commits, which gave 1061, 1061 and 1069 passed, each with 2 skipped. The last run was on the tree that became `26176dc`. The tests that pin the output passed there before the move and after it.
+
+## Stage 2: built
+
+Stages 2 to 4 of the recommended order, the text of an archived goal, the goal id on `aic goal archived`, and the hint in the error of `aic task history`, are built, in six commits.
+
+- **The text.** `archived_goal_lines` in `goals/archive_view.py` returns the lines of an archived goal: the goal as the listing shows it and the number of tasks, then each task in the order in which it was archived, with its id, its status, its title, its description when it has one, and either `Attempts: N` or `No attempts recorded.` Each attempt is shown by `attempt_lines`, so the text is the one of `aic task history`.
+- **The goal id.** `aic goal archived` takes an optional goal id. Without one it lists the archive, as before. With one it shows that goal. The id is trimmed and matched exactly. A goal that is not archived is refused with `Error: goal <id> is not archived`, and one that is still active with `Error: goal <id> is not archived; it is still active`, both with exit status 1. It writes nothing, and an archive that cannot be read is an error and is kept. The command is still classified as read-only.
+- **The hint.** `GoalArchive.find_task_entry` finds the entry that holds a task. When `aic task history` has not found a task among the active tasks, it asks the archive, and if the task is there it adds `The task is in the archive, in goal <id>.` and `Show it with: aic goal archived <id>`. A task that is found never touches the archive, a task that is nowhere gets the same error as before, and an archive that cannot be read gives no hint and leaves the error as it was. `aic task status` is unchanged, as Decision 4 says.
+- **Observed on Linux, by hand, with the real CLI and a temporary data directory.** After a goal with two tasks was archived, `aic task history` of one of them printed `Error: task not found`, then the two lines of the hint, and exited 1. An unknown task printed the error alone. `aic goal archived <goal id>` printed the goal, both tasks and both attempts, and exited 0. The text of the attempt of the first task was identical to what `aic task history` had printed before the goal was archived. An id of a goal that was still active printed `is not archived; it is still active`. The checksums of the five state files were the same after the view and the hint.
+- **Tests.** There are 22 new tests: 8 for the text, 7 for the command with a goal id and 7 for the hint. One of them runs a task for real and compares the text of its attempt with what `aic task history` printed before the goal was archived.
+- **Found while building.** The first mutation run left one of 24 alive: swapping the number of tasks with the number of records in the header could not be seen, because my tests had as many records as tasks. A test with 3 tasks and 1 record was added, and all 24 were then caught. Two of my own tests were wrong and the code was right: one captured the output of another command, and a helper held lines that did nothing.
+- **Windows.** The maintainer ran the full suite on Windows under Git Bash after the six commits, which gave 1091 passed and 2 skipped, on the tree that became `d9e646d`. The runs before each commit were not recorded. A run of `aic goal archived <goal id>` or of the hint on Windows by hand was not made.
