@@ -203,7 +203,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, all four stages built |
 | [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md) | Design note on taking finished goals out of the active state without destroying their history; accepted, all three stages built |
 | [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; accepted, built |
-| [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; proposed, not accepted |
+| [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, stage 1 built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
