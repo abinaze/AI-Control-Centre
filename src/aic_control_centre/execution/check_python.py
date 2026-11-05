@@ -1,7 +1,8 @@
 """Check the syntax of the Python files in a project directory.
 
-This is the library of the Python syntax check adapter. It reads the files
-of a project, which makes it the first AIC code that reads the content of
+This is the library and the child process of the Python syntax check
+adapter. It reads the files of a project, which makes it the first AIC code
+that reads the content of
 a person's files on purpose, so it is strict about how it does it:
 
 - Nothing is imported, run or written. A file is compiled to a code
@@ -20,6 +21,11 @@ a person's files on purpose, so it is strict about how it does it:
 
 The grammar is that of the Python that runs AIC, and the reason says
 which one that is.
+
+As a child process it is started as python -B -m followed by this module.
+It reads one request from standard input and prints one JSON line. A request
+that cannot be done is a failed outcome with exit status 0. The outcome is
+failed when a file has a syntax problem, and completed when none has.
 """
 
 from __future__ import annotations
@@ -31,11 +37,19 @@ import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from aic_control_centre.execution.child_request import (
+    RequestRefused,
+    failed,
+    read_project_path,
+    serve,
+    unreadable_outcome,
+)
 from aic_control_centre.execution.inspect_project import (
     NAME_LIMIT,
     format_size,
 )
 from aic_control_centre.execution.snapshot import escape_name, is_link
+from aic_control_centre.projects.directory import directory_problem
 
 MAX_FILE_BYTES = 1024 * 1024
 MAX_FILES = 10000
@@ -351,3 +365,34 @@ def describe(report: Report) -> str:
         text += "; errors: " + "; ".join(_problem_text(p) for p in shown)
 
     return text
+
+
+def run(request_bytes: bytes) -> dict[str, str]:
+    """Return the outcome and reason for a request read from the parent."""
+    try:
+        path = read_project_path(request_bytes, directory_problem)
+    except RequestRefused as refused:
+        return refused.outcome
+
+    try:
+        report = check_directory(path)
+    except LimitReached as stopped:
+        return failed(
+            f"checked Python syntax with Python {python_version()}: "
+            f"stopped: {stopped.reason}"
+        )
+    except OSError as error:
+        return unreadable_outcome(error)
+
+    outcome = "failed" if report.problems else "completed"
+
+    return {"outcome": outcome, "reason": describe(report)}
+
+
+def main() -> int:
+    """Read a request from standard input and print the answer as JSON."""
+    return serve(run)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
