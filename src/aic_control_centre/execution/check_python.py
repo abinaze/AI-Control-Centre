@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import stat
 import sys
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -187,11 +188,18 @@ def compile_problem(name: str, data: bytes) -> SyntaxProblem | None:
 
     The code object is thrown away and never run. Every exception that
     the compiler raises is a problem with the file, whatever its type.
+
+    Warnings of the compiler are ignored. A file that only warns is a valid
+    file, so a warning is not printed and does not become an error, even
+    when the filters of the process turn warnings into errors.
     """
-    try:
-        compile(data, "<file>", "exec", dont_inherit=True)
-    except Exception as error:
-        return SyntaxProblem(name, _line_of(error), _message_of(error))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        try:
+            compile(data, "<file>", "exec", dont_inherit=True)
+        except Exception as error:
+            return SyntaxProblem(name, _line_of(error), _message_of(error))
 
     return None
 
