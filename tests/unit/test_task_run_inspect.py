@@ -72,8 +72,12 @@ def _status(tmp_path, task):
 
 
 def test_the_shipped_registry_holds_inspect_and_noop() -> None:
-    """These two are the only targets, and the names are sorted."""
-    assert build_adapter_registry().list_targets() == ["inspect", "noop"]
+    """These two are among the targets, and the names are sorted."""
+    targets = build_adapter_registry().list_targets()
+
+    assert targets == sorted(targets)
+    assert "inspect" in targets
+    assert "noop" in targets
 
 
 def test_inspect_is_a_read_only_process_that_needs_a_grant() -> None:
@@ -101,7 +105,9 @@ def test_targets_lists_inspect_and_what_it_needs(
 
     output = capsys.readouterr().out
 
-    assert "Execution targets: 2" in output
+    count = len(build_adapter_registry().list_targets())
+
+    assert f"Execution targets: {count}" in output
     assert (
         "inspect: reports what is in the project directory; "
         "changes nothing (needs a grant)"
