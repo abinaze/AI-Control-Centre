@@ -6,6 +6,7 @@ import stat
 import subprocess
 import sys
 import threading
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -914,3 +915,19 @@ def test_the_longest_description_still_fits_in_a_reason() -> None:
     )
 
     assert len(text) < 1000
+
+
+def test_warnings_of_the_compiler_are_neither_errors_nor_printed() -> None:
+    """A file that only warns is a valid file, whatever the filters say."""
+    source = b'x = "\\d"\ny = 1 is 1\n'
+
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("error")
+
+        assert compile_problem("a.py", source) is None
+
+        warnings.simplefilter("always")
+
+        assert compile_problem("a.py", source) is None
+
+    assert seen == []
