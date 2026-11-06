@@ -22,7 +22,7 @@ The current implementation provides:
 - Validation of persisted goal and task state
 - Task readiness evaluation
 - Execution admission, start, and outcome recording, reached through `aic task run`
-- Execution target selection and adapter registration; two adapters are registered: `noop`, which does no work, and `inspect`, which reports what is in a project directory and changes nothing
+- Execution target selection and adapter registration; three adapters are registered: `noop`, which does no work, `inspect`, which reports what is in a project directory, and `pysyntax`, which checks the syntax of its Python files, and the last two change nothing
 - Execution coordination, through `aic task run`
 - Deterministic local JSON persistence with atomic writes, a schema version, and a lock that keeps concurrent `aic` commands apart
 
@@ -35,7 +35,7 @@ The current implementation does **not** provide:
 - LLM execution
 - Autonomous agent loops
 - Unrestricted tool execution
-- Any execution adapter that writes to a project, other than `noop` and the read-only `inspect`
+- Any execution adapter that writes to a project, other than `noop` and the read-only `inspect` and `pysyntax`
 
 These capabilities are intentionally deferred until the underlying control boundaries are stable and well tested.
 
@@ -83,7 +83,7 @@ aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the g
 aic task history <task-id>                  Show the recorded execution attempts for a task
 aic task running [--older-than <duration>]  List the running tasks and how long each has run (30m, 2h, 1d)
 aic task run <task-id> --target <name>      Run a ready task through an execution target
-aic task targets                            List the execution targets and whether each needs a grant (noop and inspect exist)
+aic task targets                            List the execution targets and whether each needs a grant (noop, inspect and pysyntax exist)
 
 aic permission grant <project> --target <name> --reason "<text>"   Let a project use a target that needs a grant
 aic permission revoke <project> --target <name>                    Withdraw that permission
@@ -203,7 +203,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) | Design note on the first execution adapter that does real work on a project; accepted, all four stages built |
 | [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.md) | Design note on taking finished goals out of the active state without destroying their history; accepted, all three stages built |
 | [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; accepted, built |
-| [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, stage 1 built |
+| [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
