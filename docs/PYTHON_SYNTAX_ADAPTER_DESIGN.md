@@ -191,9 +191,9 @@ There were three commits, in this order. First, `test_inspect_is_a_read_only_pro
 
 Linux evidence. Against the old command all three tests fail. The first misses `-B`. The other two end `failed` with the messages of evidence 7: `0 changed, 2 added, 0 removed (lib/__pycache__, lib/__pycache__/helper.cpython-312.pyc)` when no bytecode existed, and `1 changed, 0 added, 0 removed (lib/__pycache__/helper.cpython-312.pyc)` when it was stale. Four mutations of the fix were each caught: removing `-B`, putting it after the module, and using `-O` or `-I` in its place. With the fix, the real CLI completed three runs of `inspect` on a copy of the source that was both the installed tree and the project: a first run with no bytecode for the child, a run after the source of the child was edited, and a repeat. Before the fix the first two failed. No bytecode file for the child was written.
 
-Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the three commits, which gave 1091, 1091 and 1094 passed, each with 2 skipped. The last was on the commit `89599cd`. A run of `aic task run` with the `inspect` target on the AIC directory through the real CLI on Windows was not made, so on Windows `-B` has been exercised by the tests only.
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the three commits, which gave 1091, 1091 and 1094 passed, each with 2 skipped. The last was on the commit `89599cd`. A run of `aic task run` with the `inspect` target on the AIC directory through the real CLI on Windows was not made then, so `-B` had been exercised on Windows by the tests only. It was made later, and the record is in the last section.
 
-What it does not cover. The parent process that runs `aic` was not seen to write bytecode into a project during a run, and that was not tried. G22 is closed for the child only.
+What it does not cover. The parent process that runs `aic` was not seen to write bytecode into a project during a run, and that was not tried. The real runs on Windows in the last section showed no sign of it. G22 is closed for the child only.
 
 
 ## Stages 2 to 4: the shared reader, the check and the adapter (built)
@@ -224,7 +224,7 @@ A bug in the library of stage 3 was found while the child was tested, and fixed 
 
 Linux evidence. 21 mutations of the child and of the registration left no survivor. Through the real CLI: `aic task targets` lists three targets, and `pysyntax` is marked as needing a grant. A clean project completed. A project with two faulty files failed with the first problems in the order of their names, for example `bad.py line 1: invalid syntax; worse.py line 1: 'return' outside function`. A run without a grant was rejected. A run on a copy of the AIC source that was both the installed tree and the project completed with 137 files checked and no problem, and wrote no bytecode for the child, which is the case of G22.
 
-Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the seven commits, which gave 1169, 1169, 1170, 1170, 1181, 1181 and 1196 passed, each with 2 skipped. The last was on the commit `d324f64`. A run of `aic task run` with the `pysyntax` target through the real CLI on Windows was not made.
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the seven commits, which gave 1169, 1169, 1170, 1170, 1181, 1181 and 1196 passed, each with 2 skipped. The last was on the commit `d324f64`. A run of `aic task run` with the `pysyntax` target through the real CLI on Windows was not made then. It was made later, and the record is in the last section.
 
 ### What differs from the decisions above
 
@@ -236,7 +236,25 @@ Windows record. The maintainer ran the full suite on Windows under Git Bash befo
 
 ### What is not known
 
-- A run of the adapter through the real CLI on Windows was not made. A real pipe and a real link to a file are tested only where the system can make them, and those tests check nothing on Windows.
-- Python 3.11 and 3.14 were not observed. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)).
-- The three limits are guesses from one machine, and the cost of a run on Windows was not measured (G24 in [STATUS.md](STATUS.md)).
+- A run of the adapter through the real CLI on Windows was not made when stage 4 was recorded, and was made later (the last section). A real pipe and a real link to a file are tested only where the system can make them, and those tests check nothing on Windows.
+- Python 3.11 was not observed. Python 3.12.3 was observed on Linux and Python 3.14.3 on Windows, in the real runs of the last section. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)).
+- The three limits are guesses from one machine, and the cost of a run on Windows was measured once, in the last section (G24 in [STATUS.md](STATUS.md)).
 - A crash of the interpreter on source that was built to cause one was not observed and was not tried. The sizes of nested source that were tried are those of the evidence above.
+
+
+## Real runs on Windows
+
+After the four stages and their documentation were pushed, the maintainer ran a script on Windows under Git Bash that used the real CLI, with Python 3.14.3 on `MINGW64_NT-10.0-26100`, at the commit `cd8fcf7`. The script used a temporary data directory, so the data of the maintainer was not touched, and it changed no file in the repository. All 22 of its checks ended with the exit status that was expected. Only what was printed is recorded here.
+
+- The directory of AIC was the installed tree, and the script said so.
+- `aic task targets` listed three targets, and `pysyntax` was marked as needing a grant.
+- `pysyntax` on a project with a space in its path completed: `checked Python syntax with Python 3.14: 2 files checked, 0 with errors, 0 too large, 0 not read, 0 directories skipped`.
+- `pysyntax` on a project with three files, two of them faulty, ended `failed` with `3 files checked, 2 with errors` and `bad.py line 1: invalid syntax; worse.py line 1: 'return' outside function`, and the task was `failed`.
+- `pysyntax` without a grant was `rejected` with `target pysyntax is not granted for project nogrant`, and the task stayed `ready`.
+- `pysyntax` on a project that held a directory with a `pyvenv.cfg` and a faulty file in it completed with `1 files checked, 0 with errors` and `1 directories skipped`.
+- `pysyntax` on a project whose name held a space and non-ASCII characters read both of its files, `2 files checked, 1 with errors`. The script printed the file name escaped.
+- `inspect` completed on the AIC directory with `inspected project: 3122 files, 336 directories, 8.7 MiB`, and its names were cut with `...` as designed. `pysyntax` completed on it with `137 files checked, 0 with errors, 0 too large, 0 not read, 13 directories skipped`. Each run took 5 seconds, and `git status` was empty afterwards. A second run of `inspect` gave the same reason. This is the case of G22 on Windows: the child imports its own module from the project, and the read-only check did not fail.
+- The archive: `aic project remove` refused a project that a goal named and changed nothing, `aic goal archive` archived the goal with its task and its record, `aic goal archived` listed it and showed it with its attempt, the error of `aic task history` named the archived goal and the command that shows it, `aic task status` gave the plain error, `aic project remove` then removed the project and left its directory alone, and `aic validate` printed `Validation passed.`.
+- Small projects took 0 or 1 seconds. The only large project was the AIC directory.
+
+Not covered: a failure reason that holds a Windows path, which would show doubled backslashes; a project that comes near a limit or near the 60 seconds; a real link to a file, because the account of the maintainer cannot make one; the case of G21; a hard kill of AIC; Python 3.11; and a write of bytecode by the parent process that was provoked on purpose.
