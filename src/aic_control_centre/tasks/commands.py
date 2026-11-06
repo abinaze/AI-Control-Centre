@@ -49,7 +49,11 @@ from aic_control_centre.validation.goal_tasks import validate_task_creation
 
 
 def create_task(goal_id: str, title: str) -> int:
-    """Create and persist a new task for an existing goal."""
+    """Create and persist a new task for an existing goal.
+
+    A goal that has an archive entry gets no task, because its archive was
+    not finished, and a task that is not in the entry could not be archived.
+    """
     if not goal_id.strip():
         print("Error: goal ID cannot be empty.")
         return 1
@@ -64,13 +68,23 @@ def create_task(goal_id: str, title: str) -> int:
         print(f"Error: goal not found: {goal_id}")
         return 1
 
+    registry = TaskRegistry()
+
+    entry = GoalArchive.beside(registry.registry_path).get_entry(goal.id)
+
+    if entry is not None:
+        print(
+            f"Error: goal {goal.id} is already archived, and the archive "
+            "was not finished; finish it with: "
+            f"aic goal archive {goal.id} --reason <text>"
+        )
+        return 1
+
     creation_error = validate_task_creation(goal)
 
     if creation_error is not None:
         print(f"Error: {creation_error}")
         return 1
-
-    registry = TaskRegistry()
 
     task = Task.create(
         goal_id=goal.id,
