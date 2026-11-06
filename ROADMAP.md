@@ -122,6 +122,8 @@ The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIV
 
 The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md). It covers the second adapter, a Python syntax check: how it opens files that it does not trust, what it does with their content, the limits that it keeps and what it reports. It also records a false failure of `inspect` (G22) and fixes it. It is accepted, and all of it is built: the fix, a shared reader for the request of a child, the check, and the `pysyntax` adapter.
 
+The ninth design note is [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md). It covers G21, a goal that is archived halfway and then gets a task. That can happen only for a goal that had no tasks, and the note proposes that `aic task create` refuse a goal that has an archive entry. It is proposed and not accepted, and nothing of it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
