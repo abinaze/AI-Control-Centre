@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python
 ```
 
 ## Core Lifecycle Model
@@ -166,7 +166,7 @@ Unknown targets are rejected before the task is started so that target resolutio
 
 An execution adapter receives an execution request and returns an execution outcome.
 
-The current architecture defines this as a protocol boundary. There are two concrete adapters, both in `execution/adapters.py`: `noop`, which completes a task without doing any work, and `inspect`, which reports what is in a project directory. `build_adapter_registry` registers adapters in code; nothing is loaded by name from configuration. The tests use test doubles for everything else.
+The current architecture defines this as a protocol boundary. There are three concrete adapters, all in `execution/adapters.py`: `noop`, which completes a task without doing any work, `inspect`, which reports what is in a project directory, and `pysyntax`, which checks the syntax of the Python files in it. `build_adapter_registry` registers adapters in code; nothing is loaded by name from configuration. The tests use test doubles for everything else.
 
 Adapter failures are handled by the coordinator and converted into a failed execution outcome.
 
@@ -216,7 +216,15 @@ The entry is written first. Then the execution records are removed from `executi
 
 `inspect` is the first adapter that does real work, and it only reads. It is registered in `execution/adapters.py` by `build_inspect_adapter` as a `ReadOnlyAdapter` around a `ProcessAdapter` that runs `sys.executable -B -m aic_control_centre.execution.inspect_project`, so it needs a grant and a project, and a run is refused before anything starts when either is missing. The request reaches the child as JSON on standard input with the `project_path` that admission returned. The child starts in an empty temporary directory with a short environment and no `PYTHONPATH`, so it works only on the path that it is given, and AIC has to be installed for it to start (G19 in [STATUS.md](STATUS.md)). The `-B` stops the child from writing bytecode. Without it, a project that is the directory that AIC is installed from would be changed by the first import of the child, and the read-only check would fail the run (G22 in [STATUS.md](STATUS.md)).
 
-The module `execution/inspect_project.py` is both the library and the child. `inspect_directory` walks the project with directory listings and file status only. It never opens a file and never follows a link, counts files, directories, links, other entries and entries that it could not read, adds up the size of the files, keeps the three largest, and notes a README and a `.git` at the top level. `describe` writes the result as one line, with names that are escaped and cut, so the reason is short whatever the project holds. The child answers every request with one JSON line and exit status 0, and a request that cannot be done is a failed outcome with a reason. The snapshots of the wrapper do read every file to hash it, so a run reads the content of the project twice although `inspect` itself does not. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md).
+The module `execution/inspect_project.py` is both the library and the child. `inspect_directory` walks the project with directory listings and file status only. It never opens a file and never follows a link, counts files, directories, links, other entries and entries that it could not read, adds up the size of the files, keeps the three largest, and notes a README and a `.git` at the top level. `describe` writes the result as one line, with names that are escaped and cut, so the reason is short whatever the project holds. The child answers every request with one JSON line and exit status 0, and a request that cannot be done is a failed outcome with a reason. The reading of the request is in `execution/child_request.py`, which the other child uses as well. The snapshots of the wrapper do read every file to hash it, so a run reads the content of the project twice although `inspect` itself does not. The design is in [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md).
+
+### The Python syntax check adapter
+
+`pysyntax` is the second adapter that does real work, and it also only reads, but unlike `inspect` it reads the content of the files. It is registered in `execution/adapters.py` by `build_pysyntax_adapter`, built like `inspect`: a `ReadOnlyAdapter` around a `ProcessAdapter` that runs `sys.executable -B -m aic_control_centre.execution.check_python`, so it needs a grant of its own and a project, and AIC has to be installed for it to start. The request is read by `execution/child_request.py`, which both children use. It decodes the request, finds the project path, asks for the check of the directory, and prints one JSON line with exit status 0. The child passes its own check of the directory, so the reader does not depend on the projects package.
+
+The module `execution/check_python.py` is both the library and the child. `check_directory` walks the project and compiles every regular file whose name ends in `.py`. The code object is thrown away, so nothing is imported, run or written, and the warnings of the compiler are ignored, because a file that only warns is a valid file. A file is opened without blocking and without following a link, in binary mode, and the open descriptor must be a regular file, so a pipe or a file that was swapped for one is skipped and cannot hang the run. A link is never followed. The directories `.git`, `__pycache__`, `node_modules`, `.tox`, `.nox`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache` and `.eggs`, and any directory that holds a `pyvenv.cfg`, are skipped and counted. A file of more than 1 MiB is counted and not read. More than 10,000 files, or more than 64 MiB read, stops the check with a failed outcome that names the limit. The limits are numbers and never a clock, so the same project gives the same report, with its problems listed in the order of their names.
+
+The outcome is failed when any file has a syntax problem, and completed when none has. The reason is one line that names the Python that judged the files, gives the counts of files checked, files with errors, files too large, entries not read and directories skipped, and shows up to three problems, each with a name, a line when the parser gave a real one, and the text of the error, escaped and cut. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)), and the limits are guesses (G24). The snapshots of the wrapper read every file of the project, as for `inspect`. The design is in [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md).
 
 ### Execution Outcome
 
@@ -364,7 +372,7 @@ None of this exists in code. It is recorded as research in [DESIGN_DIRECTIONS.md
 
 The current architecture does not yet provide unrestricted execution capabilities.
 
-Concrete system-level execution adapters beyond `inspect`, limits on what an adapter may touch, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
+Concrete system-level execution adapters beyond `inspect` and `pysyntax`, limits on what an adapter may touch, execution limits, timeouts, post-execution validation, diagnostics, automatic recovery of interrupted runs, and stronger isolation remain future work. A person can already recover a stuck `running` task with `aic task requeue`.
 
 The execution adapter interface therefore represents a controlled architectural extension point rather than an unrestricted command or automation interface.
 
