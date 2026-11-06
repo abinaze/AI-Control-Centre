@@ -1,6 +1,6 @@
 # Design Note: The Python Syntax Check Adapter
 
-**Status: Accepted as recommended. Stage 1 is built and the rest is not.** This note decides how the second execution adapter, a Python syntax check, reads a project, what it reports, where it stops, and how it is registered. It is item 5B of [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md), which called it a good second adapter. The evidence was observed on Linux with Python 3.12.3, and none of it was run on Windows. The maintainer pushed the note and told the work to continue, and the eight recommendations were taken as accepted. Stage 1 of the recommended order, the fix for G22, is built, and its record is in the last section. Nothing else is built.
+**Status: Accepted as recommended, and built.** This note decides how the second execution adapter, a Python syntax check, reads a project, what it reports, where it stops, and how it is registered. It is item 5B of [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md), which called it a good second adapter. The evidence was observed on Linux with Python 3.12.3, and none of it was run on Windows. The maintainer pushed the note and told the work to continue, and the eight recommendations were taken as accepted. All five steps of the recommended order are built, and the record of each is in the last sections.
 
 ## Problem
 
@@ -177,10 +177,10 @@ Each has a recommendation, and the reply "continue with best" accepts them all.
 ## Recommended order
 
 1. Fix the bytecode write: `-B` for the `inspect` child, with the tests of the fix, and record G22. Built.
-2. Move the reading of the request into one function, with the texts of `inspect` pinned first.
-3. Add the check as a library, with its tests.
-4. Add the child and register `pysyntax`, with the tests of the adapter and the change to the two tests that count the adapters, which comes before the registration. The test that compares the command of the child changes with the fix in step 1.
-5. Write the documentation and, after the maintainer runs it, the Windows record.
+2. Move the reading of the request into one function, with the texts of `inspect` pinned first. Built.
+3. Add the check as a library, with its tests. Built.
+4. Add the child and register `pysyntax`, with the tests of the adapter and the change to the two tests that count the adapters, which comes before the registration. The test that compares the command of the child changes with the fix in step 1. Built.
+5. Write the documentation and, after the maintainer runs it, the Windows record. Built.
 
 
 ## Stage 1: the bytecode fix (built)
@@ -194,3 +194,49 @@ Linux evidence. Against the old command all three tests fail. The first misses `
 Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the three commits, which gave 1091, 1091 and 1094 passed, each with 2 skipped. The last was on the commit `89599cd`. A run of `aic task run` with the `inspect` target on the AIC directory through the real CLI on Windows was not made, so on Windows `-B` has been exercised by the tests only.
 
 What it does not cover. The parent process that runs `aic` was not seen to write bytecode into a project during a run, and that was not tried. G22 is closed for the child only.
+
+
+## Stages 2 to 4: the shared reader, the check and the adapter (built)
+
+All four stages that follow the fix are built, in four blocks of commits. The record of each is below, and then what differs from the decisions above, and what is not known.
+
+### Stage 2: the shared reader of the request of a child process
+
+`execution/child_request.py` holds what both children need: decoding the request, finding the project path, asking for the check of the directory, the failed outcome for a request that cannot be done, and printing one JSON line with exit status 0. The reader takes the check of the directory as a parameter, and each child passes its own `directory_problem` when it runs. The three existing tests that replace names in `inspect_project` therefore pass unchanged. Four tests that pin more of what the `inspect` child does with a request were added first and passed on the old code: a path with a NUL character, a long path cut at the path limit, and a message of the system that is escaped and cut or that is missing. The import of the path limit in the tests moved in its own commit before the code did.
+
+Linux evidence. The old and the new child were run as real subprocesses on 20 requests, among them bad UTF-8, JSON nested 200,000 deep, a byte order mark, a NUL path, a lone surrogate and a path of 300 characters, and stdout, stderr and the exit status were identical in every case. 28 mutations of the new module and of the changed child left no survivor. The first round had three: no test showed that the reader returns the path as it was given and not the escaped and cut path, which would make a child walk a shortened path, no test compared the exact line that the child prints, and one mutation of mine was an identity assignment and proved nothing. The first two got tests, and the third was replaced.
+
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the five commits, which gave 1098, 1098, 1117, 1117 and 1117 passed, each with 2 skipped. The last was on the commit `5c161a3`.
+
+### Stage 3: the check
+
+`execution/check_python.py` holds the library. `compile_problem` compiles source with the compiler and throws the code object away. `read_python_file` opens a file with the flags for binary mode, no blocking and no following of a link, where the system has them, and checks that the open descriptor is a regular file. `check_directory` walks the project, skips the listed directories and any directory with a `pyvenv.cfg`, and applies the three limits. `describe` writes the reason. The numbers are named constants: 1 MiB for a file, 10,000 files, and 64 MiB read.
+
+Linux evidence. On the standard library of the machine, 572 files were checked with no problem, and 2 symlinked files were counted as not read, as the rule says. A virtual environment named `env` was skipped by its marker file alone. 46 mutations left one survivor, the removal of the binary mode flag, which has no effect on Linux, which has no such flag. The test that reads bytes with `\r\n` and a `\x1a` passed on Windows with the flag present, and the mutation itself was not run on Windows. A test found that a `SyntaxError` with no message was reported as `None`, which was fixed to the name of the type. A mutation that made a fake listing return the same entries for every directory looped for ever, so the fake now returns its entries for the top directory only.
+
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the two commits, which gave 1117 and 1169 passed, each with 2 skipped. The last was on the commit `017c957`. The 52 new tests passed on Windows, among them the test with a real directory junction.
+
+### Stage 4: the child and the adapter
+
+`run` and `main` were added to `check_python.py`, so the module is the child as well. `build_pysyntax_adapter` in `execution/adapters.py` returns a `ReadOnlyAdapter` around a `ProcessAdapter` that runs `sys.executable -B -m aic_control_centre.execution.check_python`, with a grant and a project required, and `build_adapter_registry` registers it as `pysyntax`. The two tests that assumed that only `inspect` and `noop` ship were changed first, in their own commit. A grant for `inspect` does not cover `pysyntax`, and a test shows it.
+
+A bug in the library of stage 3 was found while the child was tested, and fixed in its own commit. The compiler emits `SyntaxWarning` for source that is valid, such as an invalid escape sequence or `is` with a literal. The child printed those warnings to its standard error, and under a filter that turns warnings into errors a valid file was reported as a syntax error. The compile step now ignores warnings. The new test fails on the old code with `invalid escape sequence`, and the standard error of the child went from two lines to none.
+
+Linux evidence. 21 mutations of the child and of the registration left no survivor. Through the real CLI: `aic task targets` lists three targets, and `pysyntax` is marked as needing a grant. A clean project completed. A project with two faulty files failed with the first problems in the order of their names, for example `bad.py line 1: invalid syntax; worse.py line 1: 'return' outside function`. A run without a grant was rejected. A run on a copy of the AIC source that was both the installed tree and the project completed with 137 files checked and no problem, and wrote no bytecode for the child, which is the case of G22.
+
+Windows record. The maintainer ran the full suite on Windows under Git Bash before each of the seven commits, which gave 1169, 1169, 1170, 1170, 1181, 1181 and 1196 passed, each with 2 skipped. The last was on the commit `d324f64`. A run of `aic task run` with the `pysyntax` target through the real CLI on Windows was not made.
+
+### What differs from the decisions above
+
+- The reason has a fifth count, `not read`. It counts a link named like a Python file, a pipe or another entry that is not a regular file, a file that could not be opened or read, a directory that could not be listed, and an entry whose status could not be read. The reason is `checked Python syntax with Python 3.12: 41 files checked, 2 with errors, 1 too large, 0 not read, 3 directories skipped; errors: ...`.
+- A name and an error text are each cut at 60 characters after escaping, and the escaped text is cut again at 90, so that the longest reason stays under 1000 characters.
+- A reason for a check that stopped at a limit is `checked Python syntax with Python 3.12: stopped: too many Python files: more than 10000`, or `too much Python code: more than 64.0 MiB`. A file that is too large counts towards the number of files.
+- The directories are not listed in the order of their names. The problems are sorted by name at the end, which is all that the report needs to be the same whatever the order of the listing, and a test shows it.
+- The suffix `.py` is compared exactly. The names of the skipped directories and the marker file are compared without regard to case.
+
+### What is not known
+
+- A run of the adapter through the real CLI on Windows was not made. A real pipe and a real link to a file are tested only where the system can make them, and those tests check nothing on Windows.
+- Python 3.11 and 3.14 were not observed. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)).
+- The three limits are guesses from one machine, and the cost of a run on Windows was not measured (G24 in [STATUS.md](STATUS.md)).
+- A crash of the interpreter on source that was built to cause one was not observed and was not tried. The sizes of nested source that were tried are those of the evidence above.
