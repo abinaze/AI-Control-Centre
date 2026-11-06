@@ -25,7 +25,7 @@ Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
 ## Phase 2 — Readiness and Execution Boundaries
 
-Status: Implemented; the coordinator is reached from the CLI by `aic task run`, first with an adapter that does no work and now also with `inspect`, which only reads
+Status: Implemented; the coordinator is reached from the CLI by `aic task run`, first with an adapter that does no work and now also with `inspect` and `pysyntax`, which only read
 
 - Task readiness evaluation
 - Explicit readiness reasons
@@ -91,11 +91,11 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, `inspect` is the first adapter that does real work and is registered with a grant required, further adapters are planned, and CPU and memory limits are not enforced.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, `inspect` is the first adapter that does real work and `pysyntax`, which checks the syntax of Python files, is the second, both registered with a grant required, further adapters are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
-- Further concrete local execution adapters; a Python syntax check is next in [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md), and is designed in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md)
+- Further concrete local execution adapters that only read, after the Python syntax check in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md), which is built
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -120,7 +120,7 @@ The sixth design note is [docs/GOAL_ARCHIVE_DESIGN.md](docs/GOAL_ARCHIVE_DESIGN.
 
 The seventh design note is [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md). It covers how the tasks and the attempts of an archived goal can be read, which `aic goal archived` does not show. It is accepted and built: `aic goal archived <goal id>` shows the tasks and the attempts, and the error of `aic task history` says which archived goal holds a task.
 
-The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md). It covers the second adapter, a Python syntax check: how it opens files that it does not trust, what it does with their content, the limits that it keeps and what it reports. It also records a false failure of `inspect` (G22) and proposes the fix. It is accepted. Stage 1, the fix that starts the `inspect` child with `-B` (G22), is built, and nothing else of it is.
+The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md). It covers the second adapter, a Python syntax check: how it opens files that it does not trust, what it does with their content, the limits that it keeps and what it reports. It also records a false failure of `inspect` (G22) and fixes it. It is accepted, and all of it is built: the fix, a shared reader for the request of a child, the check, and the `pysyntax` adapter.
 
 ## Phase 4 — Validation and Recovery
 
