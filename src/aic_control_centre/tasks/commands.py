@@ -20,6 +20,7 @@ from aic_control_centre.execution.records import (
     EXECUTION_SOURCE_CLI,
     ExecutionRecordRegistry,
 )
+from aic_control_centre.execution.run_lock import hold_run_lock
 from aic_control_centre.execution.start import ExecutionStarter
 from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.registry import GoalRegistry
@@ -448,6 +449,9 @@ def run_task(task_id: str, target: str) -> int:
     The state lock is held only while state is read or written, never
     while the adapter runs, so other commands, including requeue, still
     work during a long run.
+    A run lock, which is a different lock, is held for the whole run, so
+    that another process can tell that this one is alive. If it cannot
+    be taken, the run goes on and a note says so.
 
     If the lock cannot be taken to record the outcome, the adapter has
     already run. The task is then left running with its attempt open,
@@ -468,6 +472,9 @@ def run_task(task_id: str, target: str) -> int:
         guard_calls.append(1)
         return state_lock(data_dir)
 
+    def run_guard(attempt_id):
+        return hold_run_lock(data_dir, attempt_id)
+
     permissions = PermissionRegistry.beside(TaskRegistry().registry_path)
     coordinator = ExecutionCoordinator(
         adapter_registry=build_adapter_registry(),
@@ -478,6 +485,7 @@ def run_task(task_id: str, target: str) -> int:
             ),
         ),
         state_guard=guard,
+        run_guard=run_guard,
     )
 
     try:
@@ -507,6 +515,9 @@ def run_task(task_id: str, target: str) -> int:
     print(f"Target: {target.strip()}")
     print(f"Result: {result.status}")
     print(f"Reason: {result.reason}")
+
+    if result.note is not None:
+        print(f"Note: {result.note}")
 
     if result.status == EXECUTION_COORDINATION_COMPLETED:
         return 0
