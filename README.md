@@ -205,7 +205,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; accepted, built |
 | [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, built |
 | [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md) | Design note on G21, a goal that is archived halfway and then gets a task; accepted, built |
-| [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); proposed, not accepted |
+| [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, the lock module is built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
