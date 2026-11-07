@@ -124,6 +124,8 @@ The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYN
 
 The ninth design note is [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md). It covers G21, a goal that is archived halfway and then gets a task. That could happen only for a goal that had no tasks. The note is accepted and built: `aic task create` refuses a goal that has an archive entry, and G21 is closed.
 
+The tenth design note is [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md). It covers what is still open in G5, how AIC can tell that the process that ran a task has ended. It proposes an operating system lock for each attempt that the `aic task run` process holds while the adapter runs, a line `Owner:` in `aic task running`, and a refusal in `aic task requeue` for a run that is alive. It was shown on Linux that such a lock is free after a hard kill and that a child of the adapter does not hold it, and nothing was run on Windows. It is proposed and not accepted, and nothing of it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
