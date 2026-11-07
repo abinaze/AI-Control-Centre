@@ -1,6 +1,6 @@
 # Design Note: A Task Cannot Be Added to a Goal Whose Archive Was Interrupted
 
-**Status: Proposed. Not accepted.** This note decides what to do about G21, a goal that was archived halfway and then got a new task, which the command that archives it cannot finish. It follows [GOAL_ARCHIVE_DESIGN.md](GOAL_ARCHIVE_DESIGN.md). The evidence was observed on Linux with the real CLI and a simulated crash, and nothing in it was run on Windows. Nothing is built.
+**Status: Accepted as recommended, and built.** This note decides what to do about G21, a goal that was archived halfway and then got a new task, which the command that archives it cannot finish. It follows [GOAL_ARCHIVE_DESIGN.md](GOAL_ARCHIVE_DESIGN.md). The evidence was observed on Linux with the real CLI and a simulated crash, and nothing in it was run on Windows. The check was built later, and the record of it is at the end of this note.
 
 ## Problem
 
@@ -106,6 +106,28 @@ Each has a recommendation, and the reply "continue with best" accepts them all.
 
 ## Recommended order
 
-1. Add the tests that fail now: a goal with an entry gets a task.
-2. Add the check in `create_task`, with its message.
-3. Write the documentation, with the Windows record after the maintainer runs it, and close G21 in STATUS.
+1. Add the tests that fail now: a goal with an entry gets a task. Built, with a change of order: the check was committed first and the tests after it, so that every commit is green on its own, and the tests were shown to fail against the old behaviour by switching the check off (see the record below).
+2. Add the check in `create_task`, with its message. Built.
+3. Write the documentation, with the Windows record after the maintainer runs it, and close G21 in STATUS. Built, with the Windows record below.
+
+## What was built
+
+The five open questions were not answered. The build went ahead on the assumption that the recommendations were accepted, which are 1A, 2A and 3A, no repair command, task-less archives kept, and the `status mismatch` line left as it is. The maintainer did not object.
+
+- **The check.** `create_task` in `tasks/commands.py` finds the goal, then opens the archive beside the task registry and asks for the entry of that goal, and only then validates the status. If there is an entry it prints `Error: goal <id> is already archived, and the archive was not finished; finish it with: aic goal archive <id> --reason <text>`, returns 1 and writes nothing. The id in the message is the id of the goal that was found, not the text that was typed. An archive file that cannot be read gives the usual error and creates no task. The commit is `dbcd1ff`.
+- **The tests.** 16 tests in `tests/unit/test_task_create_archived.py`, in the commit `b5390ba`. They make the crash by patching the `remove_records`, `remove_tasks` or `remove_goal` method of a registry to raise, for a goal with no tasks and for goals with finished tasks, because the tasks are still present after the first two steps and gone after the last.
+- **Order.** The note listed the tests first. The check was committed first and the tests second, so that each commit passes the suite on its own.
+- **What differs from the note.** Nothing in the decisions. No command, file format or message of another command was changed.
+
+### What was run
+
+- **Tests against the old behaviour.** With the check switched off, 11 of the 16 tests failed and 5 passed. The 5 are the cases that the check has nothing to refuse: a goal with no entry, entries of other goals, a goal that does not exist, a goal with finished tasks that the status check refuses anyway, and an archive that cannot be read, which still failed in that variation because the read was left in place.
+- **Mutations.** Six, each caught: the id asked for as it was typed, with padding, instead of the id of the goal found; a different goal id; the check skipped; the check inverted; the check made only for a goal that has tasks; and the check moved after the status. The padded id and the check after the status were not in the first list of the note, and they were added.
+- **The real CLI on Linux,** with a temporary data directory and the last write of the archiver made to raise, for a goal with no tasks. `aic task create` printed the error and exited with 1. `aic validate` printed `Validation failed.` with one line, that the goal is archived and also still active. `aic goal archive` finished with `An earlier attempt had written the archive entry, and its reason is kept`, and `aic validate` then passed. A task created afterwards for that goal was refused with `goal not found`, because the goal had been removed. A goal with finished tasks was covered by the tests only, not by this run.
+- **Windows.** The maintainer ran the full suite under Git Bash before each of the two commits, which gave 1196 and 1212 passed, each with 2 skipped. The last run was on the tree that became `b5390ba`.
+
+### Not known
+
+- A real crash of the archive was not made, and neither was a run of this case through the real CLI on Windows.
+- A goal that was left in the stuck state before the fix is not repaired. None is known, and hand editing of `tasks.json` is the way out for it.
+- The library call `TaskRegistry.add_task` does not ask the archive. Only the CLI command does, and the CLI is the only way that a task is added.
