@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python, run_lock
 ```
 
 ## Core Lifecycle Model
@@ -225,6 +225,8 @@ The module `execution/inspect_project.py` is both the library and the child. `in
 The module `execution/check_python.py` is both the library and the child. `check_directory` walks the project and compiles every regular file whose name ends in `.py`. The code object is thrown away, so nothing is imported, run or written, and the warnings of the compiler are ignored, because a file that only warns is a valid file. A file is opened without blocking and without following a link, in binary mode, and the open descriptor must be a regular file, so a pipe or a file that was swapped for one is skipped and cannot hang the run. A link is never followed. The directories `.git`, `__pycache__`, `node_modules`, `.tox`, `.nox`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache` and `.eggs`, and any directory that holds a `pyvenv.cfg`, are skipped and counted. A file of more than 1 MiB is counted and not read. More than 10,000 files, or more than 64 MiB read, stops the check with a failed outcome that names the limit. The limits are numbers and never a clock, so the same project gives the same report, with its problems listed in the order of their names.
 
 The outcome is failed when any file has a syntax problem, and completed when none has. The reason is one line that names the Python that judged the files, gives the counts of files checked, files with errors, files too large, entries not read and directories skipped, and shows up to three problems, each with a name, a line when the parser gave a real one, and the text of the error, escaped and cut. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)), and the limits are guesses (G24). The snapshots of the wrapper read every file of the project, as for `inspect`. The design is in [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md).
+
+The module `execution/run_lock.py` shows whether the process that runs an attempt is alive. `hold_run_lock` takes an operating system lock on `runs/<attempt id>.lock` in the data directory and keeps it for the length of a `with` block. `probe_run_lock` answers `alive` when the lock is held, `gone` when the file exists and the lock is free, and `unknown` when there is no file. It uses the lock and unlock calls of `locking.py`, it creates nothing when it probes, and it refuses an attempt ID that is not a safe file name. Nothing calls it yet. How it is meant to be used is in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md).
 
 ### Execution Outcome
 
