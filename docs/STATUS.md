@@ -189,7 +189,7 @@ Still open:
 - Nothing detects a dead process. A person has to decide that a `running` task is dead. If its process is in fact alive, requeueing and starting it again runs the task twice.
 - A requeue and its reason are stored in the attempt record, and `aic task history <task-id>` shows them. Nothing acts on the recorded start time: no timeout or detector uses it, and `aic task running` only reports it.
 - `aic task complete` on a dead task is still accepted, so a false success can still be recorded.
-- `aic task running` lists the running tasks and how long each has been running, longest first, with an optional `--older-than` filter, as designed in [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md). It helps a person to decide what to requeue. It does not detect a dead run, because a live run and a killed run leave identical records. Detection needs a recorded owner or lease, which is left to the first real adapter.
+- `aic task running` lists the running tasks and how long each has been running, longest first, with an optional `--older-than` filter, as designed in [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md). It helps a person to decide what to requeue. It does not detect a dead run, because a live run and a killed run leave identical records. Detection needs a recorded owner or lease, which was left to the first real adapter. Two real adapters exist now, and [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md) proposes how to tell that the process that ran a task has ended, for the runs that `aic task run` starts, and how `aic task requeue` can then refuse a run that is alive. It is proposed and not accepted, and nothing of it is built.
 
 ### G6. The coordinator is unreachable from the CLI (closed)
 
