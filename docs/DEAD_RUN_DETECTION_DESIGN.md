@@ -1,6 +1,6 @@
 # Design Note: Telling a Dead Run from a Live One
 
-**Status: Proposed. Not accepted.** This note decides how AIC can know that the process that was running a task has ended, which is what is still open in G5. It follows [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md), which listed running tasks and said that detection needs an owner or a lease, and [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md), where this was Option B. The evidence was observed on Linux with the real CLI, with one part replaced to make a run slow, and a small script that only prototypes the idea. Nothing in it was run on Windows. Nothing is built.
+**Status: Accepted as recommended. Steps 1 and 2 of the recommended order are built and were run on Windows. Steps 3 to 6 are not built.** This note decides how AIC can know that the process that was running a task has ended, which is what is still open in G5. It follows [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md), which listed running tasks and said that detection needs an owner or a lease, and [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md), where this was Option B. The evidence was observed on Linux with the real CLI, with one part replaced to make a run slow, and a small script that only prototypes the idea. The evidence below was not run on Windows. The record at the end of this note has the runs on Windows of what was built later. Steps 3 to 6 are not built.
 
 ## Problem
 
@@ -163,9 +163,43 @@ Each has a recommendation, and the reply "continue with best" accepts them all.
 
 ## Recommended order
 
-1. Add the module that holds and probes a lock for an attempt, with its tests.
-2. Run a script on Windows that holds the lock in one process, kills it, and probes from another, with the maintainer, before anything uses the module.
+1. Add the module that holds and probes a lock for an attempt, with its tests. Built.
+2. Run a script on Windows that holds the lock in one process, kills it, and probes from another, with the maintainer, before anything uses the module. Done, and the record is at the end of this note.
 3. Let the coordinator take the lock, with its tests.
 4. Show `Owner:` in `aic task running`, with its tests.
 5. Refuse `alive` in `aic task requeue` and remove the file, with its tests.
 6. Write the documentation, with the Windows record after the maintainer runs it, and update G5 in STATUS.
+
+## What was built so far
+
+The seven open questions were not answered. The build went ahead on the assumption that the recommendations were accepted, as it did for the earlier notes, and the maintainer did not object. Steps 1 and 2 of the recommended order are done. Steps 3 to 6 are not.
+
+- **The module.** `execution/run_lock.py`, in the commit `41b6fae`. It has `hold_run_lock`, `probe_run_lock`, `run_lock_path`, `RunLockError` and the three answers `alive`, `gone` and `unknown`, and it reuses the lock and unlock calls of the state lock. It has one rule that this note did not state. An attempt ID that is not made of ASCII letters, digits, hyphens and underscores, up to 100 characters, is refused, because an ID in a record that a person edited by hand could name a path outside `runs`. A probe of such an ID answers `unknown`.
+- **The tests.** 34 tests in `tests/unit/test_run_lock.py`, in the commit `9278e6f`. Two of them use a real process that holds the lock. One kills it, and one lets it end normally. Both return early on Windows, where nothing is checked by them.
+- **What does not change.** Nothing calls the module. The coordinator, `aic task running` and `aic task requeue` are as they were, and no command behaves differently.
+
+### What was run
+
+- **Mutations.** Fourteen mutations of the module were run, and 13 were caught. The first run showed a gap, because nothing tested that a missing data directory is made, and a test was added before the final run. The survivor moves the removal of the file before the closing of its handle. It changes nothing on Linux, where an open file can be removed. On Windows an open file cannot be removed, as the run below shows, so the suite there should catch it, but the mutation was not run on Windows.
+- **The suite on Windows.** The maintainer ran it under Git Bash before each of the two commits, which gave 1212 and 1246 passed, each with 2 skipped. The last run was on the tree that became `9278e6f`.
+- **A script on Windows.** It runs real processes in a temporary directory, with Python 3.14.3 on Windows. Twelve checks had an expected answer, and all came out as expected. Three were observations only.
+  - A lock that another process holds is `alive`.
+  - After that owner was killed with `Popen.kill`, which ends a process at once on Windows, the lock was `gone` at the first probe. The loop would have waited up to 5 seconds, and it measured 0 milliseconds, in one run.
+  - The child of the owner, started with the same process group flags as the process adapter, kept running after its owner was killed.
+  - The file that the killed owner left could be removed.
+  - An owner that ended normally left no file, and its attempt then probed as `unknown`.
+  - A probe from the process that holds the lock answered `alive`, so a second handle in one process conflicts with the first, which is how the tests use it.
+  - Two probes of a file that nobody holds both answered `gone`, and the lock could be taken afterwards, so a probe does not keep it.
+  - Observation: a second try to take a held lock fails with `PermissionError` and errno 13. It is an `OSError`, which is what the module catches.
+  - Observation: removing the file while its owner holds it is refused with `PermissionError`. On Linux the same removal succeeds. The owner must therefore close its handle before it removes the file, and the module does.
+
+### What this changes in the note
+
+The first risk of the note, Windows, is answered for the maintainer's machine for the module: the lock is released when its owner is killed, a closed file can be removed, and a second handle conflicts with the first. A failed lock is a `PermissionError`, so a probe that finds the lock held cannot be confused with an error that is not an `OSError`. The rest of the note stands as it was written.
+
+### Not known
+
+- Only one machine was used, with Windows 11 and Python 3.14.3. Python 3.11 was not tried.
+- How soon the lock is released after a kill was seen once, as 0 milliseconds. A slower release would show as `alive` for a moment, which is the safe side for a refusal in `aic task requeue`.
+- A hard kill of a run of the real `inspect` or `pysyntax` adapter on Windows was not made, because the coordinator does not take the lock yet.
+- A network file system was not tried, and the module shares the limits of the state lock there.
