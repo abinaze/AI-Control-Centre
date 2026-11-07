@@ -1,6 +1,6 @@
 # Design Note: Seeing How Long a Task Has Been `running`
 
-**Status: Implemented as recommended.** It addresses what was open in gap G5 in [STATUS.md](STATUS.md): nothing helped a person decide that a `running` task is dead. The build took the recommendation for every decision, and what happened is at the end of this note. It helps a person to decide. It does not detect a dead run, and G5 stays open for detection. How a dead run could be detected is in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md), which is proposed and not accepted.
+**Status: Implemented as recommended.** It addresses what was open in gap G5 in [STATUS.md](STATUS.md): nothing helped a person decide that a `running` task is dead. The build took the recommendation for every decision, and what happened is at the end of this note. It helps a person to decide. It does not detect a dead run, and G5 stays open for detection. How a dead run could be detected is in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md), which is accepted, and partly built.
 
 ## Problem
 
