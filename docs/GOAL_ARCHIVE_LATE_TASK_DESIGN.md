@@ -128,6 +128,18 @@ The five open questions were not answered. The build went ahead on the assumptio
 
 ### Not known
 
-- A real crash of the archive was not made, and neither was a run of this case through the real CLI on Windows.
+- A real crash of the archive was not made. A run of this case through the real CLI on Windows was not made when this was recorded, and was made later, as the last section records.
 - A goal that was left in the stuck state before the fix is not repaired. None is known, and hand editing of `tasks.json` is the way out for it.
 - The library call `TaskRegistry.add_task` does not ask the archive. Only the CLI command does, and the CLI is the only way that a task is added.
+
+## The case on Windows
+
+After the check was built, the maintainer ran a script on Windows under Git Bash, with Python 3.14.3, that makes this case through the real CLI in a temporary data directory. A goal with no tasks was created, and its archive was made to fail at its last write, by a launcher that patches that one method, as the tests do. A real crash was not made. All 9 checks of this case that had an expected answer came out as expected.
+
+- The archive command exited with status 1.
+- `aic task create` for the goal exited with status 1 and the message that the goal is already archived and that the archive was not finished.
+- `aic validate` exited with status 1, and its output named the goal as archived and still active.
+- Archiving the goal again exited with status 0, and `aic validate` then exited with status 0.
+- `aic task create` for the goal then exited with status 1, because the goal was no longer there.
+
+Not known: a real crash of the archive, and the case of a goal that had finished tasks, which was covered by the tests and was not run through the CLI on Windows. The other case of the same script, a hard kill of a real run, is recorded in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md).
