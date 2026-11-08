@@ -229,13 +229,18 @@ def test_run_needs_a_target() -> None:
     assert args.target == "noop"
 
 
-def test_requeue_works_while_the_adapter_runs(
+def test_requeue_works_while_the_adapter_of_a_run_with_no_owner_runs(
     tmp_path,
     monkeypatch,
     capsys,
 ) -> None:
-    """The lock is free during the run, so a person can still recover."""
+    """The state lock is free during the run, so a person can recover.
+
+    The run lock cannot be made here, so nobody vouches for the run, and
+    the requeue is not refused.
+    """
     task = _make_task(tmp_path)
+    (tmp_path / "runs").write_text("not a directory", encoding="utf-8")
     requeued = []
 
     def operator():
