@@ -164,3 +164,18 @@ def probe_run_lock(data_dir: Path, attempt_id: str) -> str:
         return OWNER_GONE
     finally:
         handle.close()
+
+
+def remove_run_lock_file(data_dir: Path, attempt_id: str) -> None:
+    """Remove the lock file that a killed owner left behind.
+
+    Call it for an attempt whose owner is gone. A failure to remove the
+    file is ignored, because a file that stays behind is empty and
+    harmless, and so is an ID that is not a safe file name.
+    """
+    try:
+        path = run_lock_path(data_dir, attempt_id)
+    except RunLockError:
+        return
+
+    _remove(path)
