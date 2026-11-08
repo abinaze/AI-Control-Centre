@@ -1,6 +1,6 @@
 # Design Note: Recovering a Task Left in `running`
 
-**Status: Accepted and implemented (Option A).** `aic task requeue` was built as described under Recommendation. Option B, automatic detection, is not built. It addresses gap G5 in [STATUS.md](STATUS.md).
+**Status: Accepted and implemented (Option A).** `aic task requeue` was built as described under Recommendation. Option B, automatic detection with a heartbeat, is not built. A lock that the process of `aic task run` holds, which is a different way to tell that a run is alive, is built: see [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md). It addresses gap G5 in [STATUS.md](STATUS.md).
 
 ## Problem
 
@@ -83,7 +83,7 @@ Two invariants were added to [STATUS.md](STATUS.md): INV-14 (only a `running` ta
 
 ## Risks
 
-- **Double execution.** If the earlier process is still running, requeueing and starting again runs the task twice. The command cannot prevent this. It makes the action deliberate (a required reason and a printed `Updated` time) and the documentation says so plainly. Real protection needs Option B.
+- **Double execution.** If the earlier process is still running, requeueing and starting again runs the task twice. The command cannot prevent this. It makes the action deliberate (a required reason and a printed `Updated` time) and the documentation says so plainly. Real protection needs Option B. Later, `aic task requeue` was made to refuse a run whose owner is alive by its run lock, for the runs that `aic task run` starts. The risk stays for a run that a person starts with `aic task start`.
 - **Audit trail.** Before execution records existed, the reason and the fact that a requeue happened were not stored. They are now stored in the attempt record.
 - **False success is still possible.** `aic task complete` on a dead task is still accepted. Requiring evidence for completion is separate work.
 
