@@ -5,10 +5,17 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from aic_control_centre.execution.records import (
     ExecutionRecord,
     ExecutionRecordRegistry,
+)
+from aic_control_centre.execution.run_lock import (
+    OWNER_ALIVE,
+    OWNER_GONE,
+    OWNER_UNKNOWN,
+    probe_run_lock,
 )
 from aic_control_centre.tasks.model import TASK_STATUS_RUNNING
 from aic_control_centre.tasks.registry import TaskRegistry
@@ -18,6 +25,20 @@ PROBLEM_FUTURE = "future"
 PROBLEM_UNREADABLE = "unreadable"
 
 UNKNOWN_ROUTE = "unknown (before records existed)"
+
+# The run lock gives alive, gone or unknown. A fourth answer comes from
+# reading the attempt again: the run ended while it was being checked.
+OWNER_ENDED = "ended"
+
+OWNER_TEXT = {
+    OWNER_ALIVE: "alive (the aic process that runs it holds its lock)",
+    OWNER_GONE: (
+        "gone (the aic process that ran it has ended; "
+        "its child may still be running)"
+    ),
+    OWNER_UNKNOWN: "unknown (no lock was recorded for this run)",
+    OWNER_ENDED: "ended (the run ended while this was checked)",
+}
 
 DURATION_HELP = "a whole number followed by s, m, h or d, for example 30m"
 
@@ -33,6 +54,11 @@ class RunningTask:
     anything is still running the task. It is None when the start time
     cannot be read. The problem is None, or says why the time is not
     usable as it stands.
+
+    The owner says whether the process that runs the attempt is alive,
+    gone or unknown. It is unknown unless the run lock of the attempt
+    says more. Gone means that the process ended, and not that the work
+    stopped.
     """
 
     task_id: str
@@ -43,6 +69,7 @@ class RunningTask:
     estimated: bool
     elapsed: timedelta | None
     problem: str | None
+    owner: str = OWNER_UNKNOWN
 
 
 def parse_duration(text: str) -> timedelta:
@@ -93,6 +120,32 @@ def _route(record: ExecutionRecord) -> str:
     return record.source
 
 
+def _owner(
+    data_dir: Path,
+    record_registry: ExecutionRecordRegistry,
+    attempt: ExecutionRecord,
+) -> str:
+    """Say whether the process that runs an attempt is alive.
+
+    A lock that is free is not enough to call the owner gone. The owner
+    closes the attempt before it releases the lock, so the attempt is read
+    again, and only an attempt that is still open proves that the owner
+    ended without finishing. An attempt that was closed, or that a new run
+    replaced, ended while it was being checked.
+    """
+    answer = probe_run_lock(data_dir, attempt.id)
+
+    if answer != OWNER_GONE:
+        return answer
+
+    latest = record_registry.get_open_attempt(attempt.task_id)
+
+    if latest is None or latest.id != attempt.id:
+        return OWNER_ENDED
+
+    return OWNER_GONE
+
+
 def _sort_key(row: RunningTask) -> tuple[int, float]:
     """Put unreadable times first, then the longest running first."""
     unreadable = 0 if row.problem == PROBLEM_UNREADABLE else 1
@@ -105,6 +158,7 @@ def describe_running_tasks(
     task_registry: TaskRegistry,
     record_registry: ExecutionRecordRegistry,
     now: datetime,
+    data_dir: Path | None = None,
 ) -> list[RunningTask]:
     """Return the running tasks, the longest running first.
 
@@ -113,6 +167,10 @@ def describe_running_tasks(
     last update of the task, which is when it began running, and the
     time is marked as an estimate. The clock is given by the caller and
     must have a time zone. Nothing is written.
+
+    When a data directory is given, the owner of each run that has an
+    open attempt is asked through its run lock. Without one, every owner
+    is unknown.
     """
     open_by_task: dict[str, ExecutionRecord] = {}
 
@@ -148,6 +206,11 @@ def describe_running_tasks(
                 elapsed = timedelta(0)
                 problem = PROBLEM_FUTURE
 
+        owner = OWNER_UNKNOWN
+
+        if attempt is not None and data_dir is not None:
+            owner = _owner(data_dir, record_registry, attempt)
+
         rows.append(
             RunningTask(
                 task_id=task.id,
@@ -158,6 +221,7 @@ def describe_running_tasks(
                 estimated=estimated,
                 elapsed=elapsed,
                 problem=problem,
+                owner=owner,
             )
         )
 
