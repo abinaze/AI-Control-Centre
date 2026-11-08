@@ -120,7 +120,7 @@ def _route(record: ExecutionRecord) -> str:
     return record.source
 
 
-def _owner(
+def owner_of_attempt(
     data_dir: Path,
     record_registry: ExecutionRecordRegistry,
     attempt: ExecutionRecord,
@@ -209,7 +209,7 @@ def describe_running_tasks(
         owner = OWNER_UNKNOWN
 
         if attempt is not None and data_dir is not None:
-            owner = _owner(data_dir, record_registry, attempt)
+            owner = owner_of_attempt(data_dir, record_registry, attempt)
 
         rows.append(
             RunningTask(
