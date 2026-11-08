@@ -201,7 +201,7 @@ The first risk of the note, Windows, is answered for the maintainer's machine fo
 
 - Only one machine was used, with Windows 11 and Python 3.14.3. Python 3.11 was not tried.
 - How soon the lock is released after a kill was seen once, as 0 milliseconds. A slower release would show as `alive` for a moment, which is the safe side for a refusal in `aic task requeue`.
-- A hard kill of a run of the real `inspect` or `pysyntax` adapter on Windows was not made, because the coordinator does not take the lock yet.
+- A hard kill of a run of the real `inspect` or `pysyntax` adapter on Windows was not made then, because the coordinator did not take the lock yet. A hard kill of a real run with the `inspect` adapter was made later, as the last section records.
 - A network file system was not tried, and the module shares the limits of the state lock there.
 
 ## What was built in steps 3 to 5
@@ -231,10 +231,23 @@ Steps 3 to 5 followed the recommendation of this note, and the maintainer did no
 
 ### Not known
 
-- A hard kill of a real run through `aic task run` on Windows was not made. The runs on Linux used a slow stand-in for the adapter, and the Windows evidence is the script of step 2 and the tests above.
+- A hard kill of a real run through `aic task run` on Windows was not made when steps 3 to 5 were recorded, and was made later, as the last section records. The runs on Linux used a slow stand-in for the adapter, and the Windows evidence then was the script of step 2 and the tests above.
 - A run that a person starts with `aic task start` has no owner, and its owner is always `unknown`. Nothing detects that it died.
 - `gone` means that the process of `aic` ended. The child of a process adapter can still be running (G13), and requeueing then starts the task again beside it. The adapters that exist read only.
 - Any `OSError` on taking the lock counts as held, as it does for the state lock. On Windows a held lock was seen as `PermissionError` with errno 13, and a different error would also read as `alive`, which is the safe side for a refusal.
 - How soon the lock is released after a kill on Windows was seen once, as 0 milliseconds.
 - A network file system was not tried, and the run lock shares the limits of the state lock there.
 - A race between a probe and the end of a run in `aic task requeue` was not tested. The command holds the state lock, and a run needs it to record its outcome, so the outcome cannot be recorded while the command looks.
+
+## A hard kill of a real run on Windows
+
+After steps 3 to 5 the maintainer ran a script on Windows under Git Bash, with Python 3.14.3, that makes two cases through the real CLI in temporary data directories. The first case is a hard kill. The script runs the real `aic task run --target inspect` on the folder of the Python standard library, which the run only reads, and kills the `aic` process with `Popen.kill`, which ends a process at once on Windows. All 18 checks of this case that had an expected answer came out as expected.
+
+- The lock file appeared while the run was going, and the run was still going after a delay of 0.5 seconds.
+- `aic task running` showed `Owner: alive`. `aic task requeue` was refused with exit status 1 and the message that the run is still alive, and the task stayed `running`.
+- After the kill, the `aic` process had ended with a status that is not zero. `aic task running` showed `Owner: gone` at 0.3 seconds after the kill, the task was still `running`, and one lock file was left.
+- `aic task requeue` then succeeded with exit status 0 and the note that the child may still be running. The task was `ready`, and no lock file was left.
+
+The script did not look at the child of the adapter, so what a hard kill does to the child of the real `inspect` adapter on Windows was not observed. The 0.3 seconds is the time at which a poll saw `gone`, and a poll starts a new `aic` process, so the lock may have been released sooner. The case was run once, on one machine.
+
+The second case of the script is the one of [GOAL_ARCHIVE_LATE_TASK_DESIGN.md](GOAL_ARCHIVE_LATE_TASK_DESIGN.md), and its record is in that note.
