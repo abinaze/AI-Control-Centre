@@ -40,6 +40,7 @@ from aic_control_centre.tasks.model import (
 from aic_control_centre.tasks.registry import TaskRegistry
 from aic_control_centre.tasks.running import (
     PROBLEM_FUTURE,
+    OWNER_TEXT,
     PROBLEM_UNREADABLE,
     describe_running_tasks,
     filter_older_than,
@@ -535,7 +536,8 @@ def show_running_tasks(older_than: str | None = None) -> int:
 
     The time is advisory. A task that is listed may still be running,
     and nothing is written or changed. The tasks are listed with the
-    longest running first.
+    longest running first. The owner line says whether the aic process
+    that runs the task is alive, gone or unknown, from its run lock.
     """
     threshold = None
 
@@ -550,6 +552,7 @@ def show_running_tasks(older_than: str | None = None) -> int:
         TaskRegistry(),
         _record_registry(),
         _now(),
+        load_config().data_dir,
     )
 
     if threshold is not None:
@@ -585,6 +588,7 @@ def show_running_tasks(older_than: str | None = None) -> int:
         print(f"  Route: {row.route}")
         print(f"  Since: {since}")
         print(f"  Running for: {running_for}")
+        print(f"  Owner: {OWNER_TEXT[row.owner]}")
         print()
 
     print(
