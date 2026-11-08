@@ -103,7 +103,7 @@ Tasks have an explicit lifecycle. Transitions are allowed only as follows:
 
 The transition table lives in the task model and is enforced by the task registry. Task lifecycle transitions are handled explicitly rather than being inferred from arbitrary execution behavior.
 
-The `running` to `ready` transition exists for recovery, when the process running a task has died without recording an outcome. The table allows it, but the CLI reaches it only through `aic task requeue`, which requires a reason and refuses a task that is not `running` or whose parent goal is closed. `aic task ready` refuses a `running` task. See [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md).
+The `running` to `ready` transition exists for recovery, when the process running a task has died without recording an outcome. The table allows it, but the CLI reaches it only through `aic task requeue`, which requires a reason and refuses a task that is not `running`, whose parent goal is closed, or whose owner is alive by its run lock. `aic task ready` refuses a `running` task. See [RECOVERY_DESIGN.md](RECOVERY_DESIGN.md).
 
 ## Validation Boundary
 
@@ -226,7 +226,7 @@ The module `execution/check_python.py` is both the library and the child. `check
 
 The outcome is failed when any file has a syntax problem, and completed when none has. The reason is one line that names the Python that judged the files, gives the counts of files checked, files with errors, files too large, entries not read and directories skipped, and shows up to three problems, each with a name, a line when the parser gave a real one, and the text of the error, escaped and cut. The grammar is that of the Python that runs AIC (G23 in [STATUS.md](STATUS.md)), and the limits are guesses (G24). The snapshots of the wrapper read every file of the project, as for `inspect`. The design is in [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md).
 
-The module `execution/run_lock.py` shows whether the process that runs an attempt is alive. `hold_run_lock` takes an operating system lock on `runs/<attempt id>.lock` in the data directory and keeps it for the length of a `with` block. `probe_run_lock` answers `alive` when the lock is held, `gone` when the file exists and the lock is free, and `unknown` when there is no file. It uses the lock and unlock calls of `locking.py`, it creates nothing when it probes, and it refuses an attempt ID that is not a safe file name. Nothing calls it yet. How it is meant to be used is in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md).
+The module `execution/run_lock.py` shows whether the process that runs an attempt is alive. `hold_run_lock` takes an operating system lock on `runs/<attempt id>.lock` in the data directory and keeps it for the length of a `with` block. `probe_run_lock` answers `alive` when the lock is held, `gone` when the file exists and the lock is free, and `unknown` when there is no file. It uses the lock and unlock calls of `locking.py`, it creates nothing when it probes, and it refuses an attempt ID that is not a safe file name. `ExecutionCoordinator` takes an optional run guard and `aic task run` passes one, so the lock is held after the start until the outcome is recorded, outside the state lock. If it cannot be made, the run goes on and the result carries a note. `describe_running_tasks`, behind `aic task running`, asks the lock and reads the attempt again when the lock is free, through `owner_of_attempt`, and `aic task requeue` uses the same check. The design is in [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md).
 
 ### Execution Outcome
 
@@ -268,7 +268,7 @@ The library (`ExecutionStarter` and `ExecutionOutcomeRecorder`) and the CLI (`ai
 
 `aic validate` reports an open record whose task is not `running`, more than one open record for a task, a record whose task does not exist, and a repeated record ID. It accepts a `running` task with no record. `aic task history <task-id>` lists a task's attempts, oldest first. Both are read-only.
 
-`aic task running` lists the `running` tasks and how long each has been running, longest first. A task is timed from the start of its latest open attempt. A running task with no open attempt began before records existed, so it is timed from its last update and marked as an estimate. A start time that cannot be read, because it is not a time or has no offset, is listed as unknown and is kept by the `--older-than` filter. A start time in the future is listed and counts as zero. The command is advisory: a live run and a killed run leave the same record, so it says how long and never whether anything is still running the task. It writes nothing and takes no lock. The design is in [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md).
+`aic task running` lists the `running` tasks and how long each has been running, longest first. A task is timed from the start of its latest open attempt. A running task with no open attempt began before records existed, so it is timed from its last update and marked as an estimate. A start time that cannot be read, because it is not a time or has no offset, is listed as unknown and is kept by the `--older-than` filter. A start time in the future is listed and counts as zero. The time is advisory: a live run and a killed run leave the same record, so how long says nothing about whether anything is still running the task. The `Owner:` line does, for a run that `aic task run` started: it asks the run lock and says `alive`, `gone` or `unknown`, and a run that a person started with `aic task start` is always `unknown`. The command writes nothing and takes no lock. The design is in [STALE_TASKS_DESIGN.md](STALE_TASKS_DESIGN.md).
 
 An attempt left open for a completed or failed task is never closed by the normal lifecycle (G11 in [STATUS.md](STATUS.md)). The design and its options are in [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md).
 
@@ -282,7 +282,7 @@ A task can reach the `running` state through the execution boundary or through t
 | `aic task start` (CLI) | Readiness: the task must be `ready` and its parent goal must be open; an attempt record is opened before the task moves to `running` |
 | `aic task ready` (CLI) | The parent goal must be open; a `running` task is refused |
 | `aic task complete`, `aic task fail` (CLI) | The transition table: the task must be `running`; the attempt record is closed after the task moves, and an optional `--reason` is stored in it |
-| `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required; the attempt record is closed with the reason after the task moves |
+| `aic task requeue` (CLI) | The task must be `running`, its parent goal must be open, and a reason is required; the attempt record is closed with the reason after the task moves. A run whose owner is alive, by its run lock, is refused, and the lock file of a gone owner is removed afterwards |
 | `aic task run` (CLI) | The same admission as the library path: the task must be `ready` and its parent goal open, and the target must be registered. The task moves to `running`, the adapter runs, and the outcome is recorded against the attempt that was started |
 
 The CLI commands use the same `TaskReadinessEvaluator` as the library path. `aic task start` evaluates full readiness. `aic task ready` can only check the parent goal, through `parent_goal_blocker`, because a task cannot be ready before that transition happens. Empty and unknown task IDs are left to the lifecycle transition, which reports them. `aic task requeue` is the only CLI path from `running` back to `ready`. It does not start the task: the task must still pass readiness through `aic task start`.
@@ -303,6 +303,7 @@ State is stored as JSON files in a local data directory.
 | `executions.json` | Execution attempt records, created when the first attempt is recorded |
 | `permissions.json` | Grants, created when the first grant is made |
 | `.aic.lock` | The state lock, created by the first command that locks. It is never deleted and holds no data |
+| `runs/<attempt id>.lock` | The run lock of a run that `aic task run` is making, an empty file that is removed when the run ends. A killed run leaves its file, and `aic task requeue` removes it |
 
 The data directory is resolved in this order:
 
@@ -328,7 +329,7 @@ Atomic writes protect against a crash. They do nothing for two processes that ov
 
 A read-only command sees one file at a time and each file is always complete, so it never reads a half-written file. On Windows such a reader can hold a state file open at the moment a writer replaces it, so `write_text_atomic` retries `os.replace` up to five times, 50 ms apart, after a `PermissionError`. Other errors are not retried.
 
-The lock is never held while an adapter runs. `aic task run` takes it for the start and again for recording the outcome. If the lock cannot be taken to record the outcome, the adapter has already run. The command says so, and the task is left `running` with its attempt open, the same shape a crash leaves, which `aic task requeue`, `complete` or `fail` recovers.
+The state lock is never held while an adapter runs, and the run lock, which is a different lock, is held for the whole run. `aic task run` takes the state lock for the start and again for recording the outcome. If the lock cannot be taken to record the outcome, the adapter has already run. The command says so, and the task is left `running` with its attempt open, the same shape a crash leaves, which `aic task requeue`, `complete` or `fail` recovers.
 
 Current limitations of persistence:
 
