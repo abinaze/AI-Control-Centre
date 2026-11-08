@@ -20,7 +20,13 @@ from aic_control_centre.execution.records import (
     EXECUTION_SOURCE_CLI,
     ExecutionRecordRegistry,
 )
-from aic_control_centre.execution.run_lock import hold_run_lock
+from aic_control_centre.execution.run_lock import (
+    OWNER_ALIVE,
+    OWNER_GONE,
+    OWNER_UNKNOWN,
+    hold_run_lock,
+    remove_run_lock_file,
+)
 from aic_control_centre.execution.start import ExecutionStarter
 from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.registry import GoalRegistry
@@ -45,6 +51,7 @@ from aic_control_centre.tasks.running import (
     describe_running_tasks,
     filter_older_than,
     format_elapsed,
+    owner_of_attempt,
     parse_duration,
 )
 from aic_control_centre.validation.goal_tasks import validate_task_creation
@@ -351,12 +358,22 @@ def requeue_task(task_id: str, reason: str) -> int:
     The task must be running and its parent goal must be open. The
     task is not started: starting still goes through readiness. Empty
     and unknown task IDs are left to the lifecycle transition to report.
+
+    A run whose owner is alive, which means that the aic process that
+    runs it holds its run lock, is refused, because requeueing it would
+    run the task twice. There is no way around that: the run ends by
+    itself, or the process is stopped. When the owner is gone, the lock
+    file that it left behind is removed after the requeue, and a note
+    says that its child may still be running.
     """
     if not reason.strip():
         print("Error: a reason is required to requeue a task.")
         return 1
 
     task = _find_task(task_id)
+    data_dir = load_config().data_dir
+    attempt = None
+    owner = OWNER_UNKNOWN
 
     if task is not None:
         if task.status != TASK_STATUS_RUNNING:
@@ -370,6 +387,23 @@ def requeue_task(task_id: str, reason: str) -> int:
 
         if blocker is not None:
             print(f"Error: task cannot be requeued: {blocker}")
+            return 1
+
+        attempt = _record_registry().get_open_attempt(task.id)
+
+        if attempt is not None:
+            owner = owner_of_attempt(
+                data_dir,
+                _record_registry(),
+                attempt,
+            )
+
+        if owner == OWNER_ALIVE:
+            print(
+                f"Error: the run of task {task.id} is still alive: the "
+                "aic process that runs it holds its lock. Wait for it to "
+                "end, or stop that process, and then requeue."
+            )
             return 1
 
     result = transition_task_status(
@@ -387,6 +421,13 @@ def requeue_task(task_id: str, reason: str) -> int:
 
         print(f"Previous status: running (last updated {task.updated_at})")
         print(f"Reason: {reason.strip()}")
+
+        if owner == OWNER_GONE:
+            remove_run_lock_file(data_dir, attempt.id)
+            print(
+                "Note: the aic process that ran it has ended, and its "
+                "child may still be running."
+            )
 
     return result
 
@@ -595,6 +636,7 @@ def show_running_tasks(older_than: str | None = None) -> int:
         "A task listed here may still be running. "
         "Requeueing a live run runs the task twice."
     )
+    print("aic task requeue refuses a run whose owner is alive.")
     print(
         "To put a task back in the queue: "
         'aic task requeue <task-id> --reason "<text>"'
