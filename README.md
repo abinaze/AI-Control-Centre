@@ -41,7 +41,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-Nothing detects a `running` task whose process has died. A person recovers such a task with `aic task requeue`, which cannot tell whether the process is really gone. `aic task running` shows how long each `running` task has been running, to help a person to decide. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
+For a task that `aic task run` started, `aic task running` shows from a run lock whether the `aic` process that runs it is alive, gone or unknown, and `aic task requeue` refuses a run whose owner is alive. Nothing detects a dead run that a person started with `aic task start`, whose owner is always unknown, and `gone` does not mean that the work stopped. `aic task running` also shows how long each `running` task has been running. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
 
 ## Quick Start
 
@@ -112,7 +112,7 @@ Configuration is read from environment variables. A `.env` file is **not** loade
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, `tasks.json`, `executions.json`, `permissions.json`, and the lock file `.aic.lock` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
+| `AIC_DATA_DIR` | Directory for `projects.json`, `goals.json`, `tasks.json`, `executions.json`, `permissions.json`, the folder `runs` of run locks, and the lock file `.aic.lock` | Windows: `%LOCALAPPDATA%\AI-Control-Centre`; otherwise `~/.local/share/ai-control-centre` |
 | `AIC_DEFAULT_MODEL_PROVIDER` | Reserved. Read into configuration but not used yet | `local` |
 
 ## Design Principles
@@ -205,7 +205,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/GOAL_ARCHIVE_DETAIL_DESIGN.md](docs/GOAL_ARCHIVE_DETAIL_DESIGN.md) | Design note on reading the tasks and the attempts of an archived goal; accepted, built |
 | [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, built |
 | [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md) | Design note on G21, a goal that is archived halfway and then gets a task; accepted, built |
-| [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, the lock module is built |
+| [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
