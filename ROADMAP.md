@@ -46,7 +46,7 @@ The boundaries and the coordinator were first built and tested at the library le
 
 ## Phase 2.5 — Boundary Hardening
 
-Status: In progress. Steps 1 to 5 are implemented, apart from automatic detection of dead runs.
+Status: In progress. Steps 1 to 5 are implemented. A dead run is detected for the runs that `aic task run` starts, and not for a run that a person starts with `aic task start`.
 
 Purpose: make the boundaries built in Phase 2 actually bind every path, before any new capability depends on them.
 
@@ -81,7 +81,7 @@ Scope: atomic write-and-replace for the JSON registries and an explicit schema v
 
 Status: Implemented, using Option A (operator requeue). `aic task requeue <task-id> --reason "<text>"` returns a `running` task to `ready` so it can pass readiness and start again. It adds only the `running → ready` transition and does not change any state file shape. `aic task running` lists how long each task has been running, to help a person to decide what to requeue.
 
-Not done: automatic detection of dead runs, and storing the reason. Both depend on Step 5. Options and the decision are in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
+Not done then: automatic detection of dead runs, and storing the reason. Both depended on Step 5. The reason is stored, and a run lock that shows whether the process is alive was built later, as [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) records. Options and the decision are in [docs/RECOVERY_DESIGN.md](docs/RECOVERY_DESIGN.md).
 
 ### Step 5 — Execution records
 
@@ -124,7 +124,7 @@ The eighth design note is [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYN
 
 The ninth design note is [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md). It covers G21, a goal that is archived halfway and then gets a task. That could happen only for a goal that had no tasks. The note is accepted and built: `aic task create` refuses a goal that has an archive entry, and G21 is closed.
 
-The tenth design note is [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md). It covers what is still open in G5, how AIC can tell that the process that ran a task has ended. It proposes an operating system lock for each attempt that the `aic task run` process holds while the adapter runs, a line `Owner:` in `aic task running`, and a refusal in `aic task requeue` for a run that is alive. It was shown on Linux, and then on Windows for the module, that such a lock is free after a hard kill and that a child of the adapter does not hold it. It is accepted. The lock module is built and was run on Windows, and the coordinator, `aic task running` and `aic task requeue` do not use it yet.
+The tenth design note is [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md). It covers what is still open in G5, how AIC can tell that the process that ran a task has ended. It proposes an operating system lock for each attempt that the `aic task run` process holds while the adapter runs, a line `Owner:` in `aic task running`, and a refusal in `aic task requeue` for a run that is alive. It was shown on Linux, and then on Windows for the module, that such a lock is free after a hard kill and that a child of the adapter does not hold it. It is accepted and built. The coordinator holds the lock, `aic task running` shows an `Owner:` line, and `aic task requeue` refuses a run that is alive. A run that a person starts with `aic task start` has no owner, so it stays `unknown`.
 
 ## Phase 4 — Validation and Recovery
 
