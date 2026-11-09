@@ -227,7 +227,9 @@ When `aic task complete`, `aic task fail` or `aic task requeue` runs, the task m
 
 A task that is `ready` again after a crash does not have this problem. A failed close during `requeue`, or a crash between opening a record and moving the task, leaves a `ready` task, and the next `aic task start` closes the leftover record as `abandoned`.
 
-Until a fix is chosen, the record can be closed by hand: in `executions.json`, set the record's `ended_at` to a UTC time and its `ended_as` to `abandoned`. The likely fix is a small explicit command that does the same. It is not built, and it is a maintainer decision because it adds a write path outside the normal lifecycle.
+Until a fix is chosen, the record can be closed by hand: in `executions.json`, set the record's `ended_at` to a UTC time and its `ended_as` to `abandoned`. The likely fix is a small explicit command that closes the attempt. It is a maintainer decision because it adds a write path outside the normal lifecycle.
+
+The state was reproduced again on Linux with the real CLI, with the failing write simulated, and it showed more than the text above says. The open attempt also makes `aic goal archive` refuse the goal, with `execution record <id> is still open`, so the goal cannot be archived. The hand edit above makes `aic validate` pass and the archive succeed, but it writes `abandoned` for a task that completed. The reason of `aic task complete --reason` is stored nowhere when the close fails. On the coordinator path the goal status is also left unreconciled, with `persisted=in_progress, derived=completed`, because the recorder reconciles the goal after it closes the attempt, and `aic goal status` fixes that. [LEFT_OPEN_ATTEMPT_DESIGN.md](LEFT_OPEN_ATTEMPT_DESIGN.md) proposes the command `aic task close-attempt`, which closes the attempt with the outcome that the task has, and a change of the order in the recorder. It is proposed and not accepted, and nothing of it is built.
 
 ### G12. The coordinator library takes no state lock by default (closed in the library; reproduced, library only)
 
