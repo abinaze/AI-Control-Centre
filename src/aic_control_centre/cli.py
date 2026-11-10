@@ -32,6 +32,7 @@ from aic_control_centre.projects.commands import (
 from aic_control_centre.projects.registry import ProjectRegistry
 from aic_control_centre.storage import StateFileError
 from aic_control_centre.tasks.commands import (
+    close_task_attempt,
     complete_task,
     create_task,
     fail_task,
@@ -307,6 +308,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--reason",
         required=True,
         help="Why the task is being requeued.",
+    )
+
+    task_close_attempt_parser = task_subparsers.add_parser(
+        "close-attempt",
+        help="Close the attempt that a completed or failed task left open.",
+    )
+    task_close_attempt_parser.add_argument(
+        "task_id",
+        help="Task ID.",
+    )
+    task_close_attempt_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Why the attempt is closed afterwards.",
     )
 
     task_history_parser = task_subparsers.add_parser(
@@ -585,6 +600,12 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
 
         if args.task_command == "requeue":
             return requeue_task(
+                task_id=args.task_id,
+                reason=args.reason,
+            )
+
+        if args.task_command == "close-attempt":
+            return close_task_attempt(
                 task_id=args.task_id,
                 reason=args.reason,
             )

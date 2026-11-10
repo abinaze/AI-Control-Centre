@@ -13,6 +13,10 @@ from aic_control_centre.execution.coordinator import (
     ExecutionCoordinator,
 )
 from aic_control_centre.execution.history import attempt_lines
+from aic_control_centre.execution.left_open import (
+    LeftOpenRefused,
+    close_left_open_attempt,
+)
 from aic_control_centre.execution.records import (
     ENDED_AS_COMPLETED,
     ENDED_AS_FAILED,
@@ -570,6 +574,42 @@ def run_task(task_id: str, target: str) -> int:
 def _now() -> datetime:
     """Return the current time, with its time zone."""
     return datetime.now(timezone.utc)
+
+
+def close_task_attempt(task_id: str, reason: str) -> int:
+    """Close the attempt that a finished task left open.
+
+    This is the way out of the state that a failed write leaves when a
+    task is completed or failed: the task is final and its attempt is
+    still open, and nothing starts a final task again. The attempt gets
+    the outcome that the task already has, and the reason that a person
+    gave, kept with a beginning that says that it was closed afterwards.
+
+    Everything else is refused, and a refusal writes nothing: a task that
+    is not completed or failed, a task with no open attempt, a task with
+    more than one, and a run whose owner is alive. The goal is not
+    touched. aic goal status reconciles a goal.
+    """
+    try:
+        result = close_left_open_attempt(
+            TaskRegistry(),
+            _record_registry(),
+            task_id,
+            reason,
+            load_config().data_dir,
+        )
+    except LeftOpenRefused as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    record = result.record
+
+    print(f"Attempt closed: {record.id}")
+    print(f"Task: {record.task_id}")
+    print(f"Outcome: {record.ended_as}")
+    print(f"Reason: {record.reason}")
+
+    return 0
 
 
 def show_running_tasks(older_than: str | None = None) -> int:

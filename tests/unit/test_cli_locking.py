@@ -30,6 +30,7 @@ LOCKING_COMMANDS = {
     "task complete",
     "task fail",
     "task requeue",
+    "task close-attempt",
     "permission grant",
     "permission revoke",
 }
