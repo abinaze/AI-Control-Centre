@@ -104,6 +104,9 @@ class ExecutionOutcomeRecorder:
         """Record a completed or failed outcome for a running task.
 
         The task moves first and the attempt record is closed after it.
+        The goal is reconciled between the two, as the CLI does, so that a
+        failed write of the record leaves an open attempt for a final task
+        and no more.
         A crash in between leaves an open record for a task that is no
         longer running, which is detectable.
         """
@@ -153,14 +156,14 @@ class ExecutionOutcomeRecorder:
             new_status=outcome.outcome,
         )
 
+        self.orchestrator.reconcile_goal(task.goal_id)
+
         self.record_registry.close_attempt(
             task_id=outcome.task_id,
             ended_as=outcome.outcome,
             reason=outcome.reason,
             source=EXECUTION_SOURCE_COORDINATOR,
         )
-
-        self.orchestrator.reconcile_goal(task.goal_id)
 
         reason = (
             outcome.reason.strip()
