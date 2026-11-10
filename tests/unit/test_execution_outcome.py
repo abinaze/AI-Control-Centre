@@ -551,3 +551,80 @@ def test_attempt_id_cannot_be_blank():
             outcome=EXECUTION_OUTCOME_FAILED,
             attempt_id="   ",
         )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "goal_status"),
+    [
+        (EXECUTION_OUTCOME_COMPLETED, GOAL_STATUS_COMPLETED),
+        (EXECUTION_OUTCOME_FAILED, GOAL_STATUS_FAILED),
+    ],
+)
+def test_failed_record_write_leaves_the_goal_reconciled(
+    tmp_path,
+    monkeypatch,
+    outcome,
+    goal_status,
+):
+    """Only the open attempt is left behind, and the goal is right."""
+    recorder, goal_registry, _, task, goal = create_running_task(tmp_path)
+    recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+
+    def fail_close(*args, **kwargs):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(recorder.record_registry, "close_attempt", fail_close)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        recorder.record(
+            ExecutionOutcome(task_id=task.id, outcome=outcome),
+        )
+
+    assert goal_registry.get_goal(goal.id).status == goal_status
+    assert recorder.record_registry.get_open_attempt(task.id) is not None
+
+
+def test_the_outcome_is_written_task_then_goal_then_attempt(
+    tmp_path,
+    monkeypatch,
+):
+    """The task moves, the goal follows it, and the attempt closes last."""
+    events = []
+    recorder, _, task_registry, task, _ = create_running_task(tmp_path)
+    recorder.record_registry.open_attempt(
+        task.id,
+        EXECUTION_SOURCE_COORDINATOR,
+        "test",
+    )
+    real_update = task_registry.update_task_status
+    real_reconcile = recorder.orchestrator.reconcile_goal
+    real_close = recorder.record_registry.close_attempt
+
+    def update(*args, **kwargs):
+        events.append("task")
+
+        return real_update(*args, **kwargs)
+
+    def reconcile(*args, **kwargs):
+        events.append("goal")
+
+        return real_reconcile(*args, **kwargs)
+
+    def close(*args, **kwargs):
+        events.append("attempt")
+
+        return real_close(*args, **kwargs)
+
+    monkeypatch.setattr(task_registry, "update_task_status", update)
+    monkeypatch.setattr(recorder.orchestrator, "reconcile_goal", reconcile)
+    monkeypatch.setattr(recorder.record_registry, "close_attempt", close)
+
+    recorder.record(
+        ExecutionOutcome(task_id=task.id, outcome=EXECUTION_OUTCOME_COMPLETED),
+    )
+
+    assert events == ["task", "goal", "attempt"]
