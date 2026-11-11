@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from aic_control_centre.execution.records import ExecutionRecord
-from aic_control_centre.tasks.model import TASK_STATUS_RUNNING
+from aic_control_centre.tasks.model import (
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_RUNNING,
+)
 
 UNKNOWN_START = "unknown (before records existed)"
 
@@ -17,7 +21,8 @@ def attempt_lines(
 
     The blank line separates the attempt from what came before it. An
     attempt that is open and whose task is not running is marked as one
-    that was left open. The same lines are used wherever an attempt is
+    that was left open, and when the task is completed or failed, a line
+    says how to close it. The same lines are used wherever an attempt is
     shown, so that the places that show one cannot drift apart.
     """
     route = record.source
@@ -40,6 +45,12 @@ def attempt_lines(
                 "  Note: the task is not running, "
                 "so this attempt was left open"
             )
+
+            if task_status in (TASK_STATUS_COMPLETED, TASK_STATUS_FAILED):
+                lines.append(
+                    "  Close it with: aic task close-attempt "
+                    f'{record.task_id} --reason "<text>"'
+                )
     else:
         lines.append(f"  Ended: {record.ended_at}")
         lines.append(f"  Outcome: {record.ended_as}")
