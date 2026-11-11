@@ -343,3 +343,48 @@ def test_a_task_added_after_a_crash_stops_the_second_attempt(
     assert late.id in str(caught.value)
     assert _active(world) == before
     assert world.goals.get_goal(goal.id) == goal
+
+
+def test_the_refusal_for_open_records_carries_them(tmp_path) -> None:
+    """The command can say which tasks have an attempt that was left open."""
+    world = _world(tmp_path)
+    goal, tasks = _goal(world, ("completed", "failed"), open_record=True)
+
+    with pytest.raises(GoalArchiveError) as refused:
+        world.archiver.archive_goal(goal.id, "done")
+
+    assert {record.task_id for record in refused.value.open_attempts} == {
+        task.id for task in tasks
+    }
+    assert all(record.is_open for record in refused.value.open_attempts)
+    assert refused.value.unfinished == ()
+
+
+def test_the_message_for_an_open_record_names_the_first_one(
+    tmp_path,
+) -> None:
+    """The words of the refusal did not change."""
+    world = _world(tmp_path)
+    goal, _ = _goal(world, ("completed", "failed"), open_record=True)
+
+    with pytest.raises(GoalArchiveError) as refused:
+        world.archiver.archive_goal(goal.id, "done")
+
+    first = refused.value.open_attempts[0]
+
+    assert str(refused.value) == (
+        f"goal {goal.id} cannot be archived: "
+        f"execution record {first.id} is still open"
+    )
+
+
+def test_unfinished_tasks_are_refused_before_open_records(tmp_path) -> None:
+    """The work in flight is what a person has to deal with first."""
+    world = _world(tmp_path)
+    goal, _ = _goal(world, ("completed", "running"), open_record=True)
+
+    with pytest.raises(GoalArchiveError) as refused:
+        world.archiver.archive_goal(goal.id, "done")
+
+    assert len(refused.value.unfinished) == 1
+    assert refused.value.open_attempts == ()
