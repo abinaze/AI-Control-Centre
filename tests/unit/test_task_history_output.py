@@ -3,6 +3,8 @@
 import sys
 from dataclasses import replace
 
+import pytest
+
 from aic_control_centre.cli import main
 from aic_control_centre.execution.records import (
     ExecutionRecord,
@@ -223,3 +225,53 @@ def test_an_unknown_task_is_an_error(tmp_path, monkeypatch, capsys) -> None:
 
     assert code == 1
     assert capsys.readouterr().out == "Error: task not found: nope\n"
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_an_open_attempt_of_a_final_task_says_how_to_close_it(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    status,
+) -> None:
+    """The output ends with the command that closes the attempt."""
+    task, code, out = _history(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        status,
+        lambda task: [_record(task, 1, ended_at=None, ended_as=None)],
+    )
+
+    assert code == 0
+    assert out == (
+        f"Task: {task.id}\n"
+        f"Status: {status}\n"
+        "Attempts: 1\n"
+        "\n"
+        "Attempt 1\n"
+        "  Route: coordinator (noop)\n"
+        f"  Started: {START}\n"
+        "  Ended: still open\n"
+        "  Note: the task is not running, so this attempt was left open\n"
+        f"  Close it with: aic task close-attempt {task.id} "
+        '--reason "<text>"\n'
+    )
+
+
+def test_a_task_that_is_not_final_gets_no_close_line(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    """The next start closes a left-over attempt of a ready task."""
+    task, code, out = _history(
+        monkeypatch,
+        tmp_path,
+        capsys,
+        "ready",
+        lambda task: [_record(task, 1, ended_at=None, ended_as=None)],
+    )
+
+    assert code == 0
+    assert "close-attempt" not in out

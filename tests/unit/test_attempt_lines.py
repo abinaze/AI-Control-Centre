@@ -109,3 +109,41 @@ def test_the_lines_are_returned_and_nothing_is_printed(capsys) -> None:
     attempt_lines(1, _record(), "completed")
 
     assert capsys.readouterr().out == ""
+
+
+def test_an_open_attempt_of_a_final_task_says_how_to_close_it() -> None:
+    """The line names the task of the record, and the command to use."""
+    for status in ("completed", "failed"):
+        lines = attempt_lines(
+            2,
+            _record(task_id="the-task", ended_at=None, ended_as=None),
+            status,
+        )
+
+        assert lines[-3:] == [
+            "  Ended: still open",
+            "  Note: the task is not running, "
+            "so this attempt was left open",
+            "  Close it with: aic task close-attempt the-task "
+            '--reason "<text>"',
+        ]
+
+
+def test_the_other_open_attempts_have_no_close_line() -> None:
+    """A task that is not final is not closed with that command."""
+    for status in ("pending", "ready", "running"):
+        lines = attempt_lines(
+            2,
+            _record(ended_at=None, ended_as=None),
+            status,
+        )
+
+        assert not any("close-attempt" in line for line in lines)
+
+
+def test_a_closed_attempt_of_a_final_task_has_no_close_line() -> None:
+    """There is nothing to close."""
+    for status in ("completed", "failed"):
+        lines = attempt_lines(1, _record(reason="done"), status)
+
+        assert not any("close-attempt" in line for line in lines)
