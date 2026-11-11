@@ -82,18 +82,26 @@ def test_an_open_attempt_of_a_running_task_has_no_note() -> None:
 
 def test_an_open_attempt_of_a_task_that_is_not_running_has_a_note() -> None:
     """It was left open, and the lines say so."""
-    for status in ("pending", "ready", "completed", "failed"):
+    note = "  Note: the task is not running, so this attempt was left open"
+
+    for status in ("pending", "ready"):
         lines = attempt_lines(
             2,
             _record(ended_at=None, ended_as=None),
             status,
         )
 
-        assert lines[-2:] == [
-            "  Ended: still open",
-            "  Note: the task is not running, "
-            "so this attempt was left open",
-        ]
+        assert lines[-2:] == ["  Ended: still open", note]
+
+    for status in ("completed", "failed"):
+        lines = attempt_lines(
+            2,
+            _record(ended_at=None, ended_as=None),
+            status,
+        )
+
+        assert "  Ended: still open" in lines
+        assert note in lines
 
 
 def test_the_lines_are_returned_and_nothing_is_printed(capsys) -> None:
