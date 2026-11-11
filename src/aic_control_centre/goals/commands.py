@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from aic_control_centre.execution.records import ExecutionRecordRegistry
+from aic_control_centre.execution.records import (
+    ExecutionRecord,
+    ExecutionRecordRegistry,
+)
 from aic_control_centre.goals.archive import GoalArchive
 from aic_control_centre.goals.archive_view import archived_goal_lines
 from aic_control_centre.goals.archiving import GoalArchiveError, GoalArchiver
@@ -114,6 +117,29 @@ def _print_unfinished(tasks: tuple[Task, ...]) -> None:
     print("A goal can be archived when all of its tasks are finished.")
 
 
+def _print_open_attempts(records: tuple[ExecutionRecord, ...]) -> None:
+    """List the finished tasks whose attempt was left open."""
+    if not records:
+        return
+
+    task_ids = list(dict.fromkeys(record.task_id for record in records))
+
+    print(f"Tasks with an attempt that was left open: {len(task_ids)}")
+
+    for task_id in task_ids[:MAX_UNFINISHED_SHOWN]:
+        print(f"- {task_id}")
+
+    hidden = len(task_ids) - MAX_UNFINISHED_SHOWN
+
+    if hidden > 0:
+        print(f"  and {hidden} more")
+
+    print(
+        "Close each with: aic task close-attempt <task-id> "
+        '--reason "<text>"'
+    )
+
+
 def archive_goal(goal_id: str, reason: str) -> int:
     """Move a finished goal, its tasks and their records to the archive."""
     tasks = TaskRegistry()
@@ -131,6 +157,7 @@ def archive_goal(goal_id: str, reason: str) -> int:
     except GoalArchiveError as exc:
         print(f"Error: {exc}")
         _print_unfinished(exc.unfinished)
+        _print_open_attempts(exc.open_attempts)
         print("Nothing was changed.")
         return 1
 

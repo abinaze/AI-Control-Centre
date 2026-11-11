@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from aic_control_centre.execution.records import ExecutionRecordRegistry
+from aic_control_centre.execution.records import (
+    ExecutionRecord,
+    ExecutionRecordRegistry,
+)
 from aic_control_centre.goals.archive import (
     FINISHED_TASK_STATUSES,
     ArchiveEntry,
@@ -24,16 +27,20 @@ from aic_control_centre.tasks.registry import TaskRegistry
 class GoalArchiveError(ValueError):
     """Raised when a goal cannot be archived. Nothing was changed.
 
-    Tasks that are not finished are listed in unfinished.
+    Tasks that are not finished are listed in unfinished, and execution
+    records that were left open for finished tasks are listed in
+    open_attempts.
     """
 
     def __init__(
         self,
         message: str,
         unfinished: tuple[Task, ...] = (),
+        open_attempts: tuple[ExecutionRecord, ...] = (),
     ) -> None:
         super().__init__(message)
         self.unfinished = tuple(unfinished)
+        self.open_attempts = tuple(open_attempts)
 
 
 @dataclass(frozen=True)
@@ -157,6 +164,14 @@ class GoalArchiver:
             for record in self.record_registry.list_records()
             if record.task_id in task_ids
         ]
+        open_records = tuple(record for record in records if record.is_open)
+
+        if open_records:
+            raise GoalArchiveError(
+                f"goal {goal.id} cannot be archived: execution record "
+                f"{open_records[0].id} is still open",
+                open_attempts=open_records,
+            )
 
         try:
             return ArchiveEntry.create(
