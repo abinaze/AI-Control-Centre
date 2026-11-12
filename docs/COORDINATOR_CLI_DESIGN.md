@@ -16,7 +16,7 @@ Before designing that, the real coordinator was run with a slow fake adapter, on
 
 ## Facts about the current code
 
-- `coordinate` resolves the adapter, calls `ExecutionStarter.start` (admission, open the attempt record, move the task to `running`), calls `adapter.execute`, and calls `ExecutionOutcomeRecorder.record` (check that the task is `running`, move it, close the attempt, reconcile the goal).
+- `coordinate` resolves the adapter, calls `ExecutionStarter.start` (admission, open the attempt record, move the task to `running`), calls `adapter.execute`, and calls `ExecutionOutcomeRecorder.record` (check that the task is `running`, move it, close the attempt, reconcile the goal; the recorder reconciles the goal before it closes the attempt since the change recorded in [LEFT_OPEN_ATTEMPT_DESIGN.md](LEFT_OPEN_ATTEMPT_DESIGN.md)).
 - `ExecutionAdapter` is a protocol with one method, `execute(request) -> ExecutionOutcome`. `ExecutionAdapterRegistry` maps target names to adapters. Nothing registers an adapter outside tests.
 - The recorder checks only that the task is `running`, and `close_attempt` closes whichever attempt is open for the task. The start result does not carry the attempt's ID, so an outcome cannot say which attempt it belongs to. (Stage 1 changed this; see the end of this note.)
 - The adapter call is synchronous and in the same process. It has no timeout and no cancellation. An exception, an invalid result or a result for another task becomes a `failed` outcome (INV-6).
