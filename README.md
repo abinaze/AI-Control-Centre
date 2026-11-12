@@ -41,7 +41,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-For a task that `aic task run` started, `aic task running` shows from a run lock whether the `aic` process that runs it is alive, gone or unknown, and `aic task requeue` refuses a run whose owner is alive. Nothing detects a dead run that a person started with `aic task start`, whose owner is always unknown, and `gone` does not mean that the work stopped. `aic task running` also shows how long each `running` task has been running. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, but an attempt left open for a finished task by a failed write cannot be closed from the CLI (G11).
+For a task that `aic task run` started, `aic task running` shows from a run lock whether the `aic` process that runs it is alive, gone or unknown, and `aic task requeue` refuses a run whose owner is alive. Nothing detects a dead run that a person started with `aic task start`, whose owner is always unknown, and `gone` does not mean that the work stopped. `aic task running` also shows how long each `running` task has been running. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, and an attempt left open for a finished task by a failed write is closed with `aic task close-attempt` (G11). A state file that cannot be written ends a command with a Python traceback and not an `Error:` line (G25).
 
 ## Quick Start
 
@@ -81,6 +81,7 @@ aic task complete <task-id> [--reason "<text>"]   running -> completed
 aic task fail <task-id> [--reason "<text>"]       running -> failed
 aic task requeue <task-id> --reason "<text>"   running -> ready (recovery; the goal must be open)
 aic task history <task-id>                  Show the recorded execution attempts for a task
+aic task close-attempt <task-id> --reason "<text>"   Close the open attempt of a completed or failed task
 aic task running [--older-than <duration>]  List the running tasks and how long each has run (30m, 2h, 1d)
 aic task run <task-id> --target <name>      Run a ready task through an execution target
 aic task targets                            List the execution targets and whether each needs a grant (noop, inspect and pysyntax exist)
@@ -206,7 +207,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md) | Design note on the second adapter, a Python syntax check, and a false failure of `inspect`; accepted, built |
 | [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md) | Design note on G21, a goal that is archived halfway and then gets a task; accepted, built |
 | [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, built |
-| [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); proposed, not accepted |
+| [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); accepted, built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
