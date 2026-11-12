@@ -1,6 +1,6 @@
 # Design Note: Closing an Attempt That Was Left Open
 
-**Status: Proposed. Not accepted.** This note decides what to do about G11 in [STATUS.md](STATUS.md): an attempt that stays open for a task that is `completed` or `failed`, which nothing can close from the CLI. It follows [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md), which found the problem and did not build a repair command. The evidence was observed on Linux with the real CLI, with the failing write simulated. Nothing in it was run on Windows. Nothing is built.
+**Status: Accepted as recommended, and built.** This note decides what to do about G11 in [STATUS.md](STATUS.md): an attempt that stays open for a task that is `completed` or `failed`, which nothing can close from the CLI. It follows [EXECUTION_RECORDS_DESIGN.md](EXECUTION_RECORDS_DESIGN.md), which found the problem and did not build a repair command. The evidence was observed on Linux with the real CLI, with the failing write simulated. Nothing in the evidence was run on Windows. What was built, and what was run on Windows afterwards, is in the record at the end of this note.
 
 ## Problem
 
@@ -21,7 +21,7 @@ All of this was run on Linux, with the real CLI and a temporary data directory. 
 2. **The hand edit.** The edit that STATUS describes, a time in `ended_at` and `abandoned` in `ended_as`, made `aic validate` pass, and `aic goal archive` then succeeded. The record says `abandoned` for a task that completed.
 3. **The coordinator path.** `aic task run --target noop` was run with the same failing close. It printed the error. The task was `completed`, and the goal was `in_progress` in `goals.json`. `aic validate` reported two problems: `Goal <id> status mismatch: persisted=in_progress, derived=completed` and the open record. `aic goal status <goal>` then set the goal to `completed`, and `aic validate` reported only the open record.
 
-Not observed: a real unwritable file, on any platform, and a real crash between the two steps. Nothing in this note was run on Windows.
+When this note was written, these were not observed: a real unwritable file, on any platform, and a real crash between the two steps, and nothing in this note had been run on Windows. A real unwritable file was observed on Windows later, as the record at the end of this note says.
 
 ## Facts about the code
 
@@ -146,7 +146,7 @@ Take 1A, 2A, 3A, 4A, 5A, 6A and 7A, in this order of work.
 - **A wrong outcome from a hand-edited state.** If a person set the status of a task by hand to something that its attempt does not match, the command would write that status. The command cannot know, and the reason says that the record was closed afterwards.
 - **The time.** An attempt that was open for a long time gets a long duration. That is true of the record.
 - **A message that tests pin.** The hint of Decision 7 changes the text of two messages, so the tests of those messages are pinned first and changed in their own commit.
-- **Windows.** Nothing in the command is specific to a platform, but the failing write was only simulated, on Linux. A real unwritable file on Windows was not tried.
+- **Windows.** Nothing in the command is specific to a platform, but the failing write was only simulated, on Linux. A real unwritable file on Windows was not tried then, and it was tried later, as the record at the end of this note says.
 
 ## Open questions for the maintainer
 
@@ -163,8 +163,53 @@ Each has a recommendation, and the reply "continue with best" accepts them all.
 
 ## Recommended order
 
-1. Make the recorder reconcile the goal before it closes the attempt, with its test.
-2. Add the function that closes the left-open attempt, with its tests.
-3. Add the command and its classification in one commit, with its tests.
-4. Pin the messages of `aic task history` and `aic goal archive`, then add the hints.
-5. Write the documentation, with the Windows record after the maintainer runs it, and change G11 in STATUS.
+1. Make the recorder reconcile the goal before it closes the attempt, with its test. Built.
+2. Add the function that closes the left-open attempt, with its tests. Built.
+3. Add the command and its classification in one commit, with its tests. Built.
+4. Pin the messages of `aic task history` and `aic goal archive`, then add the hints. Built.
+5. Write the documentation, with the Windows record after the maintainer runs it, and change G11 in STATUS. Done, with the record below.
+
+## Record of the build
+
+The reply "continue best" accepted the recommendation of every decision and the recommended answer to each of the eight open questions, and the reply that built the first step said that this was the assumption. Nothing in the decisions changed in the build. Two things in the plan did: an old test that pinned the lines of an open attempt as the last two lines of `aic task history` was reworked in its own commit before the hint code, written so that it passes before and after, and a `source=` argument that `close_attempt` ignores when an attempt is open was taken out of the new function, because a mutation test showed that nothing used it.
+
+It was built in the order of the note, in two blocks that the maintainer ran on Windows:
+
+| Step | Commit | What it is |
+| --- | --- | --- |
+| 1 | `8cfb9c2` | `ExecutionOutcomeRecorder.record` reconciles the goal before it closes the attempt |
+| 1 | `7f90ea7` | Tests of that order |
+| 2 | `6077734` | `execution/left_open.py`: `close_left_open_attempt` returns `ClosedLeftOpen` or raises `LeftOpenRefused` |
+| 2 | `832961b` | Tests of the function |
+| 3 | `42d9bf5` | `aic task close-attempt <task-id> --reason "<text>"`, classified as a command that takes the state lock in the same commit |
+| 3 | `bdd6ae0` | Tests of the command |
+| 4 | `a58bdc1` | The old pin of the lines of `aic task history` reworked |
+| 4 | `32cf70e` | The hint in `aic task history` |
+| 4 | `762bd58` | Tests of the hint |
+| 4 | `f4bcaec` | The list of the tasks in the refusal of `aic goal archive` |
+| 4 | `846ce25` | Tests of the list |
+
+The command adds no field and no value to a state file, so there is no schema change. It finds the owner of the run in the way that `aic task requeue` does, and it removes the lock file of a gone owner after the close. `GoalArchiveError` now carries the tasks that have an open attempt, and the archiver refuses early for them with the same first line as before.
+
+**What it does, run again for this record on Linux with the real CLI and the failing close simulated as in Evidence 1.** After `aic task complete --reason done` ended with `Error: executions.json cannot be written: simulated`, `aic validate` failed with the open record, and `aic task history` ended with the line `Close it with: aic task close-attempt <task id> --reason "<text>"`. `aic goal archive` refused with `Tasks with an attempt that was left open: 1`, the task id and the line `Close each with: aic task close-attempt <task-id> --reason "<text>"`, and then `Nothing was changed.` The command printed `Attempt closed: <attempt id>`, the task, `Outcome: completed` and `Reason: closed afterwards: <the reason>`, and exited 0. Run again, it printed `Error: task <id> has no open attempt.` and exited 1. After the close `aic validate` printed `Validation passed.`, `aic task history` showed the outcome `completed` with the reason `closed afterwards: <the reason>`, and `aic goal archive` succeeded.
+
+**How it was checked on Linux.** These figures were recorded when the steps were built, and they were not run again for this record.
+- Step 1: three tests of the recorder fail on the old order and pass on the new one. The order tests of the finish commands and of the recorder, which INV-16 describes, still pass.
+- The first block (the recorder, the function and the command): 19 mutations were all caught, and 13 of 13 tests of the command fail when the command is missing. A mutation that survived at first was a `source=` argument that `close_attempt` ignores when an attempt is open. It was a dead argument and was removed.
+- The second block (the hints): 14 mutations were all caught, and three of the tests of `aic task history` and six of the tests of the archive fail on the old code.
+- A comparison of the old and the new code on the same commands, with ids, times and paths masked, gave identical output and exit status for 10 commands in the first block and for 9 commands in the second.
+- The real CLI was run with the failing close simulated, as in Evidence 1 and 3.
+
+**On Windows.** The maintainer ran the full suite under Git Bash before each commit. The first block gave 1312, 1315, 1315, 1337, 1337 and 1350 passed, and the second gave 1350, 1350, 1356, 1356 and 1366 passed, each with 2 skipped. The last run was on the tree that became the commit `846ce25`. The suite has 1368 tests, and the two that are skipped on Windows are the ones that can run only on a POSIX system.
+
+The maintainer then ran a script on Windows under Git Bash, with Python 3.14.3, in a temporary data directory, that made `executions.json` read-only for real. Nothing was patched, and nothing tracked was changed. It had 17 checks with an expected answer, which all came out as expected, and 3 observations:
+- `aic task complete` on a started task exited with status 1, after about half a second. The task was then `completed`, its attempt was still open, and `aic validate` failed.
+- `aic task history` showed the hint, and `aic goal archive` listed the task and changed nothing.
+- `aic task close-attempt` while the file was still read-only exited with status 1 and left the attempt open.
+- After the file was writable again, the command exited 0 with the outcome `completed`, `aic validate` passed, and `aic goal archive` succeeded.
+
+**A new finding, G25.** The commands that were refused because the file was read-only ended with a Python traceback and not with an `Error:` line. The last line was `PermissionError: [WinError 5] Access is denied`, and it named the temporary file and `executions.json`. The cause is in the code and not in this command: `write_text_atomic` raises the error again after it removes its temporary file, and `main` catches only `StateFileError` and `StateLockError`. It is recorded as G25 in [STATUS.md](STATUS.md) and is not fixed here. It could not be reproduced on Linux without patching, because `os.replace` onto a read-only file succeeds there.
+
+**What this changes in the note.** The sentence in Evidence that a real unwritable file was not observed on any platform was true when the note was written, and a real one was observed later on Windows, as above. The risk that is named under Windows is answered in the same way: the failing write was only simulated on Linux, and then it was real on Windows.
+
+**Not known.** A real crash between the two writes, as opposed to a failed write, was not made on any platform. A network file system and Python 3.11 were not tried. What the command does with a state that was edited by hand in ways other than the ones in the tests was not tried either.
