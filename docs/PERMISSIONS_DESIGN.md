@@ -4,7 +4,7 @@
 
 ## Problem
 
-The only registered target is `noop`, which does nothing. The next adapter will do something, and a ready task can then start it. Today nothing says which tasks may use which target.
+When this note was written, the only registered target was `noop`, which does nothing. The next adapter would do something, and a ready task could then start it. Nothing said which tasks may use which target.
 
 This was checked on the current code (Linux sandbox). Two projects were registered, each with a goal and a ready task. `aic task run --target noop` completed both. Admission, `ExecutionAdmission.evaluate`, looks at whether the task is ready and at nothing else. It never looks at the target or the project. With an adapter that does real work, any ready task in any project could run it.
 
