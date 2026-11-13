@@ -248,6 +248,27 @@ After steps 3 to 5 the maintainer ran a script on Windows under Git Bash, with P
 - After the kill, the `aic` process had ended with a status that is not zero. `aic task running` showed `Owner: gone` at 0.3 seconds after the kill, the task was still `running`, and one lock file was left.
 - `aic task requeue` then succeeded with exit status 0 and the note that the child may still be running. The task was `ready`, and no lock file was left.
 
-The script did not look at the child of the adapter, so what a hard kill does to the child of the real `inspect` adapter on Windows was not observed. The 0.3 seconds is the time at which a poll saw `gone`, and a poll starts a new `aic` process, so the lock may have been released sooner. The case was run once, on one machine.
+The script did not look at the child of the adapter, so what a hard kill does to the child of the real `inspect` adapter on Windows was not observed then. It was observed later, as the last section of this note records. The 0.3 seconds is the time at which a poll saw `gone`, and a poll starts a new `aic` process, so the lock may have been released sooner. The case was run once, on one machine.
 
 The second case of the script is the one of [GOAL_ARCHIVE_LATE_TASK_DESIGN.md](GOAL_ARCHIVE_LATE_TASK_DESIGN.md), and its record is in that note.
+
+## The child of the adapter after a hard kill, on Windows
+
+The script of the section above did not look at the child of the adapter. A second script looked at it later. The maintainer ran it on Windows under Git Bash, with Python 3.14.3, and it changed nothing that is tracked. It made five trials, each in its own temporary data directory. In each trial it ran `aic task run --target inspect` on the folder of the Python standard library, which is only read. It waited for the first process below the `aic` process, killed the `aic` process with `Popen.kill`, which is a hard kill on Windows, and then watched that process for 30 seconds. It listed the processes with the toolhelp functions of the system and stopped only processes that it had seen below its own `aic` process. It made 33 checks with an expected answer, which all came out as expected. The rest are observations.
+
+| Trial | First child seen after the start | The child after the kill |
+| --- | --- | --- |
+| 1 | 77.86 s | ended 1.11 s after the kill |
+| 2 | 36.18 s | still alive 30 s after the kill |
+| 3 | 37.74 s | ended 0.91 s after the kill |
+| 4 | 34.10 s | ended 1.04 s after the kill |
+| 5 | 46.29 s | still alive 30 s after the kill |
+
+- The child was a `python.exe` process in every trial. In trials 2 and 5 the script stopped it after 30 seconds, so how long it would have lived is not known.
+- The killed `aic` process had exit status 1 in every trial. One second after each kill, `aic task running` showed `Owner: gone` with the note that the child may still be running. In two of the five trials the child was still running 30 seconds after the kill, so that note was true.
+- Each kill left one empty folder with the name `aic-run-` and a random suffix in the temporary folder of the system, because the kill skips the cleanup of the working folder of the adapter. There were 5 in all. The script removed those and no others, and no process of the script was left running at the end.
+- The first child appeared 34 to 78 seconds after the run started. By the code, the snapshot of the project is taken before the child starts and has no time limit, and the timeout of 60 seconds covers only the child. The script did not time the snapshot itself.
+
+The same script, run in a Linux sandbox with Python 3.12.3, saw the child end 0.06 seconds after the kill in 5 of 5 trials.
+
+**Not known.** Why the children differ: three ended about one second after the kill and two did not. Whether the two that lived were still doing their work when they were stopped. What happens to a child that never writes to its pipes, which `inspect` does not do. A run of `pysyntax` and Python 3.11 were not tried. The run lock, the `Owner:` line and the refusal of `aic task requeue` were not changed by this record.
