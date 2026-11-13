@@ -123,6 +123,18 @@ def _replace_with_retry(source: Path, target: Path) -> None:
             time.sleep(REPLACE_RETRY_DELAY)
 
 
+def _remove_temp_file(path: Path) -> None:
+    """Remove a temporary file, and say nothing if that fails.
+
+    The error that made the write fail is the one to report. A
+    temporary file that is left behind is never read as state.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def write_text_atomic(
     path: Path,
     text: str,
@@ -134,6 +146,11 @@ def write_text_atomic(
     to disk, and then moved over the target with os.replace. If anything
     fails, the original file is left untouched and the temporary file is
     removed. The parent directory must already exist.
+
+    An OSError from the write, such as a read-only file or a full disk,
+    is raised as a StateFileError that names the file and the reason,
+    so that the command line prints an error and not a traceback. Any
+    other error, and an interrupt, is raised as it is.
 
     This protects against a crash or error during a write. It is not a
     lock. Concurrent aic processes are kept apart by the state lock
@@ -148,6 +165,12 @@ def write_text_atomic(
             os.fsync(handle.fileno())
 
         _replace_with_retry(temp_path, path)
+    except OSError as exc:
+        _remove_temp_file(temp_path)
+        raise StateFileError(
+            f"{path} cannot be written: "
+            f"{exc.strerror or str(exc) or type(exc).__name__}"
+        ) from exc
     except BaseException:
-        temp_path.unlink(missing_ok=True)
+        _remove_temp_file(temp_path)
         raise
