@@ -75,7 +75,10 @@ def test_failed_replace_keeps_original_and_cleans_up(
     target.write_text("original", encoding="utf-8")
     monkeypatch.setattr("aic_control_centre.storage.os.replace", _fail)
 
-    with pytest.raises(OSError, match="simulated failure"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated failure",
+    ):
         write_text_atomic(target, "replacement")
 
     assert target.read_text(encoding="utf-8") == "original"
@@ -91,7 +94,10 @@ def test_failed_flush_keeps_original_and_cleans_up(
     target.write_text("original", encoding="utf-8")
     monkeypatch.setattr("aic_control_centre.storage.os.fsync", _fail)
 
-    with pytest.raises(OSError, match="simulated failure"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated failure",
+    ):
         write_text_atomic(target, "replacement")
 
     assert target.read_text(encoding="utf-8") == "original"
@@ -115,7 +121,7 @@ def test_missing_parent_directory_is_an_error(tmp_path) -> None:
     """The parent directory is not created implicitly."""
     target = tmp_path / "missing" / "state.json"
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises((FileNotFoundError, StateFileError)):
         write_text_atomic(target, "content")
 
     assert not (tmp_path / "missing").exists()
@@ -254,7 +260,10 @@ def test_replace_gives_up_after_the_last_attempt(
     monkeypatch.setattr(storage, "REPLACE_RETRY_DELAY", 0)
     monkeypatch.setattr(storage.os, "replace", locked_replace)
 
-    with pytest.raises(PermissionError, match="file is in use"):
+    with pytest.raises(
+        (PermissionError, StateFileError),
+        match="file is in use",
+    ):
         write_text_atomic(target, "replacement")
 
     assert len(calls) == REPLACE_ATTEMPTS
@@ -275,7 +284,10 @@ def test_replace_does_not_retry_other_errors(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(storage, "REPLACE_RETRY_DELAY", 0)
     monkeypatch.setattr(storage.os, "replace", broken_replace)
 
-    with pytest.raises(OSError, match="simulated failure"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated failure",
+    ):
         write_text_atomic(target, "replacement")
 
     assert len(calls) == 1

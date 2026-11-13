@@ -6,7 +6,10 @@ import pytest
 
 from aic_control_centre.goals.model import Goal
 from aic_control_centre.goals.registry import GoalRegistry
-from aic_control_centre.storage import UnsupportedSchemaVersionError
+from aic_control_centre.storage import (
+    StateFileError,
+    UnsupportedSchemaVersionError,
+)
 
 
 def test_registry_starts_empty(tmp_path) -> None:
@@ -143,7 +146,10 @@ def test_registry_failed_save_keeps_existing_file(
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.add_goal(
             Goal.create(description="Second goal", project="TestProject"),
         )

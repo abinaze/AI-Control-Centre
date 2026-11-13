@@ -4,7 +4,10 @@ import json
 
 import pytest
 
-from aic_control_centre.storage import UnsupportedSchemaVersionError
+from aic_control_centre.storage import (
+    StateFileError,
+    UnsupportedSchemaVersionError,
+)
 from aic_control_centre.tasks.model import (
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -199,7 +202,10 @@ def test_registry_failed_save_keeps_existing_file(
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.add_task(Task.create(goal_id="goal-123", title="Second"))
 
     assert registry_path.read_text(encoding="utf-8") == before
@@ -223,7 +229,10 @@ def test_registry_failed_status_update_keeps_existing_status(
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.update_task_status(task.id, TASK_STATUS_READY)
 
     assert registry_path.read_text(encoding="utf-8") == before

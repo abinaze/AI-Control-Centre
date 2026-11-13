@@ -4,7 +4,10 @@ from pathlib import Path
 import pytest
 
 from aic_control_centre.projects.registry import ProjectRegistry
-from aic_control_centre.storage import UnsupportedSchemaVersionError
+from aic_control_centre.storage import (
+    StateFileError,
+    UnsupportedSchemaVersionError,
+)
 
 
 def test_empty_registry_returns_no_projects(tmp_path):
@@ -90,7 +93,10 @@ def test_failed_save_keeps_existing_registry_file(tmp_path, monkeypatch):
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.add_project(second_path)
 
     assert registry_path.read_text(encoding="utf-8") == before

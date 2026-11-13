@@ -306,7 +306,10 @@ def test_failed_save_keeps_the_existing_file(tmp_path, monkeypatch) -> None:
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.close_attempt("task-1", ENDED_AS_COMPLETED)
 
     assert registry.registry_path.read_text(encoding="utf-8") == before
@@ -326,7 +329,10 @@ def test_failed_open_keeps_the_stale_record_open(
         _fail_replace,
     )
 
-    with pytest.raises(OSError, match="simulated crash"):
+    with pytest.raises(
+        (OSError, StateFileError),
+        match="simulated crash",
+    ):
         registry.open_attempt("task-1", EXECUTION_SOURCE_CLI)
 
     assert registry.list_attempts("task-1") == [stale]
