@@ -91,7 +91,7 @@ aic permission revoke <project> --target <name>                    Withdraw that
 aic permission list [--all]                 List the permissions (--all includes revoked ones)
 ```
 
-Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its only target, `noop`, marks a task completed without doing any work, so it proves the path and nothing else. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its target `noop` marks a task completed without doing any work, so it proves the path and nothing else. The other two targets, `inspect` and `pysyntax`, only read the project directory and need a grant. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
 
 A minimal walkthrough:
 
