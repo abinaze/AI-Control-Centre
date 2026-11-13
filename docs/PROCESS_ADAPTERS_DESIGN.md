@@ -21,7 +21,7 @@ Moving the adapter into a child process makes a timeout possible, and a second s
 - **Output must be read in chunks.** `communicate()` kept all 20,000,000 bytes of a finite output in memory. A child that printed forever was stopped after 102,400 bytes with a cap of 100,000, by reading 4 KiB at a time.
 - **A JSON request and outcome with non-ASCII text round-tripped through stdin and stdout** as UTF-8 bytes.
 
-The same script was run on Windows (Python 3.14.3). `Popen.kill()` left the child's own child running there as well. `taskkill /F /T` stopped the child and its own child, and so did a job object with kill-on-close. `communicate(timeout=1)` timed out after 1.01 seconds and the child was reaped after the kill. A child that never stopped printing was stopped after 102,400 bytes with a cap of 100,000. The JSON request and outcome with non-ASCII text round-tripped as UTF-8 bytes.
+The same script was run on Windows (Python 3.14.3). `Popen.kill()` left the child's own child running there as well. That was a test child with a child of its own, and not the real `inspect` adapter. What a hard kill of `aic` does to the child of `inspect` was observed later, as [DEAD_RUN_DETECTION_DESIGN.md](DEAD_RUN_DETECTION_DESIGN.md) records. `taskkill /F /T` stopped the child and its own child, and so did a job object with kill-on-close. `communicate(timeout=1)` timed out after 1.01 seconds and the child was reaped after the kill. A child that never stopped printing was stopped after 102,400 bytes with a cap of 100,000. The JSON request and outcome with non-ASCII text round-tripped as UTF-8 bytes.
 
 ## Facts about the current code
 
