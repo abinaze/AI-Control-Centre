@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python, run_lock
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python, run_lock, left_open, history
 ```
 
 ## Core Lifecycle Model
