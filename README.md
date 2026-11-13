@@ -41,7 +41,7 @@ These capabilities are intentionally deferred until the underlying control bound
 
 ### Known gaps
 
-For a task that `aic task run` started, `aic task running` shows from a run lock whether the `aic` process that runs it is alive, gone or unknown, and `aic task requeue` refuses a run whose owner is alive. Nothing detects a dead run that a person started with `aic task start`, whose owner is always unknown, and `gone` does not mean that the work stopped. `aic task running` also shows how long each `running` task has been running. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, and an attempt left open for a finished task by a failed write is closed with `aic task close-attempt` (G11). A state file that cannot be written ends a command with a Python traceback and not an `Error:` line (G25).
+For a task that `aic task run` started, `aic task running` shows from a run lock whether the `aic` process that runs it is alive, gone or unknown, and `aic task requeue` refuses a run whose owner is alive. Nothing detects a dead run that a person started with `aic task start`, whose owner is always unknown, and `gone` does not mean that the work stopped. `aic task running` also shows how long each `running` task has been running. This and the missing transition history are tracked as G5 and G4 in [docs/STATUS.md](docs/STATUS.md). Each attempt is recorded and `aic task history` shows it, and an attempt left open for a finished task by a failed write is closed with `aic task close-attempt` (G11). A state file that cannot be written gives `Error: <file> cannot be written: <reason>` and exit status 1 (G25).
 
 ## Quick Start
 
