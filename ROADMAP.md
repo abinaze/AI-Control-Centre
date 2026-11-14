@@ -128,6 +128,8 @@ The tenth design note is [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETEC
 
 The eleventh design note is [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md). It covers G11, an attempt that stays open for a task that is `completed` or `failed`. It proposed the command `aic task close-attempt`, which closes the attempt with the outcome that the task has and a reason that a person gives, a change of the order in the coordinator's recorder so that the goal is reconciled before the attempt is closed, and hints where a person meets the state. It was reproduced on Linux with the failing write simulated. It is accepted and built, and it was run on Windows with a real read-only `executions.json`, which showed G25: a state file that cannot be written ended a command with a Python traceback and not an `Error:` line. G25 is fixed, and the same run was repeated on Windows.
 
+The twelfth design note is [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md). It reopens the question of a limit on the project snapshot of a read-only run (G16), which [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) had left unlimited. On Windows a snapshot of a folder with 58,279 files and 1,602.0 MiB took 47 seconds, and a run takes two. It proposes a limit on the files and their total size, checked by a survey that reads no file, in admission and before the start, so that a refused run leaves the task `ready` and its goal as it was. It is proposed and not accepted, and nothing of it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
