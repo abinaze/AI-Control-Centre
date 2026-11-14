@@ -187,7 +187,7 @@ The maintainer accepted all seven recommendations below, with the reply continue
 4. Accept read-only by construction with a before and after check (4A), and say plainly that it is not a sandbox? Recommendation: yes. A sandbox (4B) belongs to the first adapter that writes.
 5. Make the first adapter `inspect` (5A), and a Python syntax check the second (5B)? Recommendation: yes.
 6. Compare size and modification time only, or also hash the content? Recommendation: size and time plus a content hash, because the Windows modification times advance in coarse steps (see the Windows observations) and a hash cost 0.6 seconds for 2,175 files on Windows. The cost grows with the bytes read, so the limit on project size in question 7 matters more with hashing.
-7. Refuse a project above some number of files, or leave it unlimited? Recommendation: unlimited at first, with the time that a snapshot takes reported if it is long. Any number now would be a guess.
+7. Refuse a project above some number of files, or leave it unlimited? Recommendation: unlimited at first, with the time that a snapshot takes reported if it is long. Any number now would be a guess. This was reopened later, with measurements on Windows, in [SNAPSHOT_LIMIT_DESIGN.md](SNAPSHOT_LIMIT_DESIGN.md), which is proposed and not accepted. The time was never reported.
 
 ## Recommended order
 
