@@ -20,6 +20,13 @@ class ExecutionRequest:
     and the coordinator gives the adapter the registered path in
     project_path. A request built by hand has no path, and the coordinator
     ignores a path that a caller sets.
+
+    snapshots says whether the target takes snapshots of the project,
+    which a read-only run does. It defaults to False. When it is True
+    and the request needs a project, admission refuses a project with
+    more files, or more bytes in files, than the limits of a snapshot,
+    before anything is started. The coordinator sets it from the
+    adapter it resolves.
     """
 
     task_id: str
@@ -27,6 +34,7 @@ class ExecutionRequest:
     requires_grant: bool = True
     requires_project: bool = False
     project_path: Path | None = None
+    snapshots: bool = False
 
     def __post_init__(self) -> None:
         """Reject requests without required execution identifiers."""

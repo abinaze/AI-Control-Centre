@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from aic_control_centre.execution import snapshot as snapshot_module
 from aic_control_centre.execution.contract import (
     ExecutionRequest,
     ExecutionResult,
@@ -75,6 +76,16 @@ class ExecutionAdmission:
                     ),
                 )
 
+        if request.snapshots and project_path is not None:
+            refusal = self._snapshot_refusal(request.task_id, project_path)
+
+            if refusal:
+                return ExecutionResult(
+                    task_id=request.task_id,
+                    accepted=False,
+                    reason=refusal,
+                )
+
         return ExecutionResult(
             task_id=request.task_id,
             accepted=True,
@@ -138,3 +149,55 @@ class ExecutionAdmission:
             f"the directory of project {name} cannot be read: "
             f"{project.path}; {detail}"
         )
+
+    def _snapshot_refusal(self, task_id: str, path: Path) -> str:
+        """Return why a project is too large to snapshot, or an empty string.
+
+        Only the status of each name is read, and the count stops as soon
+        as a limit is passed, so this costs little. Nothing is opened or
+        written.
+        """
+        max_files = snapshot_module.SNAPSHOT_MAX_FILES
+        max_bytes = snapshot_module.SNAPSHOT_MAX_BYTES
+        name = self._project_of(task_id)
+
+        try:
+            survey = snapshot_module.survey_project(
+                path,
+                max_files,
+                max_bytes,
+            )
+        except OSError as error:
+            return (
+                f"the directory of project {name} cannot be read: "
+                f"{path}; {error.strerror or type(error).__name__}"
+            )
+
+        if not survey.exceeded:
+            return ""
+
+        if survey.exceeded == snapshot_module.LIMIT_FILES:
+            limit = snapshot_module.limit_text(
+                snapshot_module.LIMIT_FILES,
+                max_files,
+            )
+        else:
+            limit = snapshot_module.limit_text(
+                snapshot_module.LIMIT_BYTES,
+                max_bytes,
+            )
+
+        reason = (
+            f"project {name} has more than {limit}, which is too much to "
+            f"check before and after a read-only run; the files were "
+            f"counted until the limit was passed"
+        )
+
+        if survey.folders:
+            shown = ", ".join(
+                f"{snapshot_module.escape_name(folder)} ({count:,})"
+                for folder, count in survey.folders
+            )
+            reason += f"; the folders with the most files so far: {shown}"
+
+        return reason + "; register a directory with fewer files as the project"
