@@ -85,6 +85,17 @@ class Changes:
         return bool(self.added or self.removed or self.changed)
 
 
+class SnapshotLimitError(OSError):
+    """A snapshot was stopped because the project passed a limit.
+
+    It is an OSError, as every reason that a project cannot be snapshotted
+    is, and its strerror says which limit was passed.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(0, message)
+
+
 def is_link(info) -> bool:
     """Return True for a symbolic link, or a Windows link or junction."""
     if stat.S_ISLNK(info.st_mode):
@@ -143,13 +154,23 @@ def classify(path: str, info) -> Entry:
     )
 
 
-def take_snapshot(root: Path | str) -> dict[str, Entry]:
+def take_snapshot(
+    root: Path | str,
+    max_files: int | None = None,
+    max_bytes: int | None = None,
+) -> dict[str, Entry]:
     """Return a snapshot of everything below a directory.
 
     The directory itself must be readable, and an OSError says why it is
     not. Anything below it that cannot be read is recorded as unreadable.
+
+    With max_files or max_bytes, a SnapshotLimitError is raised as soon as
+    the regular files passed one of them, before the file that passed it
+    is opened.
     """
     snapshot: dict[str, Entry] = {}
+    files = 0
+    size = 0
     pending = [("", os.fspath(root))]
 
     while pending:
@@ -173,6 +194,22 @@ def take_snapshot(root: Path | str) -> dict[str, Entry]:
             except OSError:
                 snapshot[name] = Entry(KIND_OTHER, digest=UNREADABLE)
                 continue
+
+            if stat.S_ISREG(info.st_mode) and not is_link(info):
+                files += 1
+                size += info.st_size
+
+                if max_files is not None and files > max_files:
+                    raise SnapshotLimitError(
+                        "the project has more than "
+                        + limit_text(LIMIT_FILES, max_files),
+                    )
+
+                if max_bytes is not None and size > max_bytes:
+                    raise SnapshotLimitError(
+                        "the project has more than "
+                        + limit_text(LIMIT_BYTES, max_bytes),
+                    )
 
             entry = classify(child.path, info)
             snapshot[name] = entry
