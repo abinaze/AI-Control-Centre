@@ -13,13 +13,16 @@ What this does and does not do:
   the reason says that the cause may be another program.
 - It is not a sandbox. A grant and this check are policy for code that
   AIC ships, not a defence against a hostile program run by the same user.
-- The snapshots are not limited in time or in the number of files.
+- The snapshots are limited in the number of files and their size, and
+  not in time. A project over the limits is refused before the run
+  starts, and one that passes them during the run is a failure.
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
 
+from aic_control_centre.execution import snapshot as snapshot_module
 from aic_control_centre.execution.contract import ExecutionRequest
 from aic_control_centre.execution.outcome import (
     EXECUTION_OUTCOME_FAILED,
@@ -28,6 +31,7 @@ from aic_control_centre.execution.outcome import (
 from aic_control_centre.execution.registry import ExecutionAdapter
 from aic_control_centre.execution.snapshot import (
     Changes,
+    SnapshotLimitError,
     compare_snapshots,
     escape_name,
     take_snapshot,
@@ -53,6 +57,15 @@ def describe_changes(changes: Changes) -> str:
     )
 
 
+def _limited_snapshot(root):
+    """Take a snapshot that stops when the project passes a limit."""
+    return take_snapshot(
+        root,
+        max_files=snapshot_module.SNAPSHOT_MAX_FILES,
+        max_bytes=snapshot_module.SNAPSHOT_MAX_BYTES,
+    )
+
+
 def _why(error: OSError) -> str:
     """Return a short, printable reason for a file system error."""
     return escape_name(error.strerror or type(error).__name__, limit=120)
@@ -68,9 +81,9 @@ class ReadOnlyAdapter:
 
     requires_project = True
 
-    def __init__(self, adapter: ExecutionAdapter, take=take_snapshot) -> None:
+    def __init__(self, adapter: ExecutionAdapter, take=None) -> None:
         self.adapter = adapter
-        self._take = take
+        self._take = take if take is not None else _limited_snapshot
 
     @property
     def requires_grant(self) -> bool:
@@ -89,6 +102,12 @@ class ReadOnlyAdapter:
 
         try:
             before = self._take(request.project_path)
+        except SnapshotLimitError as error:
+            return self._failed(
+                request,
+                f"the project is too large to check, so nothing was run: "
+                f"{_why(error)}",
+            )
         except OSError as error:
             return self._failed(
                 request,
@@ -106,6 +125,13 @@ class ReadOnlyAdapter:
 
         try:
             after = self._take(request.project_path)
+        except SnapshotLimitError as error:
+            return self._failed(
+                request,
+                f"the project passed a limit during the run, so the run "
+                f"could not be checked: {_why(error)}",
+                outcome,
+            )
         except OSError as error:
             return self._failed(
                 request,
