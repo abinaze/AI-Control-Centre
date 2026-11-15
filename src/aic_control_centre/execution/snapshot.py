@@ -17,6 +17,10 @@ Rules that matter:
   of a file can advance in coarse steps, so a rewrite made straight after a
   write may leave it unchanged.
 
+A project can be too large to snapshot. survey_project counts the regular
+files below a directory and their size without opening any, and a snapshot
+can stop at a limit. The limits are in docs/SNAPSHOT_LIMIT_DESIGN.md.
+
 Names are relative to the directory, with "/" between the parts.
 """
 
@@ -36,6 +40,18 @@ KIND_OTHER = "other"
 UNREADABLE = "unreadable"
 
 CHUNK_BYTES = 1024 * 1024
+
+# The largest project that a read-only run will snapshot. A snapshot opens
+# and hashes every file, and a run takes two, so a project over these is
+# refused before the run starts. They are guesses, taken from timings on
+# Windows (docs/SNAPSHOT_LIMIT_DESIGN.md), and can be changed with evidence.
+SNAPSHOT_MAX_FILES = 20_000
+SNAPSHOT_MAX_BYTES = 256 * 1024 * 1024
+
+LIMIT_FILES = "files"
+LIMIT_BYTES = "bytes"
+
+MEBIBYTE = 1024 * 1024
 
 # Windows marks symbolic links and junctions with these reparse tags.
 IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003
@@ -165,6 +181,115 @@ def take_snapshot(root: Path | str) -> dict[str, Entry]:
                 pending.append((name + "/", child.path))
 
     return snapshot
+
+
+@dataclass(frozen=True)
+class Survey:
+    """What a survey of a directory found.
+
+    exceeded is empty, or says which limit was passed. In that case the
+    counts are those at the moment that the survey stopped, and folders
+    names the folders just below the root with the most files among those
+    counted, with their counts.
+    """
+
+    files: int
+    size: int
+    exceeded: str = ""
+    folders: tuple[tuple[str, int], ...] = ()
+
+
+def limit_text(kind: str, limit: int) -> str:
+    """Return a limit in words, such as 20,000 files or 256 MiB in files."""
+    if kind == LIMIT_FILES:
+        return f"{limit:,} files"
+
+    if limit >= MEBIBYTE and limit % MEBIBYTE == 0:
+        return f"{limit // MEBIBYTE} MiB in files"
+
+    return f"{limit:,} bytes in files"
+
+
+def survey_project(
+    root: Path | str,
+    max_files: int,
+    max_bytes: int,
+    top: int = 3,
+) -> Survey:
+    """Count the regular files below a directory, and their size.
+
+    Only the status of each name is read, and no file is opened. A link is
+    not followed, and a directory below the root that cannot be read is
+    skipped. The count stops as soon as a limit is passed, so its cost is
+    bounded by the limits. The root itself must be readable, and an
+    OSError says why it is not.
+    """
+    root_path = os.fspath(root)
+    files = 0
+    size = 0
+    per_folder: dict[str, int] = {}
+    pending = [("", root_path)]
+
+    while pending:
+        folder, directory = pending.pop()
+
+        try:
+            with os.scandir(directory) as scan:
+                children = list(scan)
+        except OSError:
+            if directory == root_path:
+                raise
+
+            continue
+
+        for child in children:
+            try:
+                info = child.stat(follow_symlinks=False)
+            except OSError:
+                continue
+
+            if is_link(info):
+                continue
+
+            if stat.S_ISDIR(info.st_mode):
+                pending.append((folder or child.name, child.path))
+                continue
+
+            if not stat.S_ISREG(info.st_mode):
+                continue
+
+            files += 1
+            size += info.st_size
+
+            if folder:
+                per_folder[folder] = per_folder.get(folder, 0) + 1
+
+            exceeded = ""
+
+            if files > max_files:
+                exceeded = LIMIT_FILES
+            elif size > max_bytes:
+                exceeded = LIMIT_BYTES
+
+            if exceeded:
+                return Survey(
+                    files,
+                    size,
+                    exceeded,
+                    _most_files(per_folder, top),
+                )
+
+    return Survey(files, size, "", _most_files(per_folder, top))
+
+
+def _most_files(
+    per_folder: dict[str, int],
+    top: int,
+) -> tuple[tuple[str, int], ...]:
+    """Return the folders with the most files, in a fixed order."""
+    ranked = sorted(per_folder.items(), key=lambda item: (-item[1], item[0]))
+
+    return tuple(ranked[:top])
 
 
 def compare_snapshots(
