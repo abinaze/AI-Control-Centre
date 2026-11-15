@@ -99,7 +99,7 @@ All numbers marked Windows were observed by the maintainer under Git Bash with P
 - The numbers are guesses from two Windows points and one repository, and they can refuse a project that a person expected to run.
 - The survey runs while the state lock is held, for at most the walk of 20,000 files. At the measured cost that is about 0.3 seconds, and on a slow or network file system it could be far longer. Other commands wait 10 seconds for the lock.
 - The folder counts in the reason are partial, because the survey stops at the limit.
-- A project with a virtual environment inside it is refused, and there is no way around that until an exclusion exists. That may be common.
+- A project with a virtual environment inside it was expected to be refused, with no way around that until an exclusion exists, and that was expected to be common. The follow-up at the end of this note surveyed 15 real project directories, and none was refused for that reason.
 - A cold cache makes a project that is within the limits slower than the estimate.
 
 ## Open questions
@@ -157,4 +157,18 @@ The maintainer then ran a script, with Python 3.14.3, that tests the limits thro
 
 **What this says about the estimate.** Recommendation 7 estimated about 25 seconds for the two snapshots of a run at 20,000 files and 256 MiB. A run on 20,000 files of 1 KiB took 20.68 seconds, which is close for the part that depends on the number of files. The run on 256 MiB took 0.82 seconds, far under what the estimate gives for the part that depends on size. That file was one file of zeros that had just been made, with the cache warm. The estimate took its size term from cold reads of many files in `Lib`, so it overstates the cost of reading one cached file, and it says little about 256 MiB spread over many files. A project at both limits together was not run.
 
-**Not known.** A run at the limits with a cold cache, which in evidence 3 was about 2.7 times slower than a warm one. A project of 20,000 files and 256 MiB together. A network file system, Python 3.11 and macOS. What real projects look like, and whether 20,000 files and 256 MiB are the right numbers. A project that holds its own virtual environment is refused, and nothing leaves directories out of the snapshot, as open question 3 left it.
+**Not known.** A run at the limits with a cold cache, which in evidence 3 was about 2.7 times slower than a warm one. A project of 20,000 files and 256 MiB together. A network file system, Python 3.11 and macOS. What real projects look like, and whether 20,000 files and 256 MiB are the right numbers. Nothing leaves directories out of the snapshot, as open question 3 left it, and the follow-up at the end of this note found no project that this would have helped.
+
+## Follow-up: real projects on the maintainer's machine
+
+Open question 3 asked whether some directories should be left out of the snapshot, and recommended not doing it in this change. Before designing it, the maintainer ran a script on Windows under Git Bash, with Python 3.14.3, that surveyed the 15 directories that are directly below the folder that holds the repository, as if each were a project. It read only the status of each name and changed nothing that is tracked. It printed no name of a project, only counts and the names of 13 well-known folders: `.git`, `node_modules`, `.venv`, `venv`, `env`, `__pycache__`, `.tox`, `dist`, `build`, `target`, `.mypy_cache`, `.pytest_cache` and `site-packages`. A file was counted for the outermost of those folders that it is below, or as a file of the project itself. It made one check with an expected answer, and it came out as expected: its verdict on the AIC repository agreed with `survey_project`.
+
+- **How many are refused.** 4 of the 15 are refused by the limits. Two are refused by size alone, one with 4,298 files and 623.3 MiB and one with 10,180 files and 8,967.0 MiB. Two are refused by both limits, with 187,015 and 187,464 files.
+- **Whether leaving out the well-known folders would change that.** It would change none of the 4. With those folders left out, the files that remain are 622.2 MiB, 2,431.2 MiB in 130,189 files, 511.9 MiB, and 1,160.9 MiB in 7,240 files, and each is over a limit.
+- **Where the other 11 are.** The largest of them has 10,253 files and 176.6 MiB. No project lies between 176.6 MiB and 623.3 MiB, and the limit of 256 MiB is in that gap.
+- **The well-known folders are common and are not what refused a project.** `.git` is in 13 of the 15, `__pycache__` in 7, `dist` in 5, `.venv` and `node_modules` in 4 each, `.pytest_cache` and `build` in 3 each, and `site-packages`, `venv` and `target` in 2 each. Four of the 11 accepted projects hold a `.venv` or a `node_modules`.
+- **What it took.** The scan of one project took at most 8.8 seconds, for one with 187,464 files.
+
+**What this says.** The Risks section expected that a project with a virtual environment inside it would be refused, and that this might be common. In this sample it was not: the projects that hold a `.venv` or a `venv` were refused, or accepted, for the size of their own files and not for the environment. Leaving directories out of the snapshot would have changed no verdict here, so this sample gives no reason to design it, and the recommendation of open question 3 stands.
+
+**Not known.** The sample is 15 directories on one machine, and some may not be projects. What the large files of the 4 projects that are refused are, because no name was printed. How long a snapshot of those 4 would take, because none was timed. Whether 256 MiB is the right limit for a project with few files: the cost of reading a large cached file was small in the run on 256 MiB, and this sample has nothing near the limit to test it.
