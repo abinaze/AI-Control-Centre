@@ -135,6 +135,7 @@ class ExecutionCoordinator:
             request,
             requires_grant=getattr(adapter, "requires_grant", True),
             requires_project=getattr(adapter, "requires_project", False),
+            snapshots=getattr(adapter, "snapshots", False),
         )
 
         with self.state_guard():

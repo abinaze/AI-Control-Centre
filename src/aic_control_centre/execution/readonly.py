@@ -80,6 +80,7 @@ class ReadOnlyAdapter:
     """
 
     requires_project = True
+    snapshots = True
 
     def __init__(self, adapter: ExecutionAdapter, take=None) -> None:
         self.adapter = adapter
