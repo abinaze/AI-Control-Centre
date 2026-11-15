@@ -1,8 +1,10 @@
 # Design Note: A Limit for the Project Snapshot
 
-**Status: Proposed. Not accepted.** This note reopens one question that [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md) decided: whether a project above some size may be run by an adapter that is wrapped in a read-only check. That note chose to leave it unlimited at first, because any number then would have been a guess. Measurements on Windows since then show what an unlimited snapshot costs. Nothing in this note is built.
+**Status: Accepted as recommended, and built.** This note reopens one question that [FIRST_ADAPTER_DESIGN.md](FIRST_ADAPTER_DESIGN.md) decided: whether a project above some size may be run by an adapter that is wrapped in a read-only check. That note chose to leave it unlimited at first, because any number then would have been a guess. Measurements on Windows since then show what an unlimited snapshot costs. It is built, and the record at the end of this note says what was built and what was run on Windows.
 
 ## Problem
+
+This section, Evidence and Facts about the code describe the situation when this note was written. What was built is in the record at the end.
 
 `ReadOnlyAdapter` takes a snapshot of the project before a run and another after it. A snapshot opens every file below the project directory and hashes it. Nothing limits how many files there are or how large they are, and the 60 second timeout of the process adapter covers only the child, not the two snapshots. A person who registers a large directory as a project, which includes a Python project that holds its own virtual environment, waits for the snapshots with the task `running` and the run lock held, and nothing says why. Interrupting the command leaves the task `running`.
 
@@ -112,8 +114,47 @@ All numbers marked Windows were observed by the maintainer under Git Bash with P
 
 ## Recommended order
 
-1. Add `survey_project` and its tests.
-2. Add the limits to `take_snapshot`, and `ReadOnlyAdapter` passing them, with their tests.
-3. Add the `snapshots` field and the check in admission, with their tests. Pin the messages of the admission refusals that exist before the new one is added.
-4. Set the field from the adapter in the coordinator, and add the tests of the refusal through the starter, the coordinator and the CLI.
-5. Write the documentation, with the Windows record after the maintainer runs the step, and change G16 in STATUS.
+1. Add `survey_project` and its tests. Built.
+2. Add the limits to `take_snapshot`, and `ReadOnlyAdapter` passing them, with their tests. Built.
+3. Add the `snapshots` field and the check in admission, with their tests. Pin the messages of the admission refusals that exist before the new one is added. Built, without a separate commit for the pins, as the record says.
+4. Set the field from the adapter in the coordinator, and add the tests of the refusal through the starter, the coordinator and the CLI. Built.
+5. Write the documentation, with the Windows record after the maintainer runs the step, and change G16 in STATUS. Done, with the record below.
+
+## Record of the build
+
+The note was accepted as recommended, with every open question taken at its recommendation. The assumption was that a terminal paste with no other message means to go on, and the reply that built the first step said that this was the assumption. It was built in the order of the note, in ten commits that the maintainer ran on Windows.
+
+| Step | Commit | What it is |
+| --- | --- | --- |
+| 1 | `8f0f5fa` | `survey_project`, the two limits as constants, and `limit_text` in `execution/snapshot.py` |
+| 1 | `cb074de` | Tests of the survey |
+| 2 | `2ab0c1c` | `take_snapshot` takes optional limits and raises `SnapshotLimitError`, an `OSError` |
+| 2 | `7490fc0` | Tests of the limits of a snapshot |
+| 2 | `ba83dfa` | `ReadOnlyAdapter` takes its snapshots with the limits, and ends a run as failed when a snapshot passes one |
+| 2 | `c9cc3ad` | Tests of that |
+| 3 | `782d519` | The `snapshots` field of the request, and the survey in admission after the grant check |
+| 4 | `962e9dd` | The coordinator reads `snapshots` from the adapter, and `ReadOnlyAdapter` says that it does |
+| 3 and 4 | `51502ee` | Tests of admission, the start and the coordinator |
+| 4 | `bbb281f` | Tests of `aic task run` through `main()` with real registries |
+
+**What differs from the note.** The note said to pin the messages of the admission refusals that exist before the new one is added. That was not done as a separate commit, because the new check is a branch after the existing ones and changes none of them, and the existing tests of those refusals were left as they were. The refusal in admission reads `project <name> has more than <limit>, which is too much to check before and after a read-only run; the files were counted until the limit was passed; the folders with the most files so far: <name> (<count>), ...; register a directory with fewer files as the project`, with the folders left out when all the files are in the root. A run that is stopped later ends as a failed outcome with `the project is too large to check, so nothing was run: ...` for the first snapshot, and `the project passed a limit during the run, so the run could not be checked: ...` for the second, which keeps the attempt of the outcome. Nothing else differs, and no decision of the note was changed.
+
+**Checked on Linux, for this record.**
+- There are 52 new tests: 14 for the survey, 7 for the limits of a snapshot, 6 for the wrapper, 18 for admission, the start and the coordinator, and 7 for the command line.
+- The new tests fail on the code from before their feature. Of the tests of the wrapper, 3 of 5 fail without the step that bounds it. Of the tests of admission, 14 of the 16 that the file had then fail without the field and the check, and one fails without the coordinator reading the adapter. Of the tests of the command line, 4 of 7 fail without the coordinator step. The tests of the survey and of the limits of a snapshot fail with an `ImportError` only, because the functions did not exist.
+- 35 mutations of the new code were made, and all 35 were caught. Before the mutations were run, reading the list showed that the first set of tests would miss three of them, which were the attempt kept on a failed second snapshot, the escaping of the names of folders and the separator in a count, and a test was added for each.
+- The old code and the new code gave the same output and exit status for 11 commands that are within the limits, including real runs of `inspect` and `pysyntax`.
+- With the real command line and the limit forced to 3, a project of 4 files was refused with `Result: rejected` and exit status 1, the task stayed `ready`, and the data directory had no `executions.json` and no `runs` folder. With the limit at 4 it completed.
+
+**On Windows.** The maintainer ran the full suite under Git Bash before each of the ten commits, which gave 1376, 1390, 1390, 1397, 1397, 1403, 1403, 1403, 1421 and 1428 passed, each with 2 skipped, and the last on the tree that became `bbb281f`. Two of the new tests return early where a link, or a control code in a name, cannot be made, and they check nothing there.
+
+The maintainer then ran a script, with Python 3.14.3, that tests the limits through the real command line in temporary data directories and changes nothing that is tracked. It made 34 checks with an expected answer, and all 34 came out as expected.
+- The folder `Lib` of the installed Python, with 58,279 files and 1,602.0 MiB, was refused in 0.40 seconds. The survey stopped at the size limit after 13,525 files, so the reason said more than 256 MiB in files, and it named `site-packages` (11,399), `test` (1,636) and `__pycache__` (103). The survey alone took 1.07 seconds the first time.
+- The AIC repository, with 3,618 files, was run and completed in 4.84 seconds.
+- A project of exactly 20,000 files of 1 KiB, which took 8.4 seconds to make, was run and completed in 20.68 seconds. With one more file it was refused in 0.28 seconds, and the reason said more than 20,000 files.
+- A project with one file of 256 MiB and one byte was refused in 0.21 seconds. The same file cut to exactly 256 MiB was run and completed in 0.82 seconds.
+- Every refused task was still `ready`, and no `executions.json` and no `runs` folder had been made.
+
+**What this says about the estimate.** Recommendation 7 estimated about 25 seconds for the two snapshots of a run at 20,000 files and 256 MiB. A run on 20,000 files of 1 KiB took 20.68 seconds, which is close for the part that depends on the number of files. The run on 256 MiB took 0.82 seconds, far under what the estimate gives for the part that depends on size. That file was one file of zeros that had just been made, with the cache warm. The estimate took its size term from cold reads of many files in `Lib`, so it overstates the cost of reading one cached file, and it says little about 256 MiB spread over many files. A project at both limits together was not run.
+
+**Not known.** A run at the limits with a cold cache, which in evidence 3 was about 2.7 times slower than a warm one. A project of 20,000 files and 256 MiB together. A network file system, Python 3.11 and macOS. What real projects look like, and whether 20,000 files and 256 MiB are the right numbers. A project that holds its own virtual environment is refused, and nothing leaves directories out of the snapshot, as open question 3 left it.
