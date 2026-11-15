@@ -91,7 +91,7 @@ aic permission revoke <project> --target <name>                    Withdraw that
 aic permission list [--all]                 List the permissions (--all includes revoked ones)
 ```
 
-Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its target `noop` marks a task completed without doing any work, so it proves the path and nothing else. The other two targets, `inspect` and `pysyntax`, only read the project directory and need a grant. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its target `noop` marks a task completed without doing any work, so it proves the path and nothing else. The other two targets, `inspect` and `pysyntax`, only read the project directory and need a grant. A project with more than 20,000 files or more than 256 MiB in files is refused before the run starts. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
 
 A minimal walkthrough:
 
@@ -208,7 +208,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md](docs/GOAL_ARCHIVE_LATE_TASK_DESIGN.md) | Design note on G21, a goal that is archived halfway and then gets a task; accepted, built |
 | [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, built |
 | [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); accepted, built |
-| [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md) | Design note on a limit for the project snapshot of a read-only run (G16); proposed, not accepted |
+| [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md) | Design note on a limit for the project snapshot of a read-only run (G16); accepted, built |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
