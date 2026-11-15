@@ -267,7 +267,7 @@ The script of the section above did not look at the child of the adapter. A seco
 - The child was a `python.exe` process in every trial. In trials 2 and 5 the script stopped it after 30 seconds, so how long it would have lived is not known.
 - The killed `aic` process had exit status 1 in every trial. One second after each kill, `aic task running` showed `Owner: gone` with the note that the child may still be running. In two of the five trials the child was still running 30 seconds after the kill, so that note was true.
 - Each kill left one empty folder with the name `aic-run-` and a random suffix in the temporary folder of the system, because the kill skips the cleanup of the working folder of the adapter. There were 5 in all. The script removed those and no others, and no process of the script was left running at the end.
-- The first child appeared 34 to 78 seconds after the run started. By the code, the snapshot of the project is taken before the child starts and has no time limit, and the timeout of 60 seconds covers only the child. The script did not time the snapshot itself.
+- The first child appeared 34 to 78 seconds after the run started. By the code, the snapshot of the project is taken before the child starts and had no limit when this was observed, and the timeout of 60 seconds covers only the child. The script did not time the snapshot itself. A later script did, and a limit on the files and their size was built after it, as [SNAPSHOT_LIMIT_DESIGN.md](SNAPSHOT_LIMIT_DESIGN.md) records.
 
 The same script, run in a Linux sandbox with Python 3.12.3, saw the child end 0.06 seconds after the kill in 5 of 5 trials.
 
