@@ -258,3 +258,19 @@ After the four stages and their documentation were pushed, the maintainer ran a 
 - Small projects took 0 or 1 seconds. The only large project was the AIC directory.
 
 Not covered: a failure reason that holds a Windows path, which would show doubled backslashes; a project that comes near a limit or near the 60 seconds; a real link to a file, because the account of the maintainer cannot make one; the case of G21; a hard kill of AIC; Python 3.11; and a write of bytecode by the parent process that was provoked on purpose.
+
+## The Python of real projects, on Windows
+
+G23 says that the check judges with the Python that runs AIC, and that a project can be written for another one. Finding the Python of a project was not designed, because it needs a second interpreter to find and to trust. Before designing it, the maintainer ran a script on Windows under Git Bash, with Python 3.14.3 as the Python that runs AIC, to see how often that matters. It changed nothing that is tracked, and it printed no name or path of a project, only counts, versions, the folder names `.venv`, `venv` and `env`, and what a project declares.
+
+It took the 15 directories that are directly below the folder that holds the repository, as if each were a project. For each it compiled the `.py` files with the rules of this check, under the Python that runs AIC. It looked for a virtual environment in the project and one folder below it, and when it found one with an interpreter, it compiled the same files with that interpreter, started with `-I -S -B`, from a small helper that has the same skip rules and limits as `check_directory`. It made one check with an expected answer, which came out as expected: the helper and the library of this check gave the same number of files checked and of files with a problem for every project that both could do.
+
+- **Files.** 11,456 `.py` files were checked. No file failed to compile under the Python that runs AIC, in any of the 15 projects.
+- **Virtual environments.** 3 projects had a virtual environment with an interpreter that started. Their Pythons were 3.14.3 twice and 3.11.9 once. The 3.11.9 one is older than the Python of AIC. No file failed under any of them.
+- **Verdicts.** 330 files were compared between the Python of AIC and the Python of the environment: 54, 148 and 128, the last under 3.11.9. None got a different verdict, in either direction.
+- **What projects declare.** Only 1 of the 15 declares a Python, which is the AIC repository, with `requires-python` of `>=3.11,<3.15`. The other 14 declare nothing in `pyproject.toml` or in `.python-version`.
+- **The limit of 10,000 files.** One project had more than 10,000 `.py` files outside the skipped folders, and the helper stopped at that limit. The others had at most 718. That project is also over the limits of the snapshot ([SNAPSHOT_LIMIT_DESIGN.md](SNAPSHOT_LIMIT_DESIGN.md)), so a run of this check on it is refused before it starts.
+
+**What this says.** On this machine, with AIC on the newest Python that it supports, the difference that G23 describes did not show in any of 330 files, including a project with an older Python. That is a reason not to design the finding of the Python of a project now. It is not a reason to say that G23 is closed.
+
+**Not known.** The case that G23 worries about most is a project that is written for a newer Python than the one that runs AIC, which can only happen when AIC runs on an older Python than 3.14, and AIC supports 3.11 to 3.14. On this machine AIC runs on 3.14.3, so that case could not show. Only 3 of 15 projects had an environment that could be used, one of them older, and none had a newer Python than AIC. A virtual environment more than one folder below a project, and a project whose Python is only declared and not installed, were not looked at. The check is of the grammar only, and a file that compiles can still fail when it is run.
