@@ -95,7 +95,7 @@ Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter
 
 Potential future work:
 
-- Further concrete local execution adapters that only read, after the Python syntax check in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md), which is built
+- Further concrete local execution adapters that only read, after the Python syntax check in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md), which is built, the next being a reader of the state of a git repository, designed in [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md), which is proposed and not accepted
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -129,6 +129,8 @@ The tenth design note is [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETEC
 The eleventh design note is [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md). It covers G11, an attempt that stays open for a task that is `completed` or `failed`. It proposed the command `aic task close-attempt`, which closes the attempt with the outcome that the task has and a reason that a person gives, a change of the order in the coordinator's recorder so that the goal is reconciled before the attempt is closed, and hints where a person meets the state. It was reproduced on Linux with the failing write simulated. It is accepted and built, and it was run on Windows with a real read-only `executions.json`, which showed G25: a state file that cannot be written ended a command with a Python traceback and not an `Error:` line. G25 is fixed, and the same run was repeated on Windows.
 
 The twelfth design note is [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md). It reopens the question of a limit on the project snapshot of a read-only run (G16), which [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) had left unlimited. On Windows a snapshot of a folder with 58,279 files and 1,602.0 MiB took 47 seconds, and a run takes two. It proposed a limit on the files and their total size, checked by a survey that reads no file, in admission and before the start, so that a refused run leaves the task `ready` and its goal as it was. It is accepted and built, and it was run on Windows: the folder of 58,279 files was refused in 0.40 seconds, and a project of exactly 20,000 files was run in 20.68 seconds.
+
+The thirteenth design note is [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md). It covers a third read-only adapter that would report the state of the git repository of a project by reading a few of the files that git keeps, without running git: the branch, the commit, the number of branches, a stash, an operation in progress, a lock and the time of the last change. A script on Windows found that the files give the same commit as git in 13 of 13 repositories. It leaves to the maintainer whether the adapter is worth building. It is proposed and not accepted, and nothing of it is built.
 
 ## Phase 4 — Validation and Recovery
 
