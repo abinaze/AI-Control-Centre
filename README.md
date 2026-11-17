@@ -209,6 +209,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, built |
 | [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); accepted, built |
 | [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md) | Design note on a limit for the project snapshot of a read-only run (G16); accepted, built |
+| [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md) | Design note on a read-only adapter that reports the state of a git repository without running git; proposed, not accepted |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
