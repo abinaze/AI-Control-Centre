@@ -39,7 +39,13 @@ import stat
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from aic_control_centre.execution.snapshot import is_link
+from aic_control_centre.execution.child_request import (
+    RequestRefused,
+    read_project_path,
+    serve,
+)
+from aic_control_centre.execution.snapshot import escape_name, is_link
+from aic_control_centre.projects.directory import directory_problem
 
 HEAD_LIMIT = 4096
 REF_LIMIT = 256
@@ -459,3 +465,119 @@ def read_git_state(root) -> GitState:
         return GitState(
             KIND_UNREADABLE, detail=error.strerror or type(error).__name__
         )
+
+
+def _shown(name: str) -> str:
+    """Return a name that is safe to print and short, however it escapes."""
+    text = escape_name(name, limit=NAME_LIMIT)
+
+    if len(text) > NAME_OUTPUT_LIMIT:
+        return text[: NAME_OUTPUT_LIMIT - 3] + "..."
+
+    return text
+
+
+def _yes(flag: bool) -> str:
+    return "yes" if flag else "no"
+
+
+def _head_part(state: GitState) -> str:
+    short = state.commit[:COMMIT_SHOWN]
+    name = _shown(state.ref)
+
+    if state.head == HEAD_BRANCH:
+        if state.commit:
+            return f"branch {name} at {short}"
+
+        if state.unborn:
+            return f"no commit yet on branch {name}"
+
+        return f"branch {name}; commit not read ({state.commit_note})"
+
+    if state.head == HEAD_DETACHED:
+        return f"detached HEAD at {short}"
+
+    if state.head == HEAD_OTHER:
+        if state.commit:
+            return f"HEAD names {name} at {short}"
+
+        if state.unborn:
+            return f"HEAD names {name} with no commit yet"
+
+        return f"HEAD names {name}; commit not read ({state.commit_note})"
+
+    return f"HEAD not read ({state.commit_note})"
+
+
+def _branches_part(state: GitState) -> str:
+    if state.branches is None:
+        return f"local branches not read ({state.branches_note})"
+
+    if state.branches == 1:
+        return "1 local branch"
+
+    return f"{state.branches} local branches"
+
+
+def _stash_part(state: GitState) -> str:
+    if state.stash is None:
+        return "stash: not read"
+
+    return f"stash: {_yes(state.stash)}"
+
+
+def describe(state: GitState) -> str:
+    """Return the reason that reports a state, on one short line."""
+    if state.kind == KIND_NONE:
+        return "git state: not a git repository"
+
+    if state.kind == KIND_NOT_FOLLOWED:
+        return f"git state not read: {state.detail}, which is not followed"
+
+    if state.kind == KIND_REFTABLE:
+        return "git state not read: the refs are stored as reftable"
+
+    if state.kind == KIND_UNREADABLE:
+        return f"git state not read: {_shown(state.detail)}"
+
+    operations = ", ".join(state.operations) or "none"
+    changed = state.last_change or "unknown"
+    parts = [
+        _head_part(state),
+        _branches_part(state),
+        _stash_part(state),
+        f"operation in progress: {operations}",
+        f"index.lock: {_yes(state.lock)}",
+        f"last HEAD change: {changed}",
+    ]
+
+    return "git state: " + "; ".join(parts)
+
+
+# What follows is the child process. AIC starts it with a ProcessAdapter,
+# writes the request to its standard input, and reads one JSON object from
+# its standard output. See aic_control_centre.execution.process.
+
+
+def run(request_bytes: bytes) -> dict[str, str]:
+    """Return the outcome and reason for a request read from the parent.
+
+    What could not be read is reported in the reason of a completed
+    outcome. It is never a failed outcome, because a failed task fails its
+    goal for good.
+    """
+    try:
+        path = read_project_path(request_bytes, directory_problem)
+    except RequestRefused as refused:
+        return refused.outcome
+
+    return {"outcome": "completed", "reason": describe(read_git_state(path))}
+
+
+def main() -> int:
+    """Read a request from standard input and print the answer as JSON."""
+    return serve(run)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
