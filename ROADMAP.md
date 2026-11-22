@@ -25,7 +25,7 @@ Open items carried from verification (see [docs/STATUS.md](docs/STATUS.md)):
 
 ## Phase 2 — Readiness and Execution Boundaries
 
-Status: Implemented; the coordinator is reached from the CLI by `aic task run`, first with an adapter that does no work and now also with `inspect` and `pysyntax`, which only read
+Status: Implemented; the coordinator is reached from the CLI by `aic task run`, first with an adapter that does no work and now also with `inspect`, `pysyntax` and `gitstate`, which only read
 
 - Task readiness evaluation
 - Explicit readiness reasons
@@ -91,11 +91,11 @@ A persisted record per execution attempt (request, admission result, outcome, ti
 
 ## Phase 3 — Controlled Execution
 
-Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, `inspect` is the first adapter that does real work and `pysyntax`, which checks the syntax of Python files, is the second, both registered with a grant required, further adapters are planned, and CPU and memory limits are not enforced.
+Status: In progress. The coordinator CLI, a `noop` adapter and a process adapter with a timeout and an output cap are built. Permissions are built, with the check in admission, a grant registry and the `aic permission` commands, a target that acts on a project's files is refused when its project or its directory is not usable, a wrapper fails a read-only run that changed the project, `inspect` is the first adapter that does real work and `pysyntax`, which checks the syntax of Python files, is the second and `gitstate`, which reads the state of a git repository, is the third, all registered with a grant required, further adapters are planned, and CPU and memory limits are not enforced.
 
 Potential future work:
 
-- Further concrete local execution adapters that only read, after the Python syntax check in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md), which is built, the next being a reader of the state of a git repository, designed in [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md), which is proposed and not accepted
+- Further concrete local execution adapters that only read, after the Python syntax check in [docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md](docs/PYTHON_SYNTAX_ADAPTER_DESIGN.md), which is built, and the reader of the state of a git repository, designed in [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md), which is built as `gitstate`
 - Limits on what an adapter may touch
 - Execution limits
 - Execution timeouts
@@ -130,7 +130,7 @@ The eleventh design note is [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_AT
 
 The twelfth design note is [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md). It reopens the question of a limit on the project snapshot of a read-only run (G16), which [docs/FIRST_ADAPTER_DESIGN.md](docs/FIRST_ADAPTER_DESIGN.md) had left unlimited. On Windows a snapshot of a folder with 58,279 files and 1,602.0 MiB took 47 seconds, and a run takes two. It proposed a limit on the files and their total size, checked by a survey that reads no file, in admission and before the start, so that a refused run leaves the task `ready` and its goal as it was. It is accepted and built, and it was run on Windows: the folder of 58,279 files was refused in 0.40 seconds, and a project of exactly 20,000 files was run in 20.68 seconds.
 
-The thirteenth design note is [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md). It covers a third read-only adapter that would report the state of the git repository of a project by reading a few of the files that git keeps, without running git: the branch, the commit, the number of branches, a stash, an operation in progress, a lock and the time of the last change. A script on Windows found that the files give the same commit as git in 13 of 13 repositories. It leaves to the maintainer whether the adapter is worth building. It is proposed and not accepted, and nothing of it is built.
+The thirteenth design note is [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md). It covers a third read-only adapter that reports the state of the git repository of a project by reading a few of the files that git keeps, without running git: the branch, the commit, the number of branches, a stash, an operation in progress, a lock and the time of the last change. A script on Windows found that the files give the same commit as git in 13 of 13 repositories. It is accepted and built as `gitstate`. A script on Windows then ran the target on 9 real repositories, and the report agreed with git on the commit, the branch, the number of branches, the stash and the time of the last change.
 
 ## Phase 4 — Validation and Recovery
 
