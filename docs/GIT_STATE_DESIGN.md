@@ -1,6 +1,6 @@
 # Design Note: A Read-Only Git State Adapter
 
-**Status: Proposed. Not accepted.** This note decides whether a third read-only adapter should report the state of the git repository of a project, and how it could do that without running git. It takes [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md) as its model for how a file that is not trusted is opened and limited. The evidence is from one machine, and the first question, whether the adapter is worth building, is left to the maintainer as open question 1. Nothing in this note is built.
+**Status: Accepted as recommended, and built.** This note decides whether a third read-only adapter should report the state of the git repository of a project, and how it could do that without running git. It takes [PYTHON_SYNTAX_ADAPTER_DESIGN.md](PYTHON_SYNTAX_ADAPTER_DESIGN.md) as its model for how a file that is not trusted is opened and limited. The evidence is from one machine. The maintainer never answered open question 1, whether the adapter is worth building, in words. The note was built as recommended and the maintainer ran the block that builds it, and the record at the end of this note says what was built, what differs from this note and what was run on Windows.
 
 ## Problem
 
@@ -102,3 +102,49 @@ The numbers marked Windows were observed by the maintainer under Git Bash with P
 3. Add the child module and its tests.
 4. Register the target and add the tests of the target and of `aic task run`.
 5. Write the documentation, with a Windows step after the maintainer runs the block.
+
+## Record of the build
+
+The note was built as recommended, with every open question taken at its recommendation. Open question 1, whether to build the adapter at all, was never answered in words, and it was taken as answered by the maintainer's going on. The assumption was that a terminal paste with no other message means to go on, and the reply that delivered the block said so. It was built in the order of the note, in nine commits that the maintainer ran on Windows.
+
+| Step | Commit | What it is |
+| --- | --- | --- |
+| 1 | `e85bc48` | `execution/git_state.py` with the reader: the limits, the check of a ref name, `read_git_state` and the `GitState` record |
+| 1 | `81801bb` | Tests of the reader |
+| 2 | `cf2c044` | Tests of the limits and of what is never opened |
+| 3 | `15b6958` | The report, the reading of the request and the child, in the same module |
+| 3 | `d23ba7b` | Tests of the report and the child |
+| 4 | `6bb26bb` | `build_gitstate_adapter` and the registration of the `gitstate` target |
+| 4 | `21395bd` | Tests of the adapter |
+| 4 | `a409d79` | Tests of `aic task run` with the target |
+| 4 | `0166f65` | Tests against repositories that git made |
+
+**What differs from the note.**
+1. The reader, the report and the child are in one module, `execution/git_state.py`. The note put the function there and the child in a child module. `inspect_project.py` and `check_python.py` hold their library and their child together, and this follows them.
+2. A branch name is escaped and cut at 60 characters, and the escaped text is cut at 120 characters, as `inspect` does it. The note said to cut at 120 characters.
+3. A HEAD that is missing, is not a regular file or is over 4 KiB is reported as `git state not read: HEAD is missing`, `HEAD is not a regular file` or `HEAD is too large`. An error of the operating system while reading inside `.git` is reported as `git state not read: <reason>`. Both are completed outcomes. The note said that a directory that cannot be read at all is still a failure, and that stays so for the project directory itself, which the shared reader of the request checks before the child reads anything.
+4. A HEAD that names a ref that is not a branch, and whose commit could not be read, is reported as `HEAD names <ref>; commit not read (<why>)`. The note did not have that wording.
+5. The test of what is never opened is not the one that the note describes. It does not make `open` fail for the configuration, the index and the objects. It records every `open` below `.git` for a repository that holds a configuration with an address that has a password in it, an index, an object, a hook and a stash, and shows that the only files opened are `HEAD`, `logs/HEAD`, `packed-refs` and `refs/heads/main`. A separate test shows that no part of the configuration, of a name or of a message reaches the report. The limit of 10,000 names was tested with the limit set to 3, and not with 10,000 names.
+
+**Checked on Linux, for this record.**
+- There are 83 new tests: 35 for the reader, 13 for the limits and for what is never opened, 17 for the report and the child, 7 for the adapter, 5 for `aic task run` and 6 against repositories that git 2.43.0 made.
+- Each commit was green on its own, with 1430, 1465, 1478, 1478, 1495, 1495, 1502, 1507 and 1513 tests passed, and the tree was the same when the block was run on a clone with line endings converted and on one without.
+- The new tests fail on the code from before their feature, but only with an `ImportError` at collection. The tests of the adapter and of the command line fail without the registration, the tests of the report and the child fail without the report, and the others fail without the module. The 48 tests of the reader and its limits pass with the reader alone. The behavioural failures were seen in the mutations.
+- 58 mutations of the new code were made, and all 58 were caught. They include each limit off by one, each guard of a ref name, the check for a regular file, the order of the parts of the report, the escaping and the cut, the registration, and the grant, the project and the wrapper of the adapter. Before they were run, reading the list showed two gaps: no test had a reflog of one line that ends with a newline, which dropping the partial first line would have broken, and the test of a pipe as a ref did not check the count of branches. A test was changed for each.
+- The old code and the new code gave the same masked output for 113 lines of commands through the real command line, apart from the count of targets and the line for `gitstate` in `aic task targets`.
+- With the real command line and a repository that git 2.43.0 made, with a second branch and a stash, the report gave the commit, the branch, the number of branches and the stash that git gave. A directory with no `.git` gave `git state: not a git repository`, a run without a grant was rejected, and the repository had no change in `git status` afterwards.
+
+**On Windows.** The maintainer ran the full suite under Git Bash before each of the nine commits, which gave 1428, 1463, 1476, 1476, 1493, 1493, 1500, 1505 and 1511 passed, each with 2 skipped, and the last on the tree that became `0166f65`. Four of the new tests return early where a link or a pipe cannot be made, which is the case on that account and on Windows, and they check nothing there. The 6 tests against git return early where git is not installed. The script below found git by the same lookup, so they very likely ran, but a test that returns early passes in the same way, so the suite does not show it.
+
+## Follow-up: real projects on the maintainer's machine
+
+The maintainer ran a script on Windows under Git Bash, with Python 3.14.3, that ran `aic task run --target gitstate` through the real command line, in a temporary data directory, over the 15 directories that are directly below the folder that holds the repository, as if each were a project and with a grant for each. The folder also holds 2 entries that are not directories. The script printed no name of a project, a branch or a remote and no path, used only commands of git that read, and changed nothing that is tracked. It made 73 checks with an expected answer, and all 73 came out as expected.
+
+- **Which were run.** 4 of the 15 were refused by the snapshot limit, as the survey of the limits said they would be, and the other 11 were run. 2 of the 11 have no `.git`, and the report was `git state: not a git repository`. The other 9 are repositories.
+- **What agreed with git.** In each of the 9, the report was the same as the one that the library gives, and the commit was the same as `git rev-parse HEAD`, the branch was the same as `git branch --show-current`, the number of local branches was the number of names that git lists under `refs/heads`, whether there was a stash was the same as whether `refs/stash` exists, and the time of the last change of HEAD was the time of the latest entry of the reflog of HEAD that git gives.
+- **What the 9 looked like.** HEAD was a branch in all 9. None had an operation in progress, an `index.lock` or a stash. The time of the last change was known in all 9. The number of local branches was 1 in the fewest and 104 in the most.
+- **What it took.** A run, including the refusals, took at most 22.8 seconds, and the 15 took 70.2 seconds in all.
+
+**What this says.** The reader agreed with git on the commit, the branch, the number of branches, the stash and the time in every real repository that was run, which adds the last four facts to the earlier finding that the commit agreed in 13 of 13. It also read a repository with 104 local branches, which is far under the limit of 10,000 names. The 4 projects that are refused were not read. The earlier script found that 13 of the 15 have a `.git` and 9 of the 11 that were run are repositories, so the 4 refused probably all have one, but that was not checked.
+
+**Not known.** A real stash: none of the 9 has one, so the stash that the earlier script found is not in one of them now. A real `reftable`, worktree or submodule, a detached HEAD, an operation in progress, an `index.lock`, and a HEAD that is found only in `packed-refs`: none was seen on real data, and the code for them was tried on repositories that git made for the tests. Branch names that are not ASCII, a very long reflog, a network file system, and the version of git of the maintainer, which was not recorded.
