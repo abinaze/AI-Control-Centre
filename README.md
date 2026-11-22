@@ -22,7 +22,7 @@ The current implementation provides:
 - Validation of persisted goal and task state
 - Task readiness evaluation
 - Execution admission, start, and outcome recording, reached through `aic task run`
-- Execution target selection and adapter registration; three adapters are registered: `noop`, which does no work, `inspect`, which reports what is in a project directory, and `pysyntax`, which checks the syntax of its Python files, and the last two change nothing
+- Execution target selection and adapter registration; four adapters are registered: `noop`, which does no work, `inspect`, which reports what is in a project directory, `pysyntax`, which checks the syntax of its Python files, and `gitstate`, which reports the state of its git repository by reading a few files, and the last three change nothing
 - Execution coordination, through `aic task run`
 - Deterministic local JSON persistence with atomic writes, a schema version, and a lock that keeps concurrent `aic` commands apart
 
@@ -35,7 +35,7 @@ The current implementation does **not** provide:
 - LLM execution
 - Autonomous agent loops
 - Unrestricted tool execution
-- Any execution adapter that writes to a project, other than `noop` and the read-only `inspect` and `pysyntax`
+- Any execution adapter that writes to a project, other than `noop` and the read-only `inspect`, `pysyntax` and `gitstate`
 
 These capabilities are intentionally deferred until the underlying control boundaries are stable and well tested.
 
@@ -84,14 +84,14 @@ aic task history <task-id>                  Show the recorded execution attempts
 aic task close-attempt <task-id> --reason "<text>"   Close the open attempt of a completed or failed task
 aic task running [--older-than <duration>]  List the running tasks and how long each has run (30m, 2h, 1d)
 aic task run <task-id> --target <name>      Run a ready task through an execution target
-aic task targets                            List the execution targets and whether each needs a grant (noop, inspect and pysyntax exist)
+aic task targets                            List the execution targets and whether each needs a grant (noop, inspect, pysyntax and gitstate exist)
 
 aic permission grant <project> --target <name> --reason "<text>"   Let a project use a target that needs a grant
 aic permission revoke <project> --target <name>                    Withdraw that permission
 aic permission list [--all]                 List the permissions (--all includes revoked ones)
 ```
 
-Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its target `noop` marks a task completed without doing any work, so it proves the path and nothing else. The other two targets, `inspect` and `pysyntax`, only read the project directory and need a grant. A project with more than 20,000 files or more than 256 MiB in files is refused before the run starts. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
+Every command except the read-only ones (`doctor` and the `list`, `status`, `readiness`, `history`, `targets` and `running` commands) takes an exclusive lock on the data directory for as long as it runs. `aic task run` is the exception: it takes the lock only while it reads or writes state, not while the adapter runs, so other commands, including `aic task requeue`, still work during a run. Its target `noop` marks a task completed without doing any work, so it proves the path and nothing else. The other three targets, `inspect`, `pysyntax` and `gitstate`, only read the project directory and need a grant. A project with more than 20,000 files or more than 256 MiB in files is refused before the run starts. If another `aic` command holds it for more than 10 seconds, the command stops without changing anything and prints `Error: another aic process is using the state files (waited 10s).`
 
 A minimal walkthrough:
 
@@ -209,7 +209,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/DEAD_RUN_DETECTION_DESIGN.md](docs/DEAD_RUN_DETECTION_DESIGN.md) | Design note on telling a dead run from a live one (G5); accepted, built |
 | [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); accepted, built |
 | [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md) | Design note on a limit for the project snapshot of a read-only run (G16); accepted, built |
-| [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md) | Design note on a read-only adapter that reports the state of a git repository without running git; proposed, not accepted |
+| [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md) | Design note on a read-only adapter that reports the state of a git repository without running git; accepted and built as `gitstate` |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
