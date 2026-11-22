@@ -29,6 +29,13 @@ PYSYNTAX_DESCRIPTION = (
     "changes nothing"
 )
 
+GITSTATE_TARGET = "gitstate"
+GITSTATE_MODULE = "aic_control_centre.execution.git_state"
+GITSTATE_DESCRIPTION = (
+    "reports the state of the git repository of the project by reading a "
+    "few of its files; changes nothing"
+)
+
 
 class NoopAdapter:
     """Complete a task at once without doing any work.
@@ -95,6 +102,27 @@ def build_pysyntax_adapter() -> ReadOnlyAdapter:
     )
 
 
+def build_gitstate_adapter() -> ReadOnlyAdapter:
+    """Return the adapter that reports the git state of a project.
+
+    It is built like the inspect adapter. A module that AIC ships runs in
+    a child process, with the Python that runs AIC, so AIC must be
+    installed for it to start. The run is wrapped in a read-only check,
+    and it needs a grant. The child reads a few small files of the .git
+    directory and runs no program, so no git, no hook and no
+    configuration is used. It is started with -B, as the other children
+    are, so that it writes no bytecode.
+    """
+    return ReadOnlyAdapter(
+        ProcessAdapter(
+            [sys.executable, "-B", "-m", GITSTATE_MODULE],
+            description=GITSTATE_DESCRIPTION,
+            requires_grant=True,
+            requires_project=True,
+        ),
+    )
+
+
 def build_adapter_registry() -> ExecutionAdapterRegistry:
     """Return a registry of every adapter the CLI can run.
 
@@ -105,5 +133,6 @@ def build_adapter_registry() -> ExecutionAdapterRegistry:
     registry.register(NOOP_TARGET, NoopAdapter())
     registry.register(INSPECT_TARGET, build_inspect_adapter())
     registry.register(PYSYNTAX_TARGET, build_pysyntax_adapter())
+    registry.register(GITSTATE_TARGET, build_gitstate_adapter())
 
     return registry
