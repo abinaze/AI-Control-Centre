@@ -21,6 +21,12 @@ The contract with the child is small:
 The child gets a short list of environment variables and runs in a new
 empty temporary directory that is removed afterwards. When it must be
 stopped, its whole process tree is stopped, not only the process itself.
+
+On Windows the child also runs in a job object that ends every process in
+it when AIC closes the job, which it does after every run, or when AIC is
+killed. The job also limits the memory that one process may ask for. It is
+a best effort: if the job cannot be made, the run goes on without it. See
+aic_control_centre.execution.job and docs/EXECUTION_LIMITS_DESIGN.md.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ import time
 from collections.abc import Sequence
 
 from aic_control_centre.execution.contract import ExecutionRequest
+from aic_control_centre.execution.job import create_job
 from aic_control_centre.execution.outcome import (
     EXECUTION_OUTCOME_FAILED,
     KNOWN_EXECUTION_OUTCOMES,
@@ -44,6 +51,7 @@ from aic_control_centre.execution.outcome import (
 DEFAULT_TIMEOUT_SECONDS = 60.0
 DEFAULT_STDOUT_LIMIT = 1024 * 1024
 DEFAULT_STDERR_LIMIT = 64 * 1024
+DEFAULT_MEMORY_LIMIT_MIB = 512
 
 KILL_WAIT_SECONDS = 5.0
 READER_JOIN_SECONDS = 2.0
@@ -204,6 +212,39 @@ def _parse_output(stdout: bytes) -> tuple[tuple[str, str] | None, str]:
     return (outcome, reason), ""
 
 
+def _make_job(memory_limit_mib):
+    """Make the job for a child, or give back None if there is none.
+
+    There is none off Windows. A failure to make one is not a failure of
+    the run, which goes on as it did before the job existed.
+    """
+    try:
+        return create_job(memory_limit_mib)
+    except OSError:
+        return None
+
+
+def _put_in_job(job, process):
+    """Put the child in the job. Give back the job, or None if it failed."""
+    if job is None:
+        return None
+
+    try:
+        job.assign(process)
+    except OSError:
+        job.close()
+
+        return None
+
+    return job
+
+
+def _close_job(job) -> None:
+    """Close the job, which ends every process that is still in it."""
+    if job is not None:
+        job.close()
+
+
 class ProcessAdapter:
     """An execution adapter that runs a fixed command in a child process."""
 
@@ -217,6 +258,7 @@ class ProcessAdapter:
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         stdout_limit: int = DEFAULT_STDOUT_LIMIT,
         stderr_limit: int = DEFAULT_STDERR_LIMIT,
+        memory_limit_mib: float | None = DEFAULT_MEMORY_LIMIT_MIB,
     ) -> None:
         arguments = tuple(command)
 
@@ -231,6 +273,9 @@ class ProcessAdapter:
         if stdout_limit <= 0 or stderr_limit <= 0:
             raise ValueError("output limits must be greater than zero")
 
+        if memory_limit_mib is not None and memory_limit_mib <= 0:
+            raise ValueError("memory limit must be greater than zero")
+
         self.command = arguments
         self.description = description
         self.requires_grant = requires_grant
@@ -238,6 +283,7 @@ class ProcessAdapter:
         self.timeout_seconds = timeout_seconds
         self.stdout_limit = stdout_limit
         self.stderr_limit = stderr_limit
+        self.memory_limit_mib = memory_limit_mib
 
     def execute(self, request: ExecutionRequest) -> ExecutionOutcome:
         """Run the command for a request and return what it reported."""
@@ -267,15 +313,24 @@ class ProcessAdapter:
         payload: bytes,
         workdir: str,
     ) -> ExecutionOutcome:
-        process = subprocess.Popen(
-            self.command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=workdir,
-            env=child_environment(),
-            **_group_arguments(),
-        )
+        job = _make_job(self.memory_limit_mib)
+
+        try:
+            process = subprocess.Popen(
+                self.command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=workdir,
+                env=child_environment(),
+                **_group_arguments(),
+            )
+        except BaseException:
+            _close_job(job)
+
+            raise
+
+        job = _put_in_job(job, process)
         stdout = bytearray()
         stderr = bytearray()
         stdout_over = threading.Event()
@@ -303,6 +358,7 @@ class ProcessAdapter:
                 _kill_tree(process)
 
             _stop_group(process)
+            _close_job(job)
 
             # A process that was left behind can hold a pipe open. Closing a
             # pipe that a reader is still blocked on would wait forever, so
