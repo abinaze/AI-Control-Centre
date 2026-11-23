@@ -132,6 +132,8 @@ The twelfth design note is [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_D
 
 The thirteenth design note is [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md). It covers a third read-only adapter that reports the state of the git repository of a project by reading a few of the files that git keeps, without running git: the branch, the commit, the number of branches, a stash, an operation in progress, a lock and the time of the last change. A script on Windows found that the files give the same commit as git in 13 of 13 repositories. It is accepted and built as `gitstate`. A script on Windows then ran the target on 9 real repositories, and the report agreed with git on the commit, the branch, the number of branches, the stash and the time of the last change.
 
+The fourteenth design note is [docs/EXECUTION_LIMITS_DESIGN.md](docs/EXECUTION_LIMITS_DESIGN.md). It covers what is left of G13 for the child of a process adapter on Windows: a job object that stops the child and everything it started when AIC is killed or a run ends, and a limit on the memory of the child. A script on Windows found that a test child in such a job was stopped within a second of a hard kill in 5 of 5 trials, that the real children used at most 58.0 MiB and 3.48 seconds on 11 real projects, and that a limit on CPU time did not work in the one trial. It is proposed and not accepted, and nothing of it is built.
+
 ## Phase 4 — Validation and Recovery
 
 Status: Planned
