@@ -272,3 +272,7 @@ The script of the section above did not look at the child of the adapter. A seco
 The same script, run in a Linux sandbox with Python 3.12.3, saw the child end 0.06 seconds after the kill in 5 of 5 trials.
 
 **Not known.** Why the children differ: three ended about one second after the kill and two did not. Whether the two that lived were still doing their work when they were stopped. What happens to a child that never writes to its pipes, which `inspect` does not do. A run of `pysyntax` and Python 3.11 were not tried. The run lock, the `Owner:` line and the refusal of `aic task requeue` were not changed by this record.
+
+## Follow-up: stopping the child when AIC is killed
+
+The child that outlives a hard kill of AIC, which the two sections above record on Windows, is the subject of [EXECUTION_LIMITS_DESIGN.md](EXECUTION_LIMITS_DESIGN.md). It proposes a job object with kill-on-close for the child of a process adapter, and a limit on its memory. It is proposed and not accepted, and nothing of it is built.
