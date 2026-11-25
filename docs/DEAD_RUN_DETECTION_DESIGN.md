@@ -275,4 +275,4 @@ The same script, run in a Linux sandbox with Python 3.12.3, saw the child end 0.
 
 ## Follow-up: stopping the child when AIC is killed
 
-The child that outlives a hard kill of AIC, which the two sections above record on Windows, is the subject of [EXECUTION_LIMITS_DESIGN.md](EXECUTION_LIMITS_DESIGN.md). It proposes a job object with kill-on-close for the child of a process adapter, and a limit on its memory. It is proposed and not accepted, and nothing of it is built.
+The child that outlives a hard kill of AIC, which the two sections above record on Windows, is the subject of [EXECUTION_LIMITS_DESIGN.md](EXECUTION_LIMITS_DESIGN.md). It was built as a job object with kill-on-close for the child of a process adapter, and a limit on its memory, on Windows only. A hard kill of AIC stopped the child within a second in 15 trials on Windows, 5 with a test child in a job made by a script, 5 with the real adapter and a test child, and 5 with the shipped `pysyntax` through `aic task run`, and the record is in that note. On Linux and macOS the child still outlives a hard kill.
