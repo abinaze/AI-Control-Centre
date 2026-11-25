@@ -151,3 +151,7 @@ Everything in this section was observed on Linux, except what is said about Wind
 ## After this decision
 
 No real process adapter is built until the permissions note exists. If a different option is chosen anywhere above, this note is revised and approved again before any further code.
+
+## Follow-up: a job object and a memory limit
+
+The record of the build above says that a job object, and limits on CPU time and memory, were not built. A job object and a limit on the memory of a process were built later, on Windows only, and the design and the record are in [EXECUTION_LIMITS_DESIGN.md](EXECUTION_LIMITS_DESIGN.md). A limit on CPU time was not built. The text above keeps its wording as of the time of writing.
