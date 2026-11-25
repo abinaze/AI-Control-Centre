@@ -45,7 +45,7 @@ subprocess.Popen(
     stdout=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
 )
-time.sleep(1)
+time.sleep(3)
 print(json.dumps({"outcome": "completed", "reason": "done"}))
 """
 
@@ -221,4 +221,7 @@ def test_a_process_left_behind_by_a_finished_run_is_stopped(tmp_path) -> None:
     outcome = ProcessAdapter(command).execute(REQUEST)
 
     assert outcome.outcome == "completed"
+    # The process left behind wrote to its file, so it did start. Without
+    # this, a process that never started would pass the check below too.
+    assert beat.exists()
     assert _until(lambda: not _beating(beat), 20)
