@@ -210,7 +210,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full description.
 | [docs/LEFT_OPEN_ATTEMPT_DESIGN.md](docs/LEFT_OPEN_ATTEMPT_DESIGN.md) | Design note on closing an attempt that was left open (G11); accepted, built |
 | [docs/SNAPSHOT_LIMIT_DESIGN.md](docs/SNAPSHOT_LIMIT_DESIGN.md) | Design note on a limit for the project snapshot of a read-only run (G16); accepted, built |
 | [docs/GIT_STATE_DESIGN.md](docs/GIT_STATE_DESIGN.md) | Design note on a read-only adapter that reports the state of a git repository without running git; accepted and built as `gitstate` |
-| [docs/EXECUTION_LIMITS_DESIGN.md](docs/EXECUTION_LIMITS_DESIGN.md) | Design note on stopping the child of an adapter when AIC is killed, and on a memory limit for it; proposed, not accepted |
+| [docs/EXECUTION_LIMITS_DESIGN.md](docs/EXECUTION_LIMITS_DESIGN.md) | Design note on stopping the child of an adapter when AIC is killed, and on a memory limit for it; accepted and built for Windows |
 | [ROADMAP.md](ROADMAP.md) | Phased plan |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and engineering rules |
