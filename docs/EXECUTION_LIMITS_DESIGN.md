@@ -1,6 +1,6 @@
 # Design Note: Stopping the Child of an Adapter, and a Memory Limit for It
 
-**Status: Proposed. Not accepted.** This note takes what is left of G13 in [STATUS.md](STATUS.md) for the child of a process adapter on Windows: the child keeps running when AIC is killed hard, processes that a child left behind are not stopped after a normal exit, and nothing limits what the child uses. It is based on measurements on one machine, which are in the Evidence section. It proposes a Windows job object and a memory limit, and it leaves out a limit on CPU time, because the one trial of that did not work. Nothing in this note is built.
+**Status: Accepted as recommended, and built.** This note takes what is left of G13 in [STATUS.md](STATUS.md) for the child of a process adapter on Windows: the child keeps running when AIC is killed hard, processes that a child left behind are not stopped after a normal exit, and nothing limits what the child uses. It was based on measurements on one machine, which are in the Evidence section. It proposed a Windows job object and a memory limit, and it left out a limit on CPU time, because the one trial of that did not work. The job object and the memory limit are built, on Windows only, and the record at the end of this note says what was built, what differs from this note and what was run on Windows.
 
 ## Problem
 
@@ -112,3 +112,45 @@ The numbers marked Windows were observed by the maintainer under Git Bash with P
 2. Wire it into `ProcessAdapter._run`, with the tests of the wiring.
 3. Run the Windows step, and record it.
 4. Write the documentation, and change G13.
+
+## Record of the build
+
+The note was built as recommended, with every open question taken at its recommendation: it was built (question 1), the limit of memory is 512 MiB (2), a failure to make or use the job is not shown (3), only Windows is covered (4), the old `aic-run-` folders are not removed (5), the timeout is unchanged (6) and CPU time is not limited (7). None of the questions was answered in words, and the maintainer's going on was taken as acceptance, as for the earlier notes. It was built in steps 1 and 2 of the recommended order, in five commits that the maintainer ran on Windows, and one commit after them that strengthened a test.
+
+| Step | Commit | What it is |
+| --- | --- | --- |
+| 1 | `90517a1` | `execution/job.py`: the job object, made with `ctypes` on Windows |
+| 1 | `f6d6bd1` | Tests of the job object, with a fake of the system |
+| 2 | `77843f7` | `ProcessAdapter` runs the child in a job, with `memory_limit_mib` |
+| 2 | `b58815a` | Tests of the job in the process adapter, with a recording fake |
+| 2 | `9314386` | Tests against real children, which run on Windows only |
+| | `d405944` | The test of a process left behind after a normal exit checks that the process did start |
+
+**What differs from the note.**
+1. The job is closed before the two threads that read the output are joined, and not after. A process that was left behind can hold a pipe open, and the job stops it, so the readers do not wait for it. The note said to close it in the `finally` block after the child has been stopped or has ended and before the folder is removed, which this does.
+2. The child is put in the job with the handle that `Popen` keeps, `process._handle`, which is not a documented attribute. It is the handle that the script on Windows used when the job was tried.
+3. The module has a `Job` class that is given the functions of the system, and a function `limit_information` that makes the structure that is passed to the system. Both are there so that their tests run on any system with a fake, and the flags and the bytes can be tested without Windows.
+4. `ProcessAdapter` refuses a memory limit that is not greater than zero when it is built, as it does for the other limits.
+5. The test of a process left behind after a normal exit was first written so that it also passed if the process had never started, because a file that does not exist does not move. A later commit made the process live longer in the test and made the test check that the file exists.
+
+**Checked on Linux, for this record.**
+- There are 33 new tests: 15 for the module, 12 for the wiring and 6 against real children, which return early off Windows. Each commit was green on its own, with 1513, 1528, 1528, 1540 and 1546 tests passed, and the tree was the same when the block was run on a clone with line endings converted and on one without.
+- 28 mutations of the new code were made, and all 28 were caught. They include the values of the flags, the conversion to bytes, the order of making, assigning and closing the job, the close in the `finally` block, and the fallbacks. The calls to the system in `create_job` and `Job.assign` cannot run on Linux, so they were not mutated, and the tests on Windows cover them.
+- The old code and the new code gave the same masked output for 132 lines of commands through the real command line, which includes real runs of the three adapters, because no job is made on Linux.
+- The new tests fail on the code from before their feature, but only with an `ImportError` at collection. The behavioural failures were seen in the mutations.
+- The changed test of a process left behind, with its guard for Windows removed, passed on Linux, where the group of the child is stopped, and failed when that stop was switched off, so it tells a process that is stopped from one that is not.
+
+**On Windows.** The maintainer ran the full suite under Git Bash before each of the five commits, which gave 1511, 1526, 1526, 1538 and 1544 passed, each with 2 skipped, and the last on the tree that became `9314386`. The 6 tests against real children return early only on a system that is not Windows, so on that machine they ran, and they passed. They passed after the later commit too: the suite on the commit `d405944` gave 1544 passed and 2 skipped. So the process that the child started after it was in the job was stopped when the job was closed after a normal exit, within the 20 seconds that the test allows.
+
+## Follow-up: the job object through the real adapter
+
+The maintainer ran a script on Windows under Git Bash, with Python 3.14.3, which is not in a virtual environment, that printed no name of a project and no path and changed nothing that is tracked. It made 25 checks with an expected answer, and all 25 came out as expected.
+
+- **A hard kill, with the real adapter.** A process ran a real `ProcessAdapter` with a test child that writes a heartbeat to a file, and the script killed that process with `TerminateProcess`. With the job switched off in the script, the child was still running 4 seconds after the kill in 5 of 5 trials. With the job as shipped, it was not running 1 second after the kill in 5 of 5, and so not 4 seconds after it. The child was running before the kill in all 10.
+- **A hard kill of a real run.** The script made a project of 8,500 Python files in its own folder, which took 3.9 seconds, and ran `aic task run --target pysyntax` on it. The run completed and checked 8,500 files, and the child of that run lived 20.7 seconds after it was first seen. The script then killed `aic task run` hard in 5 trials, each after the child was seen and running, and the child was gone within 0.2 seconds in 5 of 5. The script looks about every 0.3 seconds, so that is the resolution.
+- **The memory limit, through the real adapter.** A child that asked for 300 MiB completed under the default limit of 512 MiB. A child that asked for 700 MiB failed, with a reason that starts with `adapter exited with status`. A child that asked for 700 MiB with no limit completed.
+- **The cost.** The script ran the three real adapters on the 11 projects that the snapshot limit lets through, and all 33 runs were completed outcomes. The medians of the wall time were 0.21 seconds for `inspect`, 0.36 for `pysyntax` and 0.16 for `gitstate`, and the most were 0.31, 3.83 and 0.21. The earlier medians of the children alone were 0.17, 0.39 and 0.14. They are not like for like, because the earlier ones timed the child alone and these time the whole adapter run, which also makes the working folder and starts the two threads that read the output. The medians differ by at most 0.04 seconds, so the job costs no more than that.
+
+**What this says.** On Windows a hard kill of AIC no longer leaves the child running, as the 15 trials of the job (5 with a test child in a job made by a script, 5 with the real adapter and 5 with the shipped `pysyntax`) show against 10 trials without it. The memory limit stops a child that asks for too much through the real adapter, and the real children use at most 58.0 MiB, which is far from 512 MiB.
+
+**Not known.** A Python in a virtual environment, where a launcher starts the real interpreter as a second process and a process that is started before the assignment would not be in the job. A child that starts a process before it is put in the job, which no shipped child does. A hard kill during the snapshots of the read-only wrapper, which are not in the child. The reason that a child survived in 2 of 5 earlier trials with the real `inspect` adapter, which the job makes matter less. The empty `aic-run-` folders that a hard kill leaves, which the job does not change and which were not counted again. A limit on CPU time, which did not work in the one trial. A Windows that does not nest jobs. Linux and macOS.
