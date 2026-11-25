@@ -53,7 +53,7 @@ src/aic_control_centre/
   validation/       goal/task validation and the task-creation rule
   readiness/        task readiness evaluator
   permissions/      grant model, registry and commands
-  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python, git_state, run_lock, left_open, history
+  execution/        contract, admission, start, outcome, records, registry, coordinator, adapters, process, grants, projects, snapshot, readonly, inspect_project, child_request, check_python, git_state, job, run_lock, left_open, history
 ```
 
 ## Core Lifecycle Model
@@ -178,7 +178,9 @@ An adapter that runs inside the CLI process cannot be stopped if it hangs. `Proc
 
 AIC stops the child, and the processes it started, when the run takes longer than its timeout, when standard output or standard error passes its cap, or when the command is interrupted. A timeout or too much output is a failed outcome with a reason, recorded like any other outcome. A non-zero exit, output that is not that object, and an unknown outcome are failed outcomes too. The child inherits only a short list of environment variables and runs in a new empty temporary directory that is removed afterwards.
 
-On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive. If AIC itself is killed, the child keeps running, and the task is left `running` with its attempt open. CPU and memory limits are not enforced. These limits are listed as G13 in [STATUS.md](STATUS.md). `inspect` is registered as a process adapter.
+On Linux the child starts in its own session, and its whole group is stopped. On Windows the tree is stopped with `taskkill /F /T` while the child is alive, and the child also runs in a job object, which is described below. If AIC itself is killed, the child keeps running on Linux and macOS, and on Windows it is stopped. In both cases the task is left `running` with its attempt open. CPU time is not limited, and memory is not limited off Windows. These limits are listed as G13 in [STATUS.md](STATUS.md). `inspect`, `pysyntax` and `gitstate` are registered as process adapters.
+
+On Windows `ProcessAdapter` makes a job object, in `execution/job.py`, before it starts the child, puts the child in it right after `Popen` returns, and closes it in the `finally` block after the child has been stopped or has ended and before the output readers are joined. The job has the kill-on-close flag, so closing it ends every process in it, and so does the end of AIC by any means, because the system closes the handle of a process that ends. It also limits the memory that one process may ask for to 512 MiB, set by the `memory_limit_mib` argument of the adapter, with `None` for no limit. `create_job` gives back `None` on any other system, and a failure to make the job or to put the child in it is not a failure of the run, which goes on without the job. The module uses `ctypes`, and nothing runs when it is imported. A child is put in the job after it has started, so a process that it starts in that short time is not in it, which no child that AIC ships does. The design and the record of what was run on Windows are in [EXECUTION_LIMITS_DESIGN.md](EXECUTION_LIMITS_DESIGN.md).
 
 ### Grants
 
