@@ -207,7 +207,6 @@ def test_failed_goal_blocks_ready_task(tmp_path) -> None:
     assert result.reason == "parent goal is failed"
 
 
-
 def test_invalid_goal_status_blocks_ready_task(tmp_path) -> None:
     """An invalid parent goal status must never become executable."""
     goal_registry = GoalRegistry(tmp_path / "goals.json")
