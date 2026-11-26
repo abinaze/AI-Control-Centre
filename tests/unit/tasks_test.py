@@ -59,6 +59,7 @@ def test_task_ids_are_unique() -> None:
 
     assert first.id != second.id
 
+
 def test_valid_task_status_transitions() -> None:
     """Valid task lifecycle transitions are accepted."""
     valid_transitions = [
