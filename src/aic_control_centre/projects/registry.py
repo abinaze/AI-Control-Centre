@@ -38,6 +38,22 @@ class ProjectNameInUseError(ValueError):
         self.existing_path = existing_path
 
 
+class ProjectNameMissingError(ValueError):
+    """Raised when a directory has no name to register it under.
+
+    The root of a drive has none. Goals and permissions identify a project
+    by its name, so a project without one could be neither used nor
+    removed.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(
+            f"the directory {path} has no name of its own, as the root "
+            "of a drive has none, so it cannot be a project"
+        )
+        self.path = path
+
+
 class ProjectNotRegisteredError(ValueError):
     """Raised when no registered project has the name, or the directory."""
 
@@ -120,7 +136,8 @@ class ProjectRegistry:
 
         A directory that is registered already is returned as it is. A
         different directory with the same name as a registered project is
-        refused, because a name must identify one directory.
+        refused, because a name must identify one directory. A directory
+        that has no name, such as the root of a drive, is refused too.
         """
         resolved_path = path.expanduser().resolve()
 
@@ -133,6 +150,9 @@ class ProjectRegistry:
             raise NotADirectoryError(
                 f"Project path is not a directory: {resolved_path}"
             )
+
+        if not resolved_path.name:
+            raise ProjectNameMissingError(resolved_path)
 
         projects = self._load()
 

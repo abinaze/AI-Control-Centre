@@ -10,6 +10,7 @@ from aic_control_centre.projects.registry import (
     Project,
     ProjectNameAmbiguousError,
     ProjectNameInUseError,
+    ProjectNameMissingError,
     ProjectNotRegisteredError,
     ProjectRegistry,
 )
@@ -36,6 +37,10 @@ def add_project(path: str) -> int:
             "use the name."
         )
         print("Rename one of the directories to register both.")
+        return 1
+    except ProjectNameMissingError as exc:
+        print(f"Error: {exc}")
+        print("Register a directory below it.")
         return 1
 
     print(f"Project registered: {project.name}")
