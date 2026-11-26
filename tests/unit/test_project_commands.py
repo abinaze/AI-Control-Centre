@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from aic_control_centre.projects.commands import add_project, list_projects
 from aic_control_centre.projects.registry import ProjectRegistry
 
