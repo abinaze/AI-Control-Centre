@@ -61,7 +61,7 @@ python -m pytest -q
 aic doctor                                  Check the local environment
 aic validate                                Validate persisted goal and task state
 
-aic project add <path>                      Register a local project (names must be unique)
+aic project add <path>                      Register a local project (names must be unique, a drive root has none)
 aic project list                            List registered projects
 aic project remove <name> [--path <dir>]    Remove a project from the registry; its directory is not touched
 
